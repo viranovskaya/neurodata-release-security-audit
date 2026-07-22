@@ -21,18 +21,32 @@ _NAME_KEYS = {
 }
 _RECORDING_DATE_KEYS = {
     "acquisition_date",
+    "acquisition_date_time",
     "acquisition_datetime",
     "recording_date",
+    "recording_date_time",
     "recording_datetime",
     "measurement_date",
+    "measurement_date_time",
     "measurement_datetime",
     "meas_date",
 }
 _PLACEHOLDERS = {"", "n/a", "na", "none", "null", "unknown", "x"}
+_PERSON_CONTEXT_PARTS = {
+    "participant",
+    "participants",
+    "patient",
+    "patients",
+    "subject",
+    "subjects",
+}
 
 
 def _normalise_key(key: object) -> str:
-    text = re.sub(r"[^a-z0-9]+", "_", str(key).strip().lower())
+    text = str(key).strip()
+    text = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", "_", text)
+    text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", text)
+    text = re.sub(r"[^a-z0-9]+", "_", text.lower())
     return text.strip("_")
 
 
@@ -76,7 +90,9 @@ def _finding_for_field(
             evidence=redacted("phone", text),
             message="Confirm this phone number is intentionally public; otherwise remove it.",
         )
-    if normalised in _NAME_KEYS or (allow_plain_name and normalised == "name"):
+    if normalised in _NAME_KEYS or (
+        allow_plain_name and normalised in {"name", "full_name"}
+    ):
         return Finding(
             code="SUBJECT_NAME_FIELD",
             severity="high",
@@ -97,14 +113,25 @@ def _finding_for_field(
     return None
 
 
-def _json_fields(value: object) -> Iterator[tuple[object, object]]:
+def _json_fields(
+    value: object,
+    parents: tuple[object, ...] = (),
+) -> Iterator[tuple[tuple[object, ...], object, object]]:
     if isinstance(value, dict):
         for key, child in value.items():
-            yield key, child
-            yield from _json_fields(child)
+            path = (*parents, key)
+            yield path, key, child
+            yield from _json_fields(child, path)
     elif isinstance(value, list):
         for child in value:
-            yield from _json_fields(child)
+            yield from _json_fields(child, parents)
+
+
+def _is_person_context(path: tuple[object, ...]) -> bool:
+    for key in path:
+        if set(_normalise_key(key).split("_")) & _PERSON_CONTEXT_PARTS:
+            return True
+    return False
 
 
 def inspect_json(text: str, relative_path: str) -> list[Finding]:
@@ -123,12 +150,14 @@ def inspect_json(text: str, relative_path: str) -> list[Finding]:
         ]
 
     findings: list[Finding] = []
-    for key, value in _json_fields(document):
+    for path, key, value in _json_fields(document):
+        field_path = ".".join(_normalise_key(part) for part in path)
         finding = _finding_for_field(
             key,
             value,
             relative_path,
-            f"JSON field {_normalise_key(key)}",
+            f"JSON field {field_path}",
+            allow_plain_name=_is_person_context(path[:-1]),
         )
         if finding is not None:
             findings.append(finding)

@@ -6,6 +6,8 @@ All identifiers below are synthetic.
 |---|---|---|
 | Clean BIDS text | minimal `dataset_description.json` and README | no high finding |
 | Structured JSON | populated date of birth, phone, participant name and recording date | field-specific findings; values masked |
+| BIDS-style JSON keys | CamelCase date, phone, patient-name and acquisition-time fields | field-specific findings; values masked |
+| Nested JSON participant name | `participant.fullName` plus author and dataset names | participant name reported; author and dataset names ignored |
 | Participants table | populated `date_of_birth`, `name` and `phone` columns | field-specific findings; values masked |
 | Ordinary BIDS name | dataset `Name` in `dataset_description.json` | no participant-name finding |
 | Author full name | `full_name` inside author metadata | no participant-name finding |

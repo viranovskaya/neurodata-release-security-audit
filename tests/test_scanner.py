@@ -236,6 +236,52 @@ class ScannerTests(unittest.TestCase):
         for value in values.values():
             self.assertNotIn(value, rendered)
 
+    def test_camel_case_json_fields_are_detected_and_masked(self) -> None:
+        values = {
+            "DateOfBirth": "1990-01-02",
+            "PhoneNumber": "+34 600 123 456",
+            "PatientName": "Jane Doe",
+            "AcquisitionDateTime": "2026-07-22T10:30:00",
+        }
+        (self.root / "sidecar.json").write_text(
+            json.dumps(values),
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertTrue(
+            {
+                "BIRTH_DATE_FIELD",
+                "DIRECT_PHONE",
+                "SUBJECT_NAME_FIELD",
+                "EXACT_RECORDING_DATE",
+            }
+            <= codes
+        )
+        rendered = render_json(report) + render_markdown(report)
+        for value in values.values():
+            self.assertNotIn(value, rendered)
+
+    def test_nested_participant_name_is_detected_but_author_name_is_not(self) -> None:
+        document = {
+            "participant": {"fullName": "Jane Doe"},
+            "Authors": [{"name": "Researcher Name"}],
+        }
+        (self.root / "sidecar.json").write_text(
+            json.dumps(document),
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        name_findings = [
+            finding
+            for finding in report.findings
+            if finding.code == "SUBJECT_NAME_FIELD"
+        ]
+        self.assertEqual(1, len(name_findings))
+        self.assertEqual("JSON field participant.full_name", name_findings[0].location)
+        rendered = render_json(report) + render_markdown(report)
+        self.assertNotIn("Jane Doe", rendered)
+
     def test_participants_table_fields_are_detected_and_masked(self) -> None:
         values = ("1990-01-02", "Jane Doe", "+34 600 123 456")
         (self.root / "participants.tsv").write_text(
@@ -253,7 +299,8 @@ class ScannerTests(unittest.TestCase):
     def test_dataset_name_is_not_treated_as_participant_name(self) -> None:
         (self.root / "dataset_description.json").write_text(
             '{"Name": "Synthetic EEG", "BIDSVersion": "1.10.1", '
-            '"Authors": [{"full_name": "Researcher Name"}]}\n',
+            '"Authors": [{"name": "Researcher Name", '
+            '"full_name": "Researcher Name"}]}\n',
             encoding="utf-8",
         )
         self.assertNotIn("SUBJECT_NAME_FIELD", self._codes())

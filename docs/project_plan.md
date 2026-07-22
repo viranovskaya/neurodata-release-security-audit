@@ -38,7 +38,7 @@ Build a small, explainable pre-release security check for EEG datasets. The scan
 
 **Gate:** implementation and documentation agree; no public claims exceed the evidence.
 
-**Current checkpoint:** 36 tests pass. Six public EEG BIDS examples were used for initial false-positive review, and four real Sleep-EDF files were checked without copying them into the repository. A clean package installation and the installed command were also checked.
+**Current checkpoint:** 38 tests pass. Six public EEG BIDS examples were used for initial false-positive review, and four real Sleep-EDF files were checked without copying them into the repository. A clean package installation and the installed command were also checked.
 
 ## Phase 5 — External validation
 
