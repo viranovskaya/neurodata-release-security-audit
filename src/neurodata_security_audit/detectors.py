@@ -1,4 +1,4 @@
-"""Deterministic detectors for small text metadata files."""
+"""Scan small text metadata files."""
 
 from __future__ import annotations
 
@@ -45,11 +45,62 @@ def redacted(kind: str, value: str) -> str:
     return f"<redacted:{kind},length={len(value)}>"
 
 
-def scan_text(text: str, relative_path: str) -> list[Finding]:
+class KnownTermMatcher:
+    def __init__(self, terms: tuple[str, ...] = (), label: str = "known-identifier") -> None:
+        self.terms = terms
+        self.label = label
+        ordered = sorted(enumerate(terms), key=lambda item: (-len(item[1]), item[0]))
+        alternatives = "|".join(
+            f"(?P<t{index}>{re.escape(term)})" for index, term in ordered
+        )
+        self.pattern = (
+            re.compile(rf"(?<![^\W_])(?:{alternatives})(?![^\W_])", re.I)
+            if alternatives
+            else None
+        )
+
+    def matches(self, value: str) -> tuple[str, ...]:
+        if self.pattern is None:
+            return ()
+        indexes = {int(match.lastgroup[1:]) for match in self.pattern.finditer(value)}
+        return tuple(self.terms[index] for index in sorted(indexes))
+
+    def redact(self, value: str) -> str:
+        if self.pattern is None:
+            return value
+
+        def replacement(match: re.Match[str]) -> str:
+            index = int(match.lastgroup[1:]) + 1
+            return f"<redacted:{self.label}-{index:03d}>"
+
+        return self.pattern.sub(replacement, value)
+
+
+def find_emails(value: str) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(match.group(0) for match in _EMAIL.finditer(value)))
+
+
+def scan_text(
+    text: str,
+    relative_path: str,
+    known_terms: KnownTermMatcher | None = None,
+) -> list[Finding]:
+    known_terms = known_terms or KnownTermMatcher()
     findings: list[Finding] = []
     suffix = relative_path.lower()
     for line_number, line in enumerate(text.splitlines(), start=1):
         location = f"line {line_number}"
+        for term in known_terms.matches(line):
+            findings.append(
+                Finding(
+                    code="KNOWN_IDENTIFIER",
+                    severity="high",
+                    path=relative_path,
+                    location=location,
+                    evidence=redacted("known-identifier", term),
+                    message="A name or identifier from the private term list was found.",
+                )
+            )
         for match in _EMAIL.finditer(line):
             findings.append(
                 Finding(

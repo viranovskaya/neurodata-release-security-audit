@@ -1,4 +1,4 @@
-"""Pre-release privacy and metadata checks for neurodata."""
+"""Check neurodata for release-time privacy leaks."""
 
 __version__ = "0.1.0.dev0"
 

@@ -1,4 +1,4 @@
-"""Small immutable objects used in audit reports."""
+"""Data stored in an audit report."""
 
 from __future__ import annotations
 

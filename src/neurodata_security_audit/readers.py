@@ -1,11 +1,11 @@
-"""Format-aware metadata readers that never load EEG samples."""
+"""Read format metadata without loading EEG samples."""
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-from .detectors import redacted, scan_text
+from .detectors import KnownTermMatcher, redacted, scan_text
 from .models import Finding
 
 _EDF_HEADER_BYTES = 256
@@ -28,8 +28,13 @@ def decode_small_text(data: bytes) -> str:
         return data.decode("latin-1")
 
 
+def _looks_like_person_name(value: str) -> bool:
+    parts = [part for part in re.split(r"[_-]+", value.strip()) if part]
+    return bool(parts) and all(part.isalpha() for part in parts)
+
+
 def inspect_brainvision(text: str, relative_path: str) -> list[Finding]:
-    """Check that linked files no longer expose pre-release source names."""
+    """Check file references left inside BrainVision metadata."""
 
     expected_stem = Path(relative_path).stem
     findings: list[Finding] = []
@@ -58,7 +63,11 @@ def inspect_brainvision(text: str, relative_path: str) -> list[Finding]:
     return findings
 
 
-def inspect_edf_header(header: bytes, relative_path: str) -> list[Finding]:
+def inspect_edf_header(
+    header: bytes,
+    relative_path: str,
+    known_terms: KnownTermMatcher | None = None,
+) -> list[Finding]:
     if not header:
         return [
             Finding(
@@ -99,6 +108,7 @@ def inspect_edf_header(header: bytes, relative_path: str) -> list[Finding]:
     findings = scan_text(
         f"patient field: {patient}\nrecording field: {recording}\n",
         relative_path,
+        known_terms,
     )
 
     if patient and patient.upper() not in {"X", "X X X X"}:
@@ -129,7 +139,9 @@ def inspect_edf_header(header: bytes, relative_path: str) -> list[Finding]:
     parts = patient.split()
     if len(parts) >= 4 and (parts[2].upper() == "X" or _EDF_BIRTH_DATE.fullmatch(parts[2])):
         patient_name = parts[3]
-        if patient_name.upper() not in {"X", "N/A", "NA", "NONE"}:
+        if patient_name.upper() not in {"X", "N/A", "NA", "NONE"} and _looks_like_person_name(
+            patient_name
+        ):
             findings.append(
                 Finding(
                     code="SUBJECT_NAME_FIELD",

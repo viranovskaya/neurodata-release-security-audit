@@ -1,4 +1,4 @@
-"""Deterministic JSON and Markdown report rendering."""
+"""Build JSON and Markdown reports."""
 
 from __future__ import annotations
 

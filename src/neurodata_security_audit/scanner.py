@@ -1,12 +1,12 @@
-"""Safe dataset traversal and format dispatch."""
+"""Walk a dataset and run the relevant checks."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from . import __version__
-from .detectors import scan_text
+from .detectors import KnownTermMatcher, find_emails, redacted, scan_text
 from .models import Finding, ScanReport, SkippedFile
 from .readers import decode_small_text, inspect_brainvision, inspect_edf_header
 from .structured import inspect_delimited, inspect_json
@@ -24,12 +24,53 @@ _MAPPING_TERMS = ("key", "map", "mapping", "link", "lookup", "names")
 @dataclass(frozen=True)
 class ScanPolicy:
     max_text_bytes: int = 2 * 1024 * 1024
+    sensitive_terms: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        terms: list[str] = []
+        seen: set[str] = set()
+        for value in self.sensitive_terms:
+            term = value.strip()
+            folded = term.casefold()
+            if term and folded not in seen:
+                terms.append(term)
+                seen.add(folded)
+        if len(terms) > 1000:
+            raise ValueError("Sensitive term lists are limited to 1000 entries")
+        if any(len(term) < 3 for term in terms):
+            raise ValueError("Sensitive terms must contain at least three characters")
+        object.__setattr__(self, "sensitive_terms", tuple(terms))
 
 
-def _unexpected_file_findings(relative_path: str) -> list[Finding]:
+def _unexpected_file_findings(
+    relative_path: str,
+    known_terms: KnownTermMatcher,
+) -> list[Finding]:
     path = Path(relative_path)
     lower_name = path.name.lower()
     findings: list[Finding] = []
+    for email in find_emails(relative_path):
+        findings.append(
+            Finding(
+                code="DIRECT_EMAIL",
+                severity="high",
+                path=relative_path,
+                location="filename",
+                evidence=redacted("email", email),
+                message="An email address in a path should be reviewed before release.",
+            )
+        )
+    for term in known_terms.matches(relative_path):
+        findings.append(
+            Finding(
+                code="KNOWN_IDENTIFIER",
+                severity="high",
+                path=relative_path,
+                location="filename",
+                evidence=redacted("known-identifier", term),
+                message="A name or identifier from the private term list was found in a path.",
+            )
+        )
     if path.suffix.lower() in _UNEXPECTED_SUFFIXES:
         findings.append(
             Finding(
@@ -55,6 +96,40 @@ def _unexpected_file_findings(relative_path: str) -> list[Finding]:
             )
         )
     return findings
+
+
+def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> ScanReport:
+    paths = (
+        report.files_inspected
+        + [item.path for item in report.skipped_files]
+        + [item.path for item in report.findings]
+    )
+    path_emails = tuple(
+        sorted(
+            {email for path in paths for email in find_emails(path)},
+            key=str.casefold,
+        )
+    )
+    email_terms = KnownTermMatcher(path_emails, label="email")
+    if not known_terms.terms and not email_terms.terms:
+        return report
+
+    def redact_path(path: str) -> str:
+        return email_terms.redact(known_terms.redact(path))
+
+    return ScanReport(
+        scanner_version=report.scanner_version,
+        schema_version=report.schema_version,
+        files_inspected=[redact_path(path) for path in report.files_inspected],
+        skipped_files=[
+            replace(item, path=redact_path(item.path))
+            for item in report.skipped_files
+        ],
+        findings=[
+            replace(item, path=redact_path(item.path))
+            for item in report.findings
+        ],
+    )
 
 
 def _walk(root: Path):
@@ -92,6 +167,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
         raise NotADirectoryError(f"Dataset path is not a directory: {root}")
     root = root.resolve()
     report = ScanReport(scanner_version=__version__)
+    known_terms = KnownTermMatcher(policy.sensitive_terms)
 
     for kind, path, relative_path in _walk(root):
         if kind in {"directory_error", "entry_error"}:
@@ -139,7 +215,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
             )
             continue
 
-        report.findings.extend(_unexpected_file_findings(relative_path))
+        report.findings.extend(_unexpected_file_findings(relative_path, known_terms))
         suffix = path.suffix.lower()
         try:
             if suffix in _TEXT_SUFFIXES or path.name in _TEXT_NAMES:
@@ -162,7 +238,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 data = path.read_bytes()
                 text = decode_small_text(data)
                 report.files_inspected.append(relative_path)
-                report.findings.extend(scan_text(text, relative_path))
+                report.findings.extend(scan_text(text, relative_path, known_terms))
                 if suffix == ".json":
                     report.findings.extend(inspect_json(text, relative_path))
                 elif suffix == ".tsv":
@@ -175,7 +251,9 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 with path.open("rb") as stream:
                     header = stream.read(256)
                 report.files_inspected.append(relative_path)
-                report.findings.extend(inspect_edf_header(header, relative_path))
+                report.findings.extend(
+                    inspect_edf_header(header, relative_path, known_terms)
+                )
             elif suffix in _SIGNAL_PAYLOAD_SUFFIXES:
                 report.skipped_files.append(
                     SkippedFile(relative_path, "EEG signal payload is outside the MVP scope")
@@ -198,4 +276,4 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     message="The scanner could not inspect this file.",
                 )
             )
-    return report.normalized()
+    return _redact_report_paths(report, known_terms).normalized()

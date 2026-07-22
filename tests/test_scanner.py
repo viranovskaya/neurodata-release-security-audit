@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+from contextlib import redirect_stderr, redirect_stdout
 import hashlib
 import io
 import json
 import os
+import socket
 import tempfile
 import unittest
 from pathlib import Path
-from contextlib import redirect_stdout
 from unittest.mock import patch
 
 from neurodata_security_audit.cli import main
@@ -82,6 +83,94 @@ class ScannerTests(unittest.TestCase):
         for secret in (email, phone, local_path, token):
             self.assertNotIn(secret, rendered)
 
+    def test_home_paths_for_supported_platforms_are_masked(self) -> None:
+        paths = (
+            "/Users/alice/private/participants.csv",
+            "/home/alice/private/participants.csv",
+            r"C:\Users\alice\private\participants.csv",
+        )
+        (self.root / "paths.txt").write_text("\n".join(paths), encoding="utf-8")
+        report = scan_dataset(self.root)
+        local_paths = [finding for finding in report.findings if finding.code == "LOCAL_PATH"]
+        self.assertEqual(3, len(local_paths))
+        rendered = render_json(report) + render_markdown(report)
+        for path in paths:
+            self.assertNotIn(path, rendered)
+
+    def test_private_term_finds_known_name_in_text(self) -> None:
+        known_name = "Jane Doe"
+        (self.root / "notes.txt").write_text(
+            f"Participant: {known_name}\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root, ScanPolicy(sensitive_terms=(known_name,)))
+        self.assertIn("KNOWN_IDENTIFIER", {finding.code for finding in report.findings})
+        self.assertNotIn(known_name, render_json(report) + render_markdown(report))
+
+    def test_private_term_is_masked_in_report_paths(self) -> None:
+        known_id = "Jane_Doe"
+        (self.root / f"{known_id}_notes.txt").write_text("synthetic\n", encoding="utf-8")
+        report = scan_dataset(self.root, ScanPolicy(sensitive_terms=(known_id,)))
+        rendered = render_json(report) + render_markdown(report)
+        self.assertIn("KNOWN_IDENTIFIER", {finding.code for finding in report.findings})
+        self.assertNotIn(known_id, rendered)
+        self.assertIn("<redacted:known-identifier-001>_notes.txt", rendered)
+
+    def test_private_term_does_not_match_inside_another_word(self) -> None:
+        (self.root / "notes.txt").write_text(
+            "The annotations were checked.\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root, ScanPolicy(sensitive_terms=("Ann",)))
+        self.assertNotIn("KNOWN_IDENTIFIER", {finding.code for finding in report.findings})
+
+    def test_masked_identifiers_keep_report_paths_distinct(self) -> None:
+        known_ids = ("SC4001_01", "SC4002_01")
+        for known_id in known_ids:
+            (self.root / f"{known_id}_notes.txt").write_text("synthetic\n", encoding="utf-8")
+        report = scan_dataset(self.root, ScanPolicy(sensitive_terms=known_ids))
+        self.assertEqual(
+            [
+                "<redacted:known-identifier-001>_notes.txt",
+                "<redacted:known-identifier-002>_notes.txt",
+            ],
+            report.files_inspected,
+        )
+
+    def test_email_in_filename_is_detected_and_masked(self) -> None:
+        emails = ("alice.researcher@example.org", "bob.researcher@example.org")
+        for email in emails:
+            (self.root / email).write_text("synthetic\n", encoding="utf-8")
+        report = scan_dataset(self.root)
+        rendered = render_json(report) + render_markdown(report)
+        self.assertIn("DIRECT_EMAIL", {finding.code for finding in report.findings})
+        for email in emails:
+            self.assertNotIn(email, rendered)
+        self.assertEqual(
+            ["<redacted:email-001>", "<redacted:email-002>"],
+            [item.path for item in report.skipped_files],
+        )
+
+    def test_private_terms_are_deduplicated_case_insensitively(self) -> None:
+        policy = ScanPolicy(sensitive_terms=("Jane Doe", "jane doe", "JANE DOE"))
+        self.assertEqual(("Jane Doe",), policy.sensitive_terms)
+
+    def test_private_term_can_match_edf_subject_code(self) -> None:
+        known_id = "SC4001_01"
+        _write_edf(
+            self.root / "coded.edf",
+            f"X X X {known_id}",
+            "Startdate X X X X",
+            "01.01.85",
+        )
+        report = scan_dataset(self.root, ScanPolicy(sensitive_terms=(known_id,)))
+        self.assertIn("KNOWN_IDENTIFIER", {finding.code for finding in report.findings})
+        self.assertNotIn(known_id, render_json(report))
+
+    def test_private_terms_reject_values_that_are_too_short(self) -> None:
+        with self.assertRaises(ValueError):
+            ScanPolicy(sensitive_terms=("ab",))
+
     def test_brainvision_exact_timestamp(self) -> None:
         (self.root / "recording.vmrk").write_text(
             "[Marker Infos]\nMk1=New Segment,,1,1,0,20260722123456789012\n",
@@ -135,10 +224,18 @@ class ScannerTests(unittest.TestCase):
 
     def test_dataset_name_is_not_treated_as_participant_name(self) -> None:
         (self.root / "dataset_description.json").write_text(
-            '{"Name": "Synthetic EEG", "BIDSVersion": "1.10.1"}\n',
+            '{"Name": "Synthetic EEG", "BIDSVersion": "1.10.1", '
+            '"Authors": [{"full_name": "Researcher Name"}]}\n',
             encoding="utf-8",
         )
         self.assertNotIn("SUBJECT_NAME_FIELD", self._codes())
+
+    def test_malformed_json_is_visible_and_scan_continues(self) -> None:
+        (self.root / "broken.json").write_text('{"Name":', encoding="utf-8")
+        (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+        report = scan_dataset(self.root)
+        self.assertIn("MALFORMED_JSON", {finding.code for finding in report.findings})
+        self.assertIn("README", report.files_inspected)
 
     def test_clean_and_leaky_edf_headers(self) -> None:
         _write_edf(self.root / "clean.edf", "X X X X", "Startdate X X X X", "01.01.85")
@@ -161,6 +258,18 @@ class ScannerTests(unittest.TestCase):
         rendered = render_json(report)
         self.assertNotIn("Jane_Doe", rendered)
         self.assertNotIn("01-JAN-1990", rendered)
+
+    def test_alphanumeric_edf_subject_code_is_not_treated_as_name(self) -> None:
+        _write_edf(
+            self.root / "coded.edf",
+            "X X X SC4001_01",
+            "Startdate X X X X",
+            "01.01.85",
+        )
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("SUBJECT_FIELD_POPULATED", codes)
+        self.assertNotIn("SUBJECT_NAME_FIELD", codes)
 
     def test_malformed_edf_does_not_stop_scan(self) -> None:
         (self.root / "broken.edf").write_bytes(b"short")
@@ -225,6 +334,22 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("UNREADABLE_DIRECTORY", {finding.code for finding in report.findings})
         self.assertIn("README", report.files_inspected)
 
+    def test_unreadable_file_does_not_stop_scan(self) -> None:
+        blocked = self.root / "blocked.txt"
+        blocked.write_text("synthetic", encoding="utf-8")
+        (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+        original_read_bytes = Path.read_bytes
+
+        def controlled_read_bytes(path: Path):
+            if path.name == blocked.name:
+                raise PermissionError("synthetic test error")
+            return original_read_bytes(path)
+
+        with patch.object(Path, "read_bytes", controlled_read_bytes):
+            report = scan_dataset(self.root)
+        self.assertIn("UNREADABLE_FILE", {finding.code for finding in report.findings})
+        self.assertIn("README", report.files_inspected)
+
     def test_oversized_text_is_reported_and_skipped(self) -> None:
         (self.root / "large.txt").write_text("a" * 20, encoding="utf-8")
         report = scan_dataset(self.root, ScanPolicy(max_text_bytes=10))
@@ -242,6 +367,15 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(before, after)
         self.assertEqual("1", json.loads(first)["schema_version"])
+
+    def test_scan_does_not_open_network_connections(self) -> None:
+        (self.root / "dataset_description.json").write_text(
+            '{"Name": "Synthetic EEG", "BIDSVersion": "1.10.1"}\n',
+            encoding="utf-8",
+        )
+        with patch.object(socket, "socket", side_effect=AssertionError("network access")):
+            report = scan_dataset(self.root)
+        self.assertEqual(["dataset_description.json"], report.files_inspected)
 
     def test_markdown_report_escapes_filename_markup(self) -> None:
         filename = "notes|<script>.txt"
@@ -267,6 +401,40 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertTrue((output / "audit.json").is_file())
         self.assertTrue((output / "audit.md").is_file())
+
+    def test_cli_handles_report_write_error(self) -> None:
+        (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+        stderr = io.StringIO()
+        with (
+            patch.object(Path, "write_text", side_effect=PermissionError("synthetic")),
+            redirect_stdout(io.StringIO()),
+            redirect_stderr(stderr),
+        ):
+            code = main(["scan", str(self.root), "--json", "audit.json"])
+        self.assertEqual(2, code)
+        self.assertIn("could not write report (PermissionError)", stderr.getvalue())
+
+    def test_cli_reads_private_term_file(self) -> None:
+        known_name = "Jane Doe"
+        (self.root / "notes.txt").write_text(known_name, encoding="utf-8")
+        term_file = Path(self.temp_dir.name) / "private_terms.txt"
+        term_file.write_text(f"# one value per line\n{known_name}\n", encoding="utf-8")
+        report_path = Path(self.temp_dir.name) / "audit.json"
+        with redirect_stdout(io.StringIO()):
+            code = main(
+                [
+                    "scan",
+                    str(self.root),
+                    "--sensitive-terms",
+                    str(term_file),
+                    "--json",
+                    str(report_path),
+                ]
+            )
+        self.assertEqual(1, code)
+        rendered = report_path.read_text(encoding="utf-8")
+        self.assertIn("KNOWN_IDENTIFIER", rendered)
+        self.assertNotIn(known_name, rendered)
 
 
 if __name__ == "__main__":

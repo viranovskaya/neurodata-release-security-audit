@@ -1,4 +1,4 @@
-"""Field-aware checks for JSON and delimited metadata."""
+"""Check named fields in JSON, TSV and CSV files."""
 
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ _NAME_KEYS = {
     "subject_name",
     "patient_name",
     "participant_name",
-    "full_name",
 }
 _RECORDING_DATE_KEYS = {
     "acquisition_date",

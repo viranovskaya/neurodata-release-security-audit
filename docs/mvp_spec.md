@@ -2,7 +2,7 @@
 
 Working title for a local pre-release privacy checker for EEG datasets organised with BIDS.
 
-**Status:** local MVP, 22 July 2026. Implemented and tested locally; not published or independently validated.
+**Status:** private v0.1 candidate, 22 July 2026. Implemented and tested; not publicly released or independently validated.
 
 ## The problem
 
@@ -47,10 +47,10 @@ The EEG signal payload is not loaded or analysed.
 | `SUBJECT_NAME_FIELD` | populated patient-name field in EDF | high |
 | `BIRTH_DATE_FIELD` | full date of birth in a header or table | high |
 | `SUBJECT_KEY_FILE` | participant mapping spreadsheet in the release tree | high |
+| `KNOWN_IDENTIFIER` | value from a private project-specific name or ID list | high |
 | `EXACT_RECORDING_DATE` | unshifted BrainVision or EDF acquisition date | review |
 | `LOCAL_PATH` | `/Users/name/...` or `C:\Users\name\...` | review |
 | `SOURCE_FILENAME` | original participant-labelled recording name | review |
-| `FREE_TEXT_REVIEW` | non-empty comments or descriptions that may need inspection | review |
 | `UNEXPECTED_FILE` | `.xlsx`, `.bak`, temporary export or archive | review |
 | `POTENTIAL_SECRET` | obvious token or credential pattern | high |
 
@@ -65,8 +65,9 @@ Rules should prefer structured fields and clear patterns. Generic person-name de
 - Symlinks that point outside the dataset are reported and not followed.
 - Large binary files are not read beyond the header bytes required for the check.
 - Every skipped or unreadable file is listed in the report.
+- A private term list can be supplied for names and old IDs already known to the researcher. Its values are never copied into the report.
 
-Relative filenames remain visible so the curator can locate a finding. Because filenames can themselves contain identifying text, reports are working review artifacts and must not be assumed safe to publish unchanged.
+Relative filenames remain visible so the curator can locate a finding. Matched emails and values from the private term list are masked in paths, but other identifying text may still be present. Reports are working review artifacts and must not be assumed safe to publish unchanged.
 
 The MVP assumes accidental disclosure by an honest dataset curator. Malicious concurrent changes during a scan, encrypted archives, malware and adversarial parser inputs are outside the current threat model.
 
@@ -112,6 +113,7 @@ The first benchmark uses synthetic data only:
 - an EDF fixture with synthetic patient and recording fields;
 - unexpected spreadsheet, backup, log and symlink cases;
 - realistic clean strings that should not be flagged.
+- boundary-aware matching against a private synthetic name and identifier list.
 
 Acceptance criteria for v0.1:
 
@@ -151,4 +153,4 @@ Current working title: **NeuroData Release Security Audit**.
 
 Possible repository name: `neurodata-release-security-audit`.
 
-No exact GitHub repository or PyPI project with this name was found on 22 July 2026. The name remains provisional until implementation and packaging begin.
+A private GitHub repository now uses this name. No public release or PyPI project exists yet.
