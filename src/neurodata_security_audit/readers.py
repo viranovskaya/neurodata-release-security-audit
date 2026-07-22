@@ -262,7 +262,7 @@ def inspect_mne_info(
     for container_name in ("proc_history", "helium_info"):
         for path, value in _named_metadata_values(info.get(container_name)):
             key = path[-1].casefold()
-            location = f"MNE Info {container_name}." + ".".join(path)
+            location = f"MNE Info {container_name}.{key}"
             if key in {"date", "meas_date", "measurement_date"}:
                 finding = _metadata_finding(
                     code="EXACT_RECORDING_DATE",

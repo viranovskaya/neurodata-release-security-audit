@@ -16,9 +16,13 @@ The scanner is read-only. It does not upload anything, change the dataset or loa
 - FIF, continuous EEGLAB `.set` and EGI MFF recording metadata with the optional format readers;
 - bounded XML metadata inside MFF directories;
 - small text files, filenames and the release directory tree;
-- backups, spreadsheets, archives, symlinks and files it could not read.
+- backups, spreadsheets, archives, editor files, private configuration directories,
+  symlinks and files it could not read.
 
-Detected values are masked in the report. Filenames remain visible unless they contain a matched email, name or ID, so the report itself should still be checked before sharing.
+Detected values are masked in the report. Known identifiers, contact details, dates,
+credentials and local or network paths are also masked when they appear in a release
+path. Other filenames remain visible, so the report itself should still be checked
+before sharing.
 
 ## Install
 
@@ -96,15 +100,15 @@ The current version is designed for accidental release mistakes. It does not ins
 
 ## Status
 
-Private v0.1 candidate. The synthetic test suite, small real-format FIF and EEGLAB integration fixtures, six public BIDS EEG examples and four real Sleep-EDF files have been checked. Independent review has not happened yet.
+Private v0.1 candidate. The synthetic test suite, real-format FIF, EEGLAB and official MNE MFF fixtures, six public BIDS EEG examples and four real Sleep-EDF files have been checked. Independent review has not happened yet.
 
-The exact scope is in [docs/mvp_spec.md](docs/mvp_spec.md). Test runs are documented in [docs/calibration.md](docs/calibration.md) and [docs/real_dataset_check.md](docs/real_dataset_check.md).
+The exact scope is in [docs/mvp_spec.md](docs/mvp_spec.md). Test runs are documented in [docs/calibration.md](docs/calibration.md), [docs/real_dataset_check.md](docs/real_dataset_check.md) and [docs/mff_check.md](docs/mff_check.md).
 
-The current implementation and pending leak categories are tracked in [docs/leak_coverage.md](docs/leak_coverage.md).
+The implemented leak categories and explicit limits are tracked in [docs/leak_coverage.md](docs/leak_coverage.md).
 
-The latest implementation cross-check is in [docs/progress_report_2026-07-22.md](docs/progress_report_2026-07-22.md).
+The latest implementation cross-check is in [docs/progress_report_2026-07-23.md](docs/progress_report_2026-07-23.md).
 
-The final local gate is recorded in [docs/final_local_gate_2026-07-22.md](docs/final_local_gate_2026-07-22.md).
+The final local gate is recorded in [docs/final_local_gate_2026-07-23.md](docs/final_local_gate_2026-07-23.md).
 
 The short independent test is in [docs/external_review_guide.md](docs/external_review_guide.md).
 

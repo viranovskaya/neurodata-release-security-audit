@@ -38,7 +38,11 @@ Build a small, explainable pre-release security check for EEG datasets. The scan
 
 **Gate:** implementation and documentation agree; no public claims exceed the evidence.
 
-**Current checkpoint:** the local gate is complete. All 68 tests pass after clean installation on Python 3.10 and 3.13. Six public EEG BIDS examples, four real Sleep-EDF files and small real-format FIF and EEGLAB fixtures were checked again. The final wheel and installed reports are deterministic.
+**Current checkpoint:** the local gate is complete. All 90 tests pass after clean
+installation on Python 3.10 and 3.13. Six public EEG BIDS examples, four real
+Sleep-EDF files, small real-format FIF and EEGLAB fixtures and the official MNE
+`test_egi.mff` fixture were checked. The final wheel and installed reports are
+deterministic.
 
 ## Phase 4b — Complete planned leak coverage
 
@@ -51,6 +55,10 @@ Build a small, explainable pre-release security check for EEG datasets. The scan
 
 **Gate:** every planned rule has a positive test, a masking assertion and a clean counterexample. Public BIDS and real EEG calibration remains stable or each change is explained.
 
+**Status:** passed locally. The final pass also masks supported leak patterns in
+release paths, prevents untrusted structured keys from entering report locations,
+checks empty directories and covers every finding code with an explicit test.
+
 ## Phase 4c — Remaining EEG metadata formats
 
 - Read FIF `Info` without reading sample arrays.
@@ -60,7 +68,7 @@ Build a small, explainable pre-release security check for EEG datasets. The scan
 
 **Gate:** real small FIF and EEGLAB fixtures confirm metadata-only reading, seeded values are absent from reports, and no unsupported layout is labelled clean.
 
-**Status:** passed locally. A complete small MFF recording was not available, so the full MFF reader is covered by a controlled reader test and its XML metadata by synthetic fixtures. This remains explicit in the final gate report.
+**Status:** passed locally. The full MFF path was checked with the official public MNE testing fixture after adding its required `defusedxml` dependency to the `formats` extra.
 
 ## Phase 5 — External validation
 

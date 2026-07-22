@@ -7,7 +7,10 @@ All identifiers below are synthetic.
 | Clean BIDS text | minimal `dataset_description.json` and README | no high finding |
 | Structured JSON | populated date of birth, phone, participant name and recording date | field-specific findings; values masked |
 | BIDS-style JSON keys | CamelCase date, phone, patient-name and acquisition-time fields | field-specific findings; values masked |
+| Common name aliases | given name, family name, forename and surname fields | participant-name findings; values masked |
+| Additional direct IDs | driving-licence, tax, insurance and personal-number fields | `DIRECT_PERSONAL_ID`; values masked |
 | Nested JSON participant name | `participant.fullName` plus author and dataset names | participant name reported; author and dataset names ignored |
+| Untrusted structured key | private text in a JSON key, XML tag or nested MNE mapping key | stable field placeholder; private key absent from report location |
 | Participants table | populated `date_of_birth`, `name` and `phone` columns | field-specific findings; values masked |
 | Ordinary BIDS name | dataset `Name` in `dataset_description.json` | no participant-name finding |
 | Author full name | `full_name` inside author metadata | no participant-name finding |
@@ -30,8 +33,13 @@ All identifiers below are synthetic.
 | Host and account details | hostname, IP, MAC and username | review findings; values masked |
 | Secret | GitHub-token-shaped synthetic string | `POTENTIAL_SECRET`; token masked |
 | Config secret | password assignment and database URL | `POTENTIAL_SECRET`; values masked |
+| Common service secret | GitLab, Slack, Google-key, `sk-`, JWT and authenticated-URL shapes | `POTENTIAL_SECRET`; values masked |
+| Short token example | deliberately short documentation placeholders | no secret finding |
 | Source and notebook text | Python path and notebook host value | files inspected; findings masked |
 | Sensitive filename | phone, personal ID or token in a path | finding path masked |
+| Date in release path | labelled birth date or recording date | field-specific finding; report path masked |
+| Local path inside release path | nested `/Users/...` sequence | `LOCAL_PATH`; report path masked |
+| Empty sensitive directory | known identifier or participant-key phrase with no files | finding is still reported; path masked |
 | BrainVision date | `New Segment` marker with full timestamp | `EXACT_RECORDING_DATE` |
 | Clean BrainVision | header and marker files without identifying fields | no high finding |
 | BrainVision source name | released header references an old recording basename | `SOURCE_FILENAME`; source name masked |
@@ -42,8 +50,12 @@ All identifiers below are synthetic.
 | Clean EDF | placeholder patient/recording fields and anonymised date | no high finding |
 | Participant key | `participant_name_key.xlsx` | `SUBJECT_KEY_FILE` |
 | Unexpected backup | `.bak`, `.old`, `.zip` or temporary export | `UNEXPECTED_FILE` |
-| Development directory | `.git`, `.venv` or cache directory in the release tree | `UNEXPECTED_DIRECTORY`; directory listed as skipped |
+| Archive and editor remnants | TAR archive, patch, workspace or editor-backup name | `UNEXPECTED_FILE`; bounded text still inspected |
+| Development directory | version-control, environment, editor or cache directory in the release tree | `UNEXPECTED_DIRECTORY`; directory listed as skipped |
+| Case-variant remnant | `.ENV` and `.GIT` | same result as lowercase names |
 | Sensitive config file | `.env`, credential JSON or private-key filename | `SENSITIVE_CONFIG_FILE` |
+| Sensitive config directory | `.ssh`, `.aws`, `.kube` or similar directory | visible review finding; bounded child text is scanned |
+| Ordinary release paths | `.github`, `participants.tsv` and empty `recording.fif.gz` | no archive, development-directory, subject-key or private-config finding |
 | OS metadata | `.DS_Store`, `Thumbs.db` or `desktop.ini` | `OS_METADATA_FILE` |
 | External symlink | symlink points outside dataset root | `EXTERNAL_SYMLINK`; target not followed |
 | Internal symlink | symlink points to another release file | `SYMLINK_REVIEW`; target not followed through the link |
@@ -51,6 +63,7 @@ All identifiers below are synthetic.
 | Oversized text | text exceeds configured byte limit | `TEXT_FILE_TOO_LARGE`; file listed as skipped |
 | Malformed EDF | shorter than the common 256-byte header | `MALFORMED_HEADER`; scan continues |
 | Malformed JSON | invalid JSON sidecar | `MALFORMED_JSON`; scan continues |
+| Malformed table | delimited-table reader fails | `MALFORMED_TABLE`; private error text is not reported |
 | EDF/BDF Git LFS pointer | repository contains a pointer instead of the payload | informational finding, not `MALFORMED_HEADER` |
 | Empty EDF/BDF fixture | public example repository contains a zero-byte placeholder | informational finding, not `MALFORMED_HEADER` |
 | FIF personal metadata | names, birthday, source ID, measurement date and experimenter in `Info` | field-specific findings; values masked |
@@ -62,11 +75,16 @@ All identifiers below are synthetic.
 | Legacy nested EEGLAB | one `EEG` or `ALLEEG` MATLAB variable | `EEGLAB_METADATA_COVERAGE_LIMIT`; signal structure not loaded |
 | External EEGLAB data reference | `.set` points to an absolute or escaping `.fdt` path | visible finding; MNE reader is not called |
 | Missing EEGLAB text reader | main MNE reader works but safe MATLAB text reader is missing | visible `EEGLAB_METADATA_READER_UNAVAILABLE` finding |
+| EEGLAB metadata failure | safe MATLAB metadata pass raises an error | visible `EEGLAB_METADATA_UNREADABLE`; private error text is not reported |
+| Optional format failure | FIF, SET or MFF metadata reader raises an error | visible `FORMAT_METADATA_UNREADABLE`; private error text is not reported |
 | MFF recording | optional MNE reader plus bounded XML files | reader uses `preload=False`; XML remains independently inspected |
 | MFF personal XML | subject name, ID, date, operator and device serial | field-specific findings; values masked |
+| MFF dynamic patient field | `<name>` contains a field label and `<data>` its value | classify the paired value; do not report the label as a participant name |
+| MFF format dependency | optional `formats` installation | `defusedxml` is declared for MNE's MFF XML reader |
 | XML document type or entity | bounded XML contains a declaration that can expand content | `UNSAFE_XML_DECLARATION`; document not parsed |
 | Optional format placeholder | empty file or Git LFS pointer | informational coverage note without importing MNE |
 | Unreadable directory | one nested directory raises a read error | visible review finding; other files still scanned |
+| Unreadable filesystem entry | entry type cannot be classified | visible `UNREADABLE_ENTRY`; other files still scanned |
 | Unreadable file | one text file raises a read error | `UNREADABLE_FILE`; other files still scanned |
 | Determinism | scan same tree twice | identical JSON |
 | Source integrity | hash fixtures before and after scan | unchanged |

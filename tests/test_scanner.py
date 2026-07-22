@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
+import csv
 from datetime import date, datetime, timezone
 import hashlib
+from importlib import metadata
 import io
 import json
 from numbers import Number
@@ -22,6 +24,7 @@ from neurodata_security_audit.readers import (
     inspect_mne_info,
 )
 from neurodata_security_audit.scanner import ScanPolicy, scan_dataset
+from neurodata_security_audit.structured import inspect_delimited
 
 
 def _write_edf(path: Path, patient: str, recording: str, start_date: str) -> None:
@@ -105,7 +108,7 @@ class ScannerTests(unittest.TestCase):
         email = "alice.researcher@example.org"
         phone = "+1 202 555 0199"
         local_path = "/Users/alice/private/participants.csv"
-        token = "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+        token = "ghp_" + "A" * 32
         (self.root / "notes.txt").write_text(
             f"Contact: {email}\nPhone: {phone}\nSource: {local_path}\nToken: {token}\n",
             encoding="utf-8",
@@ -157,13 +160,11 @@ class ScannerTests(unittest.TestCase):
             self.assertNotIn(value, rendered)
 
     def test_credentials_and_database_url_are_detected_and_masked(self) -> None:
-        values = (
-            "correct-horse-battery",
-            "postgresql://dbuser:db-password@internal-db/study",
-        )
+        database_url = "postgresql://" + "dbuser:db-password@internal-db/study"
+        values = ("correct-horse-battery", database_url)
         (self.root / "settings.toml").write_text(
             'password = "correct-horse-battery"\n'
-            'database_url = "postgresql://dbuser:db-password@internal-db/study"\n',
+            f'database_url = "{database_url}"\n',
             encoding="utf-8",
         )
         report = scan_dataset(self.root)
@@ -174,6 +175,33 @@ class ScannerTests(unittest.TestCase):
         rendered = render_json(report) + render_markdown(report)
         for value in values:
             self.assertNotIn(value, rendered)
+
+    def test_common_service_tokens_and_basic_auth_are_masked(self) -> None:
+        values = (
+            "glpat-" + "A" * 28,
+            "xoxb-" + "1" * 24,
+            "AIza" + "A" * 35,
+            "sk-proj-" + "B" * 24,
+            "eyJ" + "a" * 12 + "." + "b" * 16 + "." + "c" * 16,
+            "https://" + "lab-user:private-password@internal.example.org/api",
+        )
+        (self.root / ".env.service").write_text(
+            "\n".join(values) + "\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        findings = [item for item in report.findings if item.code == "POTENTIAL_SECRET"]
+        self.assertEqual(len(values), len(findings))
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_short_token_examples_are_not_treated_as_credentials(self) -> None:
+        (self.root / "README").write_text(
+            "Examples: glpat-example, xoxb-example, sk-example and eyJ.demo.value\n",
+            encoding="utf-8",
+        )
+        self.assertNotIn("POTENTIAL_SECRET", set(self._codes()))
 
     def test_source_config_and_notebook_files_are_scanned(self) -> None:
         (self.root / "pipeline.py").write_text(
@@ -214,11 +242,11 @@ class ScannerTests(unittest.TestCase):
             encoding="utf-8",
         )
         (self.root / "id_rsa").write_text(
-            "-----BEGIN OPENSSH PRIVATE KEY-----\nsynthetic\n",
+            "-----BEGIN " + "OPENSSH PRIVATE KEY-----\nsynthetic\n",
             encoding="utf-8",
         )
         (self.root / "private.pem").write_text(
-            "-----BEGIN PRIVATE KEY-----\nsynthetic\n",
+            "-----BEGIN " + "PRIVATE KEY-----\nsynthetic\n",
             encoding="utf-8",
         )
         (self.root / ".DS_Store").write_bytes(b"synthetic")
@@ -231,6 +259,85 @@ class ScannerTests(unittest.TestCase):
         report = scan_dataset(self.root)
         self.assertIn(".env.production", report.files_inspected)
         self.assertIn("private.pem", report.files_inspected)
+
+    def test_case_variants_of_sensitive_files_and_directories_are_visible(self) -> None:
+        token = "ghp_" + "A" * 32
+        (self.root / ".ENV").write_text(f"api_key={token}\n", encoding="utf-8")
+        git_dir = self.root / ".GIT"
+        git_dir.mkdir()
+        (git_dir / "config").write_text(
+            "contact = hidden@example.org\n",
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+        codes = {item.code for item in report.findings}
+        self.assertTrue(
+            {"SENSITIVE_CONFIG_FILE", "POTENTIAL_SECRET", "UNEXPECTED_DIRECTORY"}
+            <= codes
+        )
+        self.assertIn(".ENV", report.files_inspected)
+        self.assertIn(".GIT", [item.path for item in report.skipped_files])
+        rendered = render_json(report) + render_markdown(report)
+        self.assertNotIn(token, rendered)
+        self.assertNotIn("hidden@example.org", rendered)
+
+    def test_patch_and_editor_backup_files_are_visible(self) -> None:
+        private_path = "/Users/alice/private/subject-key.tsv"
+        (self.root / "changes.patch").write_text(
+            f"old_path={private_path}\n",
+            encoding="utf-8",
+        )
+        (self.root / "notes.txt~").write_text("old copy\n", encoding="utf-8")
+        report = scan_dataset(self.root)
+        codes = {item.code for item in report.findings}
+        self.assertIn("UNEXPECTED_FILE", codes)
+        self.assertIn("LOCAL_PATH", codes)
+        self.assertIn("changes.patch", report.files_inspected)
+        self.assertNotIn(private_path, render_json(report) + render_markdown(report))
+
+    def test_common_archive_and_backup_names_are_visible(self) -> None:
+        for name in (
+            "old-release.tar.gz",
+            "old-release.tgz",
+            "participants.backup",
+            "notes.save",
+        ):
+            (self.root / name).write_bytes(b"synthetic")
+        report = scan_dataset(self.root)
+        unexpected = [item for item in report.findings if item.code == "UNEXPECTED_FILE"]
+        self.assertEqual(4, len(unexpected))
+
+    def test_sensitive_configuration_directory_is_visible_and_scanned(self) -> None:
+        secret = "AKIA" + "A" * 16
+        private_directory = self.root / ".aws"
+        private_directory.mkdir()
+        (private_directory / "credentials").write_text(
+            f"aws_access_key_id={secret}\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        codes = {item.code for item in report.findings}
+        self.assertIn("SENSITIVE_CONFIG_DIRECTORY", codes)
+        self.assertIn("SENSITIVE_CONFIG_FILE", codes)
+        self.assertIn("POTENTIAL_SECRET", codes)
+        self.assertIn(".aws/credentials", report.files_inspected)
+        self.assertNotIn(secret, render_json(report) + render_markdown(report))
+
+    def test_ordinary_release_paths_are_not_treated_as_remnants(self) -> None:
+        github = self.root / ".github" / "workflows"
+        github.mkdir(parents=True)
+        (github / "checks.yml").write_text("name: checks\n", encoding="utf-8")
+        (self.root / "recording.fif.gz").write_bytes(b"")
+        (self.root / "participants.tsv").write_text(
+            "participant_id\tage\nsub-01\t34\n",
+            encoding="utf-8",
+        )
+        codes = set(self._codes())
+        self.assertNotIn("UNEXPECTED_DIRECTORY", codes)
+        self.assertNotIn("UNEXPECTED_FILE", codes)
+        self.assertNotIn("SENSITIVE_CONFIG_DIRECTORY", codes)
+        self.assertNotIn("SUBJECT_KEY_FILE", codes)
 
     def test_sensitive_config_evidence_does_not_repeat_a_known_id(self) -> None:
         known_id = "SITEA-0042"
@@ -361,7 +468,7 @@ class ScannerTests(unittest.TestCase):
         values = (
             "phone_+34600123456",
             "mrn_MRN928374",
-            "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
+            "ghp_" + "A" * 32,
         )
         for value in values:
             (self.root / f"{value}.txt").write_text("synthetic\n", encoding="utf-8")
@@ -374,6 +481,43 @@ class ScannerTests(unittest.TestCase):
         for value in values:
             self.assertNotIn(value, rendered)
         self.assertIn("<redacted:sensitive-path-", rendered)
+
+    def test_birth_and_recording_dates_in_paths_are_detected_and_masked(self) -> None:
+        values = ("dob_1990-01-02", "recording_date_2026-07-22")
+        for value in values:
+            (self.root / f"{value}.txt").write_text("synthetic\n", encoding="utf-8")
+        report = scan_dataset(self.root)
+        codes = {item.code for item in report.findings}
+        self.assertIn("BIRTH_DATE_FIELD", codes)
+        self.assertIn("EXACT_RECORDING_DATE", codes)
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_local_path_embedded_in_release_path_is_masked(self) -> None:
+        private_directory = self.root / "export" / "Users" / "alice" / "private"
+        private_directory.mkdir(parents=True)
+        (private_directory / "notes.txt").write_text("synthetic\n", encoding="utf-8")
+
+        report = scan_dataset(self.root)
+        self.assertIn("LOCAL_PATH", {item.code for item in report.findings})
+        rendered = render_json(report) + render_markdown(report)
+        self.assertNotIn("/Users/alice/private", rendered)
+
+    def test_empty_sensitive_directory_names_are_checked_and_masked(self) -> None:
+        known_name = "Jane_Doe"
+        (self.root / known_name).mkdir()
+        (self.root / "participant_identity_mapping").mkdir()
+
+        report = scan_dataset(
+            self.root,
+            ScanPolicy(sensitive_terms=(known_name,)),
+        )
+        codes = {item.code for item in report.findings}
+        self.assertIn("KNOWN_IDENTIFIER", codes)
+        self.assertIn("SUBJECT_KEY_FILE", codes)
+        rendered = render_json(report) + render_markdown(report)
+        self.assertNotIn(known_name, rendered)
 
     def test_private_terms_are_deduplicated_case_insensitively(self) -> None:
         policy = ScanPolicy(sensitive_terms=("Jane Doe", "jane doe", "JANE DOE"))
@@ -458,6 +602,26 @@ class ScannerTests(unittest.TestCase):
         for value in values.values():
             self.assertNotIn(value, rendered)
 
+    def test_common_name_field_aliases_are_detected_and_masked(self) -> None:
+        values = {
+            "givenName": "Jane",
+            "familyName": "Doe",
+            "forename": "Alice",
+            "surname": "Smith",
+        }
+        (self.root / "participants.json").write_text(
+            json.dumps({"participant": values}),
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        findings = [
+            item for item in report.findings if item.code == "SUBJECT_NAME_FIELD"
+        ]
+        self.assertEqual(len(values), len(findings))
+        rendered = render_json(report) + render_markdown(report)
+        for value in values.values():
+            self.assertNotIn(value, rendered)
+
     def test_nested_participant_name_is_detected_but_author_name_is_not(self) -> None:
         document = {
             "participant": {"fullName": "Jane Doe"},
@@ -477,6 +641,27 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual("JSON field participant.full_name", name_findings[0].location)
         rendered = render_json(report) + render_markdown(report)
         self.assertNotIn("Jane Doe", rendered)
+
+    def test_untrusted_json_keys_are_not_repeated_in_locations(self) -> None:
+        private_key = "Jane_Doe_MRN928374"
+        birth_date = "1990-01-02"
+        document = {"participant": {private_key: {"dateOfBirth": birth_date}}}
+        (self.root / "sidecar.json").write_text(
+            json.dumps(document),
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+        finding = next(
+            item for item in report.findings if item.code == "BIRTH_DATE_FIELD"
+        )
+        self.assertEqual(
+            "JSON field participant.<field>.date_of_birth",
+            finding.location,
+        )
+        rendered = render_json(report) + render_markdown(report)
+        self.assertNotIn(private_key, rendered)
+        self.assertNotIn(birth_date, rendered)
 
     def test_structured_personal_ids_addresses_and_linked_ids_are_masked(self) -> None:
         values = {
@@ -507,6 +692,26 @@ class ScannerTests(unittest.TestCase):
         for value in values.values():
             self.assertNotIn(value, rendered)
         self.assertNotIn("University Lab", rendered)
+
+    def test_additional_direct_id_fields_are_detected_and_masked(self) -> None:
+        values = {
+            "driverLicenseNumber": "D-9283746",
+            "taxpayerId": "TAX-9283746",
+            "healthInsuranceId": "INS-9283746",
+            "personalNumber": "PN-9283746",
+        }
+        (self.root / "participants.json").write_text(
+            json.dumps({"participant": values}),
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        findings = [
+            item for item in report.findings if item.code == "DIRECT_PERSONAL_ID"
+        ]
+        self.assertEqual(len(values), len(findings))
+        rendered = render_json(report) + render_markdown(report)
+        for value in values.values():
+            self.assertNotIn(value, rendered)
 
     def test_bids_scans_acquisition_time_is_reviewed_and_masked(self) -> None:
         acquisition_time = "2026-07-22T10:30:00"
@@ -578,6 +783,22 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("MALFORMED_JSON", {finding.code for finding in report.findings})
         self.assertIn("README", report.files_inspected)
 
+    def test_malformed_table_is_visible(self) -> None:
+        with patch(
+            "neurodata_security_audit.structured.csv.DictReader",
+            side_effect=csv.Error("synthetic test error"),
+        ):
+            findings = inspect_delimited(
+                "participant_id\tage\nsub-01\t34\n",
+                "participants.tsv",
+                "\t",
+            )
+        self.assertEqual(["MALFORMED_TABLE"], [item.code for item in findings])
+        self.assertNotIn(
+            "synthetic test error",
+            findings[0].evidence + findings[0].message + findings[0].location,
+        )
+
     def test_xml_personal_and_device_fields_are_detected_and_masked(self) -> None:
         values = (
             "Jane",
@@ -616,6 +837,33 @@ class ScannerTests(unittest.TestCase):
         for value in values:
             self.assertNotIn(value, rendered)
 
+    def test_untrusted_xml_tags_are_not_repeated_in_locations(self) -> None:
+        private_tag = "Jane_Doe_MRN928374"
+        birth_date = "1990-01-02"
+        mff = self.root / "recording.mff"
+        mff.mkdir()
+        (mff / "subject.xml").write_text(
+            f"<subject><{private_tag}><dateOfBirth>{birth_date}</dateOfBirth>"
+            f"</{private_tag}></subject>",
+            encoding="utf-8",
+        )
+
+        with patch(
+            "neurodata_security_audit.scanner.inspect_mne_format",
+            side_effect=FormatReaderUnavailable("synthetic"),
+        ):
+            report = scan_dataset(self.root)
+        finding = next(
+            item for item in report.findings if item.code == "BIRTH_DATE_FIELD"
+        )
+        self.assertEqual(
+            "XML field subject.<field>.date_of_birth",
+            finding.location,
+        )
+        rendered = render_json(report) + render_markdown(report)
+        self.assertNotIn(private_tag, rendered)
+        self.assertNotIn(birth_date, rendered)
+
     def test_xml_document_type_is_not_parsed(self) -> None:
         (self.root / "metadata.xml").write_text(
             '<!DOCTYPE root [<!ENTITY name "Jane Doe">]><root>&name;</root>',
@@ -624,6 +872,37 @@ class ScannerTests(unittest.TestCase):
         codes = set(self._codes())
         self.assertIn("UNSAFE_XML_DECLARATION", codes)
         self.assertNotIn("MALFORMED_XML", codes)
+
+    def test_mff_dynamic_patient_fields_use_their_labels(self) -> None:
+        values = (
+            "Jane",
+            "Doe",
+            "HOSP-0042",
+            "Participant called after recording",
+        )
+        mff = self.root / "recording.mff"
+        mff.mkdir()
+        (mff / "subject.xml").write_text(
+            "<patient><fields>"
+            "<field><name>First (Given) Name</name><data>Jane</data></field>"
+            "<field><name>Last (Family) Name</name><data>Doe</data></field>"
+            "<field><name>Patient ID</name><data>HOSP-0042</data></field>"
+            "<field><name>Comments</name>"
+            "<data>Participant called after recording</data></field>"
+            "<field><name>Age</name><data>29</data></field>"
+            "<field><name>Technician</name><data></data></field>"
+            "</fields></patient>",
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+        codes = [finding.code for finding in report.findings]
+        self.assertEqual(2, codes.count("SUBJECT_NAME_FIELD"))
+        self.assertIn("LINKED_SOURCE_ID", codes)
+        self.assertIn("FREE_TEXT_METADATA", codes)
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
 
     def test_mne_info_privacy_fields_are_detected_and_masked(self) -> None:
         values = (
@@ -690,6 +969,25 @@ class ScannerTests(unittest.TestCase):
         rendered = render_json(report) + render_markdown(report)
         for value in values:
             self.assertNotIn(value, rendered)
+
+    def test_untrusted_mne_mapping_keys_are_not_repeated_in_locations(self) -> None:
+        private_key = "Jane_Doe_MRN928374"
+        findings = inspect_mne_info(
+            {
+                "subject_info": None,
+                "proc_history": {
+                    private_key: {
+                        "experimenter": "Acquisition Operator",
+                    }
+                },
+            },
+            "sub-01_task-rest_eeg.fif",
+        )
+        personnel = next(item for item in findings if item.code == "PERSONNEL_FIELD")
+        self.assertEqual("MNE Info proc_history.experimenter", personnel.location)
+        report = scan_dataset(self.root)
+        report.findings.extend(findings)
+        self.assertNotIn(private_key, render_json(report) + render_markdown(report))
 
     def test_fif_and_eeglab_use_metadata_only_readers(self) -> None:
         for name in ("sub-01_task-rest_eeg.fif", "sub-01_task-rest_eeg.set"):
@@ -919,6 +1217,49 @@ class ScannerTests(unittest.TestCase):
             {finding.code for finding in report.findings},
         )
 
+    def test_unreadable_eeglab_private_metadata_is_visible(self) -> None:
+        (self.root / "recording.set").write_bytes(b"synthetic-format-placeholder")
+        private_error = "Jane Doe at /Users/jane/private"
+        with (
+            patch(
+                "neurodata_security_audit.scanner.inspect_eeglab_metadata",
+                side_effect=RuntimeError(private_error),
+            ),
+            patch(
+                "neurodata_security_audit.scanner.inspect_mne_format",
+                return_value=[],
+            ),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "EEGLAB_METADATA_UNREADABLE",
+            {finding.code for finding in report.findings},
+        )
+        self.assertNotIn(private_error, render_json(report) + render_markdown(report))
+
+    def test_unreadable_optional_format_metadata_is_visible(self) -> None:
+        (self.root / "recording.fif").write_bytes(b"synthetic-format-placeholder")
+        private_error = "Jane Doe at /Users/jane/private"
+        with patch(
+            "neurodata_security_audit.scanner.inspect_mne_format",
+            side_effect=RuntimeError(private_error),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "FORMAT_METADATA_UNREADABLE",
+            {finding.code for finding in report.findings},
+        )
+        self.assertNotIn(private_error, render_json(report) + render_markdown(report))
+
+    def test_formats_extra_includes_mff_xml_reader(self) -> None:
+        try:
+            requirements = metadata.requires("neurodata-release-security-audit") or []
+            text = "\n".join(requirements)
+        except metadata.PackageNotFoundError:
+            pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+            text = pyproject.read_text(encoding="utf-8")
+        self.assertIn("defusedxml>=0.7.1", text)
+
     def test_mff_reader_uses_preload_false_and_xml_remains_inspected(self) -> None:
         mff = self.root / "recording.mff"
         mff.mkdir()
@@ -987,6 +1328,7 @@ class ScannerTests(unittest.TestCase):
                 "SUBJECT_NAME_FIELD",
                 "BIRTH_DATE_FIELD",
                 "EXACT_RECORDING_DATE",
+                "RECORDING_INFO_FIELD",
             }
             <= codes
         )
@@ -1077,6 +1419,22 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("SYMLINK_REVIEW", {finding.code for finding in report.findings})
         self.assertIn(link.name, [item.path for item in report.skipped_files])
 
+    def test_identifier_in_symlink_name_is_detected_and_masked(self) -> None:
+        known_id = "SITEA-0042"
+        target = self.root / "notes.txt"
+        target.write_text("Synthetic dataset\n", encoding="utf-8")
+        link = self.root / f"{known_id}_notes.txt"
+        os.symlink(target.name, link)
+
+        report = scan_dataset(
+            self.root,
+            ScanPolicy(sensitive_terms=(known_id,)),
+        )
+        codes = {item.code for item in report.findings}
+        self.assertIn("KNOWN_IDENTIFIER", codes)
+        self.assertIn("SYMLINK_REVIEW", codes)
+        self.assertNotIn(known_id, render_json(report) + render_markdown(report))
+
     def test_symlink_loop_does_not_stop_scan(self) -> None:
         os.symlink("loop", self.root / "loop")
         (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
@@ -1099,6 +1457,24 @@ class ScannerTests(unittest.TestCase):
             report = scan_dataset(self.root)
         self.assertIn("UNREADABLE_DIRECTORY", {finding.code for finding in report.findings})
         self.assertIn("README", report.files_inspected)
+
+    def test_unreadable_entry_does_not_stop_scan(self) -> None:
+        blocked = self.root / "blocked.txt"
+        blocked.write_text("synthetic", encoding="utf-8")
+        readme = self.root / "README"
+        readme.write_text("Synthetic dataset\n", encoding="utf-8")
+        entries = iter(
+            [
+                ("entry_error", blocked, "blocked.txt"),
+                ("file", readme, "README"),
+            ]
+        )
+        with patch("neurodata_security_audit.scanner._walk", return_value=entries):
+            report = scan_dataset(self.root)
+        self.assertIn("UNREADABLE_ENTRY", {finding.code for finding in report.findings})
+        self.assertIn("README", report.files_inspected)
+        rendered = render_json(report) + render_markdown(report)
+        self.assertNotIn(str(blocked), rendered)
 
     def test_unreadable_file_does_not_stop_scan(self) -> None:
         blocked = self.root / "blocked.txt"

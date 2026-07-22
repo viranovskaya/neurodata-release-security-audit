@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from .models import Finding
+from .models import Finding, Severity
 
 _EMAIL = re.compile(r"(?<![\w.+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![\w.-])", re.I)
 _LABELLED_PHONE = re.compile(
@@ -34,8 +34,10 @@ _SUBJECT_NAME = re.compile(
 )
 _DIRECT_PERSONAL_ID = re.compile(
     r"^\s*(?:medical[ _-]*record[ _-]*(?:number|id)|mrn|national[ _-]*(?:id|identifier)|"
-    r"passport[ _-]*number|social[ _-]*security[ _-]*number|ssn|nhs[ _-]*number|"
-    r"health[ _-]*insurance[ _-]*number)\s*[:=,\t]\s*(?!x\b|n/?a\b|none\b).+",
+    r"passport[ _-]*number|driver[ _-]*licen[cs]e[ _-]*(?:number|id)|"
+    r"tax(?:payer)?[ _-]*id|personal[ _-]*number|social[ _-]*security[ _-]*number|"
+    r"ssn|nhs[ _-]*number|health[ _-]*(?:insurance[ _-]*(?:number|id)|id))"
+    r"\s*[:=,\t]\s*(?!x\b|n/?a\b|none\b).+",
     re.I,
 )
 _LINKED_SOURCE_ID = re.compile(
@@ -82,6 +84,20 @@ _BRAINVISION_NEW_SEGMENT = re.compile(
 )
 _SECRET_PATTERNS = (
     ("github-token", re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b")),
+    ("gitlab-token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b")),
+    ("slack-token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{20,}\b")),
+    ("google-api-key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
+    (
+        "sk-prefixed-token",
+        re.compile(r"\bsk-(?:(?:proj|svcacct)-)?[A-Za-z0-9_-]{20,}\b"),
+    ),
+    (
+        "jwt",
+        re.compile(
+            r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\."
+            r"[A-Za-z0-9_-]{10,}\b"
+        ),
+    ),
     ("aws-access-key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
     ("private-key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")),
     ("bearer-token", re.compile(r"\bBearer\s+[A-Za-z0-9._~+/-]{20,}={0,2}\b", re.I)),
@@ -89,7 +105,9 @@ _SECRET_PATTERNS = (
         "credential-assignment",
         re.compile(
             r"(?:^|[\s,{])[\"']?(?:api[_-]?key|client[_-]?secret|password|passwd|"
-            r"access[_-]?token|refresh[_-]?token|secret[_-]?key)[\"']?\s*[:=]\s*"
+            r"access[_-]?token|auth[_-]?token|id[_-]?token|refresh[_-]?token|"
+            r"session[_-]?token|webhook[_-]?secret|aws[_-]?secret[_-]?access[_-]?key|"
+            r"private[_-]?key|secret[_-]?key)[\"']?\s*[:=]\s*"
             r"[\"']?[^\s\"'#,;]{8,}",
             re.I,
         ),
@@ -99,6 +117,13 @@ _SECRET_PATTERNS = (
         re.compile(
             r"\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp)://"
             r"[^:\s/@]+:[^@\s/]+@[^\s\"'<>]+",
+            re.I,
+        ),
+    ),
+    (
+        "http-basic-auth",
+        re.compile(
+            r"\bhttps?://[^:\s/@]+:[^@\s/]+@[^\s\"'<>]+",
             re.I,
         ),
     ),
@@ -119,7 +144,18 @@ _PATH_PHONE = re.compile(
     re.I,
 )
 _PATH_PERSONAL_ID = re.compile(
-    r"(?:mrn|ssn|passport|nhs)[ _-]*([A-Za-z0-9][A-Za-z0-9._-]{3,})",
+    r"(?:mrn|ssn|passport|nhs|driver[ _-]*licen[cs]e|tax[ _-]*id|health[ _-]*id)"
+    r"[ _-]*([A-Za-z0-9][A-Za-z0-9._-]{3,})",
+    re.I,
+)
+_PATH_BIRTH_DATE = re.compile(
+    r"(?:dob|birth[ _-]*date|date[ _-]*of[ _-]*birth)[ _=-]*"
+    r"(?:\d{4}[-.]\d{1,2}[-.]\d{1,2}|\d{1,2}[-.]\d{1,2}[-.]\d{2,4})",
+    re.I,
+)
+_PATH_RECORDING_DATE = re.compile(
+    r"(?:acq|acquisition|recording|scan)[ _-]*(?:date|time)?[ _=-]*"
+    r"\d{4}[-.]\d{1,2}[-.]\d{1,2}",
     re.I,
 )
 
@@ -129,18 +165,22 @@ def redacted(kind: str, value: str) -> str:
 
 
 class KnownTermMatcher:
-    def __init__(self, terms: tuple[str, ...] = (), label: str = "known-identifier") -> None:
+    def __init__(
+        self,
+        terms: tuple[str, ...] = (),
+        label: str = "known-identifier",
+        *,
+        bounded: bool = True,
+    ) -> None:
         self.terms = terms
         self.label = label
         ordered = sorted(enumerate(terms), key=lambda item: (-len(item[1]), item[0]))
         alternatives = "|".join(
             f"(?P<t{index}>{re.escape(term)})" for index, term in ordered
         )
-        self.pattern = (
-            re.compile(rf"(?<![^\W_])(?:{alternatives})(?![^\W_])", re.I)
-            if alternatives
-            else None
-        )
+        if alternatives and bounded:
+            alternatives = rf"(?<![^\W_])(?:{alternatives})(?![^\W_])"
+        self.pattern = re.compile(alternatives, re.I) if alternatives else None
 
     def matches(self, value: str) -> tuple[str, ...]:
         if self.pattern is None:
@@ -165,12 +205,13 @@ def find_emails(value: str) -> tuple[str, ...]:
 
 def find_sensitive_path_values(
     value: str,
-) -> tuple[tuple[str, str, str, str], ...]:
-    matches: list[tuple[str, str, str, str]] = []
+) -> tuple[tuple[str, Severity, str, str, str], ...]:
+    matches: list[tuple[str, Severity, str, str, str]] = []
     for match in _PATH_PHONE.finditer(value):
         matches.append(
             (
                 "DIRECT_PHONE",
+                "high",
                 "phone",
                 match.group(0),
                 "Rename this path to remove the phone number.",
@@ -180,16 +221,60 @@ def find_sensitive_path_values(
         matches.append(
             (
                 "DIRECT_PERSONAL_ID",
+                "high",
                 "personal-id",
                 match.group(0),
                 "Rename this path to remove the direct personal identifier.",
             )
         )
+    for match in _PATH_BIRTH_DATE.finditer(value):
+        matches.append(
+            (
+                "BIRTH_DATE_FIELD",
+                "high",
+                "birth-date",
+                match.group(0),
+                "Rename this path to remove the date of birth.",
+            )
+        )
+    for match in _PATH_RECORDING_DATE.finditer(value):
+        matches.append(
+            (
+                "EXACT_RECORDING_DATE",
+                "review",
+                "recording-date",
+                match.group(0),
+                "Rename this path if the exact recording date is not allowed.",
+            )
+        )
+    for pattern in _LOCAL_PATHS:
+        for match in pattern.finditer(value):
+            matches.append(
+                (
+                    "LOCAL_PATH",
+                    "review",
+                    "local-path",
+                    match.group(0),
+                    "Rename this path to remove the local computer path.",
+                )
+            )
+    for pattern in _NETWORK_PATHS:
+        for match in pattern.finditer(value):
+            matches.append(
+                (
+                    "NETWORK_PATH",
+                    "review",
+                    "network-path",
+                    match.group(0),
+                    "Rename this path to remove the network location.",
+                )
+            )
     for secret_kind, pattern in _SECRET_PATTERNS:
         for match in pattern.finditer(value):
             matches.append(
                 (
                     "POTENTIAL_SECRET",
+                    "high",
                     secret_kind,
                     match.group(0),
                     "Rename this path and rotate the value if it is a real credential.",

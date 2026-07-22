@@ -22,7 +22,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-formats = ["mne[hdf5]>=1.12.1"]
+formats = ["mne[hdf5]>=1.12.1", "defusedxml>=0.7.1"]
 
 [project.scripts]
 neurodata-security-audit = "neurodata_security_audit.cli:main"

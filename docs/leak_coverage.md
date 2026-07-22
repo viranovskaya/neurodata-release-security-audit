@@ -9,7 +9,7 @@ This matrix keeps the project scope concrete. A checked item has a detector, mas
 | Direct contact details | email, labelled phone | implemented |
 | Participant names | structured name fields, EDF patient name, private term list | implemented |
 | Birth dates | text, JSON, tables and EDF patient field | implemented |
-| Direct personal identifiers | medical record, national, passport and insurance numbers | implemented |
+| Direct personal identifiers | medical record, national, passport, driving-licence, tax and insurance numbers | implemented |
 | Postal addresses | participant address fields and labelled text | implemented |
 | Linked source identifiers | original, hospital, legacy, genetic and source IDs | implemented as review findings |
 | Exact acquisition dates | BIDS `acq_time`, JSON, BrainVision and EDF/BDF | implemented as review findings |
@@ -23,17 +23,20 @@ This matrix keeps the project scope concrete. A checked item has a detector, mas
 | Local user paths | macOS, Linux and Windows home paths | implemented |
 | Source recording names | BrainVision references to old basenames | implemented |
 | External format references | EEGLAB signal path leaves the selected release directory | implemented as a review finding; reference is not followed |
-| Credentials | common tokens, bearer strings and private-key blocks | implemented |
+| Credentials | common service tokens, bearer and JWT strings, private-key blocks and authenticated URLs | implemented |
 | Network locations | UNC paths, mounted volumes, hostnames and IP addresses | implemented |
 | Acquisition-system traces | FIF machine IDs, original GUIDs, project IDs and device serials | implemented as review findings |
 | Format free text | FIF descriptions and EEGLAB comments/history | implemented as manual-review findings plus pattern checks |
 | Config credentials | password, API key and connection-string assignments | implemented |
 | Source and config files | Python, MATLAB, shell, YAML, TOML, INI and notebooks | implemented |
 | Secret-bearing files | `.env`, credential files, private keys and certificate bundles | implemented |
-| OS and editor remnants | `.DS_Store`, `Thumbs.db`, swap and patch files | implemented |
-| Development directories | `.git`, virtual environments and caches | implemented as visible skipped entries |
-| Archives and backups | ZIP, 7z, RAR, `.bak`, `.old` and temporary exports | implemented as review findings |
+| Private configuration directories | `.ssh`, `.aws`, `.kube` and similar paths | implemented as visible review findings; bounded text inside is still scanned |
+| OS and editor remnants | `.DS_Store`, `Thumbs.db`, swap, patch and workspace files | implemented |
+| Development directories | version-control folders, virtual environments, editor folders and caches | implemented as visible skipped entries, case-insensitively |
+| Archives and backups | ZIP, TAR, 7z, RAR, `.bak`, `.old` and temporary exports | implemented as review findings |
 | Symlinks and unreadable entries | internal, external, broken and inaccessible paths | implemented without following targets |
+| Report path safety | known identifiers, contacts, dates, credentials and detected local or network paths | implemented; arbitrary unmatched filenames remain a documented manual-review boundary |
+| Report location safety | untrusted JSON, table, XML and nested metadata keys | replaced with stable field placeholders |
 
 ## Format boundary
 
@@ -44,6 +47,7 @@ EEGLAB top-level MATLAB metadata and MATLAB 7.3 text fields are checked without 
 ## Gate before external review
 
 - every implemented rule has a positive test, a masking assertion and a clean counterexample;
+- every finding code has an explicit test path, including reader and filesystem failures;
 - reports contain no complete seeded value;
 - supported source files are unchanged;
 - public BIDS examples and real EEG files are recalibrated after each batch;

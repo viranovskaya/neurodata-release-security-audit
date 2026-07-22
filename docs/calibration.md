@@ -17,6 +17,10 @@ The expanded run also checks the standard BIDS `acq_time` field and bounded sour
 
 The final format run recognises empty FIF and EEGLAB placeholders explicitly. This moved 115 entries from the generic skipped count to inspected informational findings across three examples. It did not add a new high-severity finding. The only high finding remains the public contact email already described above.
 
+The final personal and technical leak pass added release-path masking, more credential
+shapes, private configuration directories and editor/archive remnants. All six table
+summaries stayed unchanged.
+
 The remaining findings are intentionally not auto-suppressed. A public contact email can be deliberate, and an exact recording timestamp or older BrainVision basename can be acceptable in a specific release. The tool reports them so the curator makes that decision explicitly.
 
 Large skipped counts show the current boundary clearly: the MVP does not inspect every neuroimaging format or EEG signal payload. Those files remain visible in the report rather than silently counted as clean.

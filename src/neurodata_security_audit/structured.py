@@ -16,9 +16,15 @@ from .models import Finding
 _DOB_KEYS = {"date_of_birth", "birth_date", "birthdate", "birthday", "dob"}
 _PHONE_KEYS = {"phone", "phone_number", "telephone", "tel", "mobile"}
 _NAME_KEYS = {
+    "family_name",
     "first_name",
+    "first_given_name",
+    "forename",
+    "given_name",
     "last_name",
+    "last_family_name",
     "middle_name",
+    "surname",
     "subject_name",
     "patient_name",
     "participant_name",
@@ -34,6 +40,15 @@ _DIRECT_ID_KEYS = {
     "ssn",
     "nhs_number",
     "health_insurance_number",
+    "health_insurance_id",
+    "health_id",
+    "driver_license_number",
+    "driver_licence_number",
+    "driver_license_id",
+    "driver_licence_id",
+    "tax_id",
+    "taxpayer_id",
+    "personal_number",
 }
 _LINKED_ID_KEYS = {
     "genetic_id",
@@ -56,8 +71,9 @@ _HOST_KEYS = {"host", "hostname", "computer_name", "machine_name", "workstation"
 _NETWORK_ADDRESS_KEYS = {"ip", "ip_address", "host_ip", "server_ip"}
 _DEVICE_ADDRESS_KEYS = {"mac", "mac_address", "device_address"}
 _ACCOUNT_KEYS = {"account_name", "login", "user", "username"}
-_PERSONNEL_KEYS = {"experimenter", "operator", "technician"}
+_PERSONNEL_KEYS = {"experimenter", "operator", "physician", "technician"}
 _DEVICE_IDENTIFIER_KEYS = {"device_id", "device_serial", "serial_number"}
+_FREE_TEXT_KEYS = {"comment", "comments", "patient_history", "patient_state"}
 _RECORDING_DATE_KEYS = {
     "acq_date",
     "acq_datetime",
@@ -91,6 +107,39 @@ _PERSON_CONTEXT_PARTS = {
     "subject",
     "subjects",
 }
+_SAFE_LOCATION_KEYS = (
+    _DOB_KEYS
+    | _PHONE_KEYS
+    | _NAME_KEYS
+    | _DIRECT_ID_KEYS
+    | _LINKED_ID_KEYS
+    | _ADDRESS_KEYS
+    | _CONTEXT_ADDRESS_KEYS
+    | _HOST_KEYS
+    | _NETWORK_ADDRESS_KEYS
+    | _DEVICE_ADDRESS_KEYS
+    | _ACCOUNT_KEYS
+    | _PERSONNEL_KEYS
+    | _DEVICE_IDENTIFIER_KEYS
+    | _FREE_TEXT_KEYS
+    | _RECORDING_DATE_KEYS
+    | _PERSON_CONTEXT_PARTS
+    | {
+        "address",
+        "demographics",
+        "device_info",
+        "full_name",
+        "his_id",
+        "id",
+        "info",
+        "metadata",
+        "name",
+        "record",
+        "records",
+        "runtime",
+        "subject_info",
+    }
+)
 
 
 def _normalise_key(key: object) -> str:
@@ -99,6 +148,15 @@ def _normalise_key(key: object) -> str:
     text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", text)
     text = re.sub(r"[^a-z0-9]+", "_", text.lower())
     return text.strip("_")
+
+
+def _safe_location_key(key: object) -> str:
+    normalised = _normalise_key(key)
+    return normalised if normalised in _SAFE_LOCATION_KEYS else "<field>"
+
+
+def _safe_location_path(path: tuple[object, ...]) -> str:
+    return ".".join(_safe_location_key(part) for part in path)
 
 
 def _display_value(value: object) -> str | None:
@@ -252,6 +310,15 @@ def _finding_for_field(
             evidence=redacted("device-identifier", text),
             message="Confirm this acquisition-device identifier is safe to share.",
         )
+    if normalised in _FREE_TEXT_KEYS:
+        return Finding(
+            code="FREE_TEXT_METADATA",
+            severity="review",
+            path=relative_path,
+            location=location,
+            evidence=redacted("free-text-metadata", text),
+            message="Review this free-text field for participant details and private paths.",
+        )
     return None
 
 
@@ -279,7 +346,7 @@ def _is_person_context(path: tuple[object, ...]) -> bool:
 def inspect_json(text: str, relative_path: str) -> list[Finding]:
     try:
         document = json.loads(text)
-    except (json.JSONDecodeError, UnicodeError):
+    except (json.JSONDecodeError, RecursionError, UnicodeError):
         return [
             Finding(
                 code="MALFORMED_JSON",
@@ -292,19 +359,30 @@ def inspect_json(text: str, relative_path: str) -> list[Finding]:
         ]
 
     findings: list[Finding] = []
-    for path, key, value in _json_fields(document):
-        field_path = ".".join(_normalise_key(part) for part in path)
-        finding = _finding_for_field(
-            key,
-            value,
-            relative_path,
-            f"JSON field {field_path}",
-            allow_plain_name=_is_person_context(path[:-1]),
-            allow_context_address=_is_person_context(path[:-1]),
-            allow_context_id=_is_person_context(path[:-1]),
-        )
-        if finding is not None:
-            findings.append(finding)
+    try:
+        for path, key, value in _json_fields(document):
+            finding = _finding_for_field(
+                key,
+                value,
+                relative_path,
+                f"JSON field {_safe_location_path(path)}",
+                allow_plain_name=_is_person_context(path[:-1]),
+                allow_context_address=_is_person_context(path[:-1]),
+                allow_context_id=_is_person_context(path[:-1]),
+            )
+            if finding is not None:
+                findings.append(finding)
+    except RecursionError:
+        return [
+            Finding(
+                code="MALFORMED_JSON",
+                severity="review",
+                path=relative_path,
+                location="JSON document",
+                evidence="<redacted:parse-error>",
+                message="Repair this JSON file; its named fields were not checked.",
+            )
+        ]
     return findings
 
 
@@ -335,7 +413,7 @@ def inspect_delimited(text: str, relative_path: str, delimiter: str) -> list[Fin
                 key,
                 value,
                 relative_path,
-                f"row {row_number}, column {_normalise_key(key)}",
+                f"row {row_number}, column {_safe_location_key(key)}",
                 allow_plain_name=allow_plain_name,
                 allow_context_address=allow_plain_name,
                 allow_context_id=allow_plain_name,
@@ -383,13 +461,34 @@ def inspect_xml(text: str, relative_path: str) -> list[Finding]:
         tag = _xml_tag(element.tag)
         path = (*parents, tag)
         context = _is_person_context(path[:-1])
+        if _normalise_key(tag) == "field":
+            children = {
+                _normalise_key(_xml_tag(child.tag)): (child.text or "").strip()
+                for child in element
+            }
+            label = children.get("name", "")
+            value = children.get("data", "")
+            if label and value:
+                finding = _finding_for_field(
+                    label,
+                    value,
+                    relative_path,
+                    "XML dynamic field "
+                    + _safe_location_path(path),
+                    allow_plain_name=context,
+                    allow_context_address=context,
+                    allow_context_id=context,
+                )
+                if finding is not None:
+                    findings.append(finding)
+            return
         text_value = (element.text or "").strip()
         if text_value and not list(element):
             finding = _finding_for_field(
                 tag,
                 text_value,
                 relative_path,
-                "XML field " + ".".join(_normalise_key(part) for part in path),
+                "XML field " + _safe_location_path(path),
                 allow_plain_name=context,
                 allow_context_address=context,
                 allow_context_id=context,
@@ -402,7 +501,7 @@ def inspect_xml(text: str, relative_path: str) -> list[Finding]:
                 value,
                 relative_path,
                 "XML attribute "
-                + ".".join(_normalise_key(part) for part in (*path, key)),
+                + _safe_location_path((*path, key)),
                 allow_plain_name=_is_person_context(path),
                 allow_context_address=_is_person_context(path),
                 allow_context_id=_is_person_context(path),
@@ -412,5 +511,17 @@ def inspect_xml(text: str, relative_path: str) -> list[Finding]:
         for child in element:
             visit(child, path)
 
-    visit(root, ())
+    try:
+        visit(root, ())
+    except RecursionError:
+        return [
+            Finding(
+                code="MALFORMED_XML",
+                severity="review",
+                path=relative_path,
+                location="XML document",
+                evidence="<redacted:parse-error>",
+                message="Repair this XML file; its named fields were not checked.",
+            )
+        ]
     return findings

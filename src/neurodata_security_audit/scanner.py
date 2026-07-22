@@ -28,8 +28,11 @@ from .structured import inspect_delimited, inspect_json, inspect_xml
 _TEXT_SUFFIXES = {
     ".bash",
     ".cfg",
+    ".code-workspace",
     ".conf",
     ".csv",
+    ".diff",
+    ".env",
     ".html",
     ".ini",
     ".ipynb",
@@ -39,12 +42,15 @@ _TEXT_SUFFIXES = {
     ".log",
     ".m",
     ".md",
+    ".patch",
     ".pem",
     ".ps1",
     ".py",
     ".r",
     ".sh",
     ".sql",
+    ".sublime-project",
+    ".sublime-workspace",
     ".toml",
     ".ts",
     ".tsv",
@@ -58,15 +64,24 @@ _TEXT_SUFFIXES = {
 }
 _TEXT_NAMES = {
     ".env",
+    ".git-credentials",
+    ".htpasswd",
+    ".my.cnf",
     ".netrc",
     ".npmrc",
+    ".pgpass",
     ".pypirc",
-    "CHANGES",
-    "Dockerfile",
+    "changes",
+    "config",
+    "credentials",
+    "dockerfile",
     "id_ed25519",
+    "id_ecdsa",
     "id_rsa",
-    "Makefile",
-    "README",
+    "known_hosts",
+    "makefile",
+    "readme",
+    "authorized_keys",
 }
 _SIGNAL_PAYLOAD_SUFFIXES = {".eeg", ".fdt"}
 _EDF_SUFFIXES = {".edf", ".bdf"}
@@ -74,34 +89,81 @@ _MNE_FILE_FORMATS = {".fif": "fif", ".set": "eeglab"}
 _UNEXPECTED_SUFFIXES = {
     ".7z",
     ".bak",
+    ".backup",
+    ".diff",
     ".key",
     ".ods",
     ".old",
     ".orig",
+    ".patch",
     ".p12",
     ".pem",
     ".pfx",
     ".rar",
     ".rej",
+    ".save",
+    ".code-workspace",
+    ".sublime-project",
+    ".sublime-workspace",
     ".swo",
     ".swp",
     ".tmp",
+    ".tar",
+    ".tbz",
+    ".tbz2",
+    ".tgz",
+    ".txz",
     ".xls",
     ".xlsx",
     ".zip",
 }
+_COMPOUND_ARCHIVE_SUFFIXES = (".tar.bz2", ".tar.gz", ".tar.xz", ".tar.zst")
 _SENSITIVE_CONFIG_NAMES = {
     ".env",
+    ".git-credentials",
+    ".htpasswd",
+    ".my.cnf",
     ".netrc",
     ".npmrc",
+    ".pgpass",
     ".pypirc",
+    "application_default_credentials.json",
+    "auth.json",
+    "authorized_keys",
+    "credentials",
+    "credentials.ini",
     "credentials.json",
+    "id_ecdsa",
     "id_ed25519",
     "id_rsa",
+    "known_hosts",
     "secrets.json",
+    "service-account.json",
+    "token.json",
 }
 _OS_METADATA_NAMES = {".ds_store", "desktop.ini", "thumbs.db"}
-_IGNORED_DIRECTORIES = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache"}
+_SENSITIVE_DIRECTORIES = {".aws", ".azure", ".docker", ".gnupg", ".kube", ".ssh"}
+_IGNORED_DIRECTORIES = {
+    ".cache",
+    ".git",
+    ".fseventsd",
+    ".hg",
+    ".idea",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".spotlight-v100",
+    ".svn",
+    ".tox",
+    ".trashes",
+    ".venv",
+    ".vscode",
+    "__pycache__",
+    "node_modules",
+    "system volume information",
+}
 _KEY_TERMS = ("participant", "subject", "patient", "identifier", "identity")
 _MAPPING_TERMS = ("key", "map", "mapping", "link", "lookup", "names")
 
@@ -127,12 +189,11 @@ class ScanPolicy:
         object.__setattr__(self, "sensitive_terms", tuple(terms))
 
 
-def _unexpected_file_findings(
+def _sensitive_path_findings(
     relative_path: str,
     known_terms: KnownTermMatcher,
+    location: str,
 ) -> list[Finding]:
-    path = Path(relative_path)
-    lower_name = path.name.lower()
     findings: list[Finding] = []
     for email in find_emails(relative_path):
         findings.append(
@@ -140,7 +201,7 @@ def _unexpected_file_findings(
                 code="DIRECT_EMAIL",
                 severity="high",
                 path=relative_path,
-                location="filename",
+                location=location,
                 evidence=redacted("email", email),
                 message="Confirm this email is intentionally public; otherwise rename the path.",
             )
@@ -151,23 +212,45 @@ def _unexpected_file_findings(
                 code="KNOWN_IDENTIFIER",
                 severity="high",
                 path=relative_path,
-                location="filename",
+                location=location,
                 evidence=redacted("known-identifier", term),
                 message="Rename this path to remove the known name or identifier.",
             )
         )
-    for code, kind, value, message in find_sensitive_path_values(relative_path):
+    for code, severity, kind, value, message in find_sensitive_path_values(relative_path):
         findings.append(
             Finding(
                 code=code,
-                severity="high",
+                severity=severity,
                 path=relative_path,
-                location="filename",
+                location=location,
                 evidence=redacted(kind, value),
                 message=message,
             )
         )
-    if path.suffix.lower() in _UNEXPECTED_SUFFIXES:
+    return findings
+
+
+def _looks_like_subject_key(path: Path) -> bool:
+    lower_name = path.name.lower()
+    return any(term in lower_name for term in _KEY_TERMS) and any(
+        term in lower_name for term in _MAPPING_TERMS
+    )
+
+
+def _unexpected_file_findings(
+    relative_path: str,
+    known_terms: KnownTermMatcher,
+) -> list[Finding]:
+    path = Path(relative_path)
+    lower_name = path.name.lower()
+    findings = _sensitive_path_findings(relative_path, known_terms, "filename")
+    if (
+        path.suffix.lower() in _UNEXPECTED_SUFFIXES
+        or lower_name.endswith(_COMPOUND_ARCHIVE_SUFFIXES)
+        or lower_name.endswith("~")
+        or lower_name.startswith(".#")
+    ):
         findings.append(
             Finding(
                 code="UNEXPECTED_FILE",
@@ -178,7 +261,7 @@ def _unexpected_file_findings(
                 message="Confirm this file belongs in the release; otherwise remove it.",
             )
         )
-    if lower_name in _SENSITIVE_CONFIG_NAMES or lower_name.startswith(".env."):
+    if _is_sensitive_config_name(lower_name):
         findings.append(
             Finding(
                 code="SENSITIVE_CONFIG_FILE",
@@ -200,9 +283,7 @@ def _unexpected_file_findings(
                 message="Remove this operating-system metadata file from the release.",
             )
         )
-    if any(term in lower_name for term in _KEY_TERMS) and any(
-        term in lower_name for term in _MAPPING_TERMS
-    ):
+    if _looks_like_subject_key(path):
         findings.append(
             Finding(
                 code="SUBJECT_KEY_FILE",
@@ -214,6 +295,49 @@ def _unexpected_file_findings(
             )
         )
     return findings
+
+
+def _unexpected_directory_findings(
+    relative_path: str,
+    known_terms: KnownTermMatcher,
+) -> list[Finding]:
+    path = Path(relative_path)
+    findings = _sensitive_path_findings(relative_path, known_terms, "directory name")
+    if _looks_like_subject_key(path):
+        findings.append(
+            Finding(
+                code="SUBJECT_KEY_FILE",
+                severity="high",
+                path=relative_path,
+                location="directory name",
+                evidence="<redacted:participant-key-directory>",
+                message="Keep participant identity keys outside the release directory.",
+            )
+        )
+    if path.name.lower() in _SENSITIVE_DIRECTORIES:
+        findings.append(
+            Finding(
+                code="SENSITIVE_CONFIG_DIRECTORY",
+                severity="review",
+                path=relative_path,
+                location="directory name",
+                evidence="<sensitive-config-directory>",
+                message=(
+                    "Remove this private configuration directory from the release or "
+                    "review every file inside it."
+                ),
+            )
+        )
+    return findings
+
+
+def _is_sensitive_config_name(lower_name: str) -> bool:
+    return (
+        lower_name in _SENSITIVE_CONFIG_NAMES
+        or lower_name.startswith(".env.")
+        or lower_name.endswith(".env")
+        or lower_name.startswith(("credentials.", "secret.", "secrets."))
+    )
 
 
 def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> ScanReport:
@@ -234,7 +358,7 @@ def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> S
             {
                 value
                 for path in paths
-                for _, _, value, _ in find_sensitive_path_values(path)
+                for _, _, _, value, _ in find_sensitive_path_values(path)
             },
             key=str.casefold,
         )
@@ -242,6 +366,7 @@ def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> S
     sensitive_path_terms = KnownTermMatcher(
         sensitive_path_values,
         label="sensitive-path",
+        bounded=False,
     )
     if (
         not known_terms.terms
@@ -287,11 +412,13 @@ def _walk(root: Path):
                 if entry.is_symlink():
                     yield "symlink", entry, relative_path
                 elif entry.is_dir():
-                    if entry.name in _IGNORED_DIRECTORIES:
+                    if entry.name.lower() in _IGNORED_DIRECTORIES:
                         yield "ignored_directory", entry, relative_path
                     else:
                         if entry.suffix.lower() == ".mff":
                             yield "format_directory", entry, relative_path
+                        else:
+                            yield "directory", entry, relative_path
                         subdirectories.append(entry)
                 elif entry.is_file():
                     yield "file", entry, relative_path
@@ -319,6 +446,13 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
 
     for kind, path, relative_path in _walk(root):
         if kind in {"directory_error", "entry_error"}:
+            report.findings.extend(
+                _sensitive_path_findings(
+                    relative_path,
+                    known_terms,
+                    "filesystem entry",
+                )
+            )
             report.findings.append(
                 Finding(
                     code=(
@@ -339,6 +473,13 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
             continue
 
         if kind == "ignored_directory":
+            report.findings.extend(
+                _sensitive_path_findings(
+                    relative_path,
+                    known_terms,
+                    "directory name",
+                )
+            )
             report.findings.append(
                 Finding(
                     code="UNEXPECTED_DIRECTORY",
@@ -358,6 +499,9 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
             continue
 
         if kind == "format_directory":
+            report.findings.extend(
+                _unexpected_directory_findings(relative_path, known_terms)
+            )
             try:
                 report.findings.extend(
                     inspect_mne_format(path, relative_path, "mff", known_terms)
@@ -405,7 +549,20 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 )
             continue
 
+        if kind == "directory":
+            report.findings.extend(
+                _unexpected_directory_findings(relative_path, known_terms)
+            )
+            continue
+
         if kind == "symlink":
+            report.findings.extend(
+                _sensitive_path_findings(
+                    relative_path,
+                    known_terms,
+                    "symlink name",
+                )
+            )
             try:
                 link_value = path.readlink()
                 target = link_value if link_value.is_absolute() else path.parent / link_value
@@ -451,8 +608,8 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
         try:
             if (
                 suffix in _TEXT_SUFFIXES
-                or path.name in _TEXT_NAMES
-                or path.name.lower().startswith(".env.")
+                or path.name.lower() in _TEXT_NAMES
+                or _is_sensitive_config_name(path.name.lower())
             ):
                 size = path.stat().st_size
                 if size > policy.max_text_bytes:

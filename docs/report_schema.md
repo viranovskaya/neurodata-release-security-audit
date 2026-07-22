@@ -39,4 +39,8 @@ The JSON report is deterministic. It deliberately omits a generation timestamp a
 
 Finding order is `severity`, `path`, `location`, then `code`. File lists are sorted by relative POSIX path.
 
-Relative filenames are retained for remediation. Matched emails and values from a private term list are masked in paths, but other identifying text may remain. A report is not automatically safe to publish.
+Relative filenames are retained for remediation. Known terms, contact details, direct
+IDs, labelled dates, obvious credentials and detected local or network paths are
+masked in release paths. Structured locations use stable placeholders for arbitrary
+keys. Other identifying filename text may remain, so a report is not automatically
+safe to publish.

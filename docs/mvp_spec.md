@@ -2,7 +2,7 @@
 
 Working title for a local pre-release privacy checker for EEG datasets organised with BIDS.
 
-**Status:** private v0.1 candidate, 22 July 2026. Implemented and tested; not publicly released or independently validated.
+**Status:** private v0.1 candidate, 23 July 2026. Implemented and tested; not publicly released or independently validated.
 
 ## The problem
 
@@ -64,6 +64,7 @@ The EEG signal payload is not loaded or analysed.
 | `UNEXPECTED_FILE` | `.xlsx`, `.bak`, temporary export or archive | review |
 | `UNEXPECTED_DIRECTORY` | `.git`, `.venv` or cache directory | review |
 | `SENSITIVE_CONFIG_FILE` | `.env`, credential file or private-key filename | review |
+| `SENSITIVE_CONFIG_DIRECTORY` | `.ssh`, `.aws` or another private configuration directory | review |
 | `OS_METADATA_FILE` | `.DS_Store`, `Thumbs.db` or `desktop.ini` | review |
 | `POTENTIAL_SECRET` | obvious token or credential pattern | high |
 | `PERSONNEL_FIELD` | experimenter, operator or technician field | review |
@@ -82,7 +83,8 @@ Rules should prefer structured fields and clear patterns. Generic person-name de
 
 - Local execution only. No dataset content is uploaded.
 - Read-only by default. The tool never redacts or rewrites source files.
-- Reports never reproduce a complete sensitive value. They show the finding type, file, location and a masked preview.
+- Finding evidence never reproduces a complete detected sensitive value. Reports show
+  the finding type, file, safe location and a masked preview.
 - The scanner stays inside the directory explicitly supplied by the user.
 - Symlinks that point outside the dataset are reported and not followed.
 - Large binary files are not read beyond the header bytes required for the check.
@@ -94,7 +96,11 @@ Rules should prefer structured fields and clear patterns. Generic person-name de
 - A private term list can be supplied for names and old IDs already known to the researcher. Its values are never copied into the report.
 - Report files and the private term list must stay outside the dataset being checked.
 
-Relative filenames remain visible so the curator can locate a finding. Matched emails and values from the private term list are masked in paths, but other identifying text may still be present. Reports are working review artifacts and must not be assumed safe to publish unchanged.
+Relative filenames remain visible so the curator can locate a finding. Known terms,
+emails, labelled contact details, direct IDs, dates, obvious credentials and detected
+local or network paths are masked in release paths. Unrecognised identifying text can
+still remain. Reports are working review artifacts and must not be assumed safe to
+publish unchanged.
 
 The MVP assumes accidental disclosure by an honest dataset curator. Malicious concurrent changes during a scan, encrypted archives, malware and adversarial parser inputs are outside the current threat model.
 

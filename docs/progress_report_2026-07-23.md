@@ -1,6 +1,6 @@
 # Progress report — expanded leak and format coverage
 
-Date: 22 July 2026
+Date: 23 July 2026
 
 ## Work completed in this batch
 
@@ -17,10 +17,21 @@ Date: 22 July 2026
 - Added separate EEGLAB checks for subject labels, source filenames, saved paths, comments and history.
 - Added bounded XML field checks for participant names, IDs, dates, staff and device identifiers.
 - Added visible gaps for missing readers, unsafe XML declarations and legacy nested EEGLAB structures.
+- Added driving-licence, tax, insurance and personal-number field aliases.
+- Added common service-token, JWT and authenticated-URL credential shapes.
+- Added TAR archives, editor workspaces, case-insensitive development remnants and
+  private configuration directories.
+- Added checks for empty directory names and sensitive values in symlink names.
+- Masked labelled dates and detected local or network paths when they appear in a
+  release path.
+- Replaced arbitrary JSON, XML and nested MNE keys in report locations with stable
+  placeholders.
+- Added direct tests for every finding branch, including parser, reader and filesystem
+  failures.
 
 ## Cross-check result
 
-- 68 unit tests pass on Python 3.10 and 3.13.
+- 90 unit tests pass on Python 3.10 and 3.13.
 - Every new personal value used in tests is absent from JSON and Markdown reports.
 - A standard `participant_id` value remains clean.
 - A public URL and a placeholder password remain clean.
@@ -35,9 +46,10 @@ The public calibration found useful new review items: BIDS acquisition times, tw
 ## Local gate result
 
 - The final wheel was built twice and both files had the same SHA-256 hash.
-- The wheel passed all 68 tests after clean installation on Python 3.10 and 3.13.
+- The wheel passed all 90 tests after clean installation on Python 3.10 and 3.13.
 - The installed reviewer demo was deterministic on both Python versions and produced the documented `5 / 2 / 6 / 4 / 0` summary.
 - The installed package passed the real-format FIF and EEGLAB check with MNE 1.12.1.
+- The installed package read the official MNE `test_egi.mff` fixture with `preload=False`; adding `defusedxml` to the `formats` extra fixed the dependency found by this run.
 - The source tree was checked for private local values and automated-writing markers.
 
-The exact results are in `final_local_gate_2026-07-22.md`. External review has not started yet.
+The exact results are in `final_local_gate_2026-07-23.md`. External review has not started yet.
