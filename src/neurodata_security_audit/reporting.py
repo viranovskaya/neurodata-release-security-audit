@@ -39,7 +39,7 @@ def render_markdown(report: ScanReport) -> str:
         "## Summary",
         "",
         f"- Files inspected: {summary['files_inspected']}",
-        f"- Files skipped: {summary['files_skipped']}",
+        f"- Entries skipped: {summary['files_skipped']}",
         f"- High-severity findings: {summary['findings_high']}",
         f"- Review findings: {summary['findings_review']}",
         f"- Informational findings: {summary['findings_info']}",
@@ -69,7 +69,7 @@ def render_markdown(report: ScanReport) -> str:
     else:
         lines.append("No findings.")
 
-    lines.extend(["", "## Skipped files", ""])
+    lines.extend(["", "## Skipped files and directories", ""])
     skipped = data["skipped_files"]
     if skipped:
         for item in skipped:

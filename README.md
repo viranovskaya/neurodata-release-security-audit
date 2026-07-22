@@ -42,6 +42,8 @@ neurodata-security-audit scan /path/to/dataset \
   --markdown reports/audit.md
 ```
 
+Keep report files outside the dataset being checked. The command rejects report paths inside the dataset so the release tree stays unchanged.
+
 The terminal prints a short summary. Exit status is:
 
 - `0`: no high-severity finding;
@@ -72,7 +74,7 @@ neurodata-security-audit scan /path/to/dataset \
   --sensitive-terms /private/path/known_identifiers.txt
 ```
 
-The matching values are masked in file contents and report paths. Keep this list outside the dataset and do not commit it to Git.
+The matching values are masked in file contents and report paths. The command requires this list to stay outside the dataset. Do not commit it to Git.
 
 ## Limits
 

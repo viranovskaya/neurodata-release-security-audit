@@ -382,14 +382,45 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("SUBJECT_KEY_FILE", codes)
         self.assertIn("UNEXPECTED_FILE", codes)
 
+    def test_development_directory_is_visible_but_not_traversed(self) -> None:
+        git_dir = self.root / ".git"
+        git_dir.mkdir()
+        (git_dir / "config").write_text(
+            "contact = alice@example.org\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("UNEXPECTED_DIRECTORY", codes)
+        self.assertNotIn("DIRECT_EMAIL", codes)
+        self.assertIn(".git", [item.path for item in report.skipped_files])
+
     def test_external_symlink_is_not_followed(self) -> None:
         outside = Path(self.temp_dir.name) / "outside.txt"
         outside.write_text("alice@example.org", encoding="utf-8")
-        os.symlink(outside, self.root / "external.txt")
-        report = scan_dataset(self.root)
+        link = self.root / "external.txt"
+        os.symlink(outside, link)
+        original_resolve = Path.resolve
+
+        def controlled_resolve(path: Path, *args, **kwargs):
+            if path == link:
+                raise AssertionError("scanner resolved the symlink target")
+            return original_resolve(path, *args, **kwargs)
+
+        with patch.object(Path, "resolve", controlled_resolve):
+            report = scan_dataset(self.root)
         codes = {finding.code for finding in report.findings}
         self.assertIn("EXTERNAL_SYMLINK", codes)
         self.assertNotIn("DIRECT_EMAIL", codes)
+
+    def test_internal_symlink_is_visible_but_not_followed(self) -> None:
+        target = self.root / "notes.txt"
+        target.write_text("Synthetic dataset\n", encoding="utf-8")
+        link = self.root / "linked_notes.txt"
+        os.symlink(target.name, link)
+        report = scan_dataset(self.root)
+        self.assertIn("SYMLINK_REVIEW", {finding.code for finding in report.findings})
+        self.assertIn(link.name, [item.path for item in report.skipped_files])
 
     def test_symlink_loop_does_not_stop_scan(self) -> None:
         os.symlink("loop", self.root / "loop")
@@ -505,6 +536,31 @@ class ScannerTests(unittest.TestCase):
             code = main(["scan", str(self.root), "--json", "audit.json"])
         self.assertEqual(2, code)
         self.assertIn("could not write report (PermissionError)", stderr.getvalue())
+
+    def test_cli_rejects_report_inside_dataset(self) -> None:
+        report_path = self.root / "audit.json"
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            code = main(["scan", str(self.root), "--json", str(report_path)])
+        self.assertEqual(2, code)
+        self.assertFalse(report_path.exists())
+        self.assertIn("Report paths must be outside", stderr.getvalue())
+
+    def test_cli_rejects_sensitive_terms_inside_dataset(self) -> None:
+        term_file = self.root / "private_terms.txt"
+        term_file.write_text("Jane Doe\n", encoding="utf-8")
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            code = main(
+                [
+                    "scan",
+                    str(self.root),
+                    "--sensitive-terms",
+                    str(term_file),
+                ]
+            )
+        self.assertEqual(2, code)
+        self.assertIn("sensitive term file must be outside", stderr.getvalue())
 
     def test_cli_reads_private_term_file(self) -> None:
         known_name = "Jane Doe"

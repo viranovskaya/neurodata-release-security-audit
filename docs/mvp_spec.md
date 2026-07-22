@@ -52,6 +52,7 @@ The EEG signal payload is not loaded or analysed.
 | `LOCAL_PATH` | `/Users/name/...` or `C:\Users\name\...` | review |
 | `SOURCE_FILENAME` | original participant-labelled recording name | review |
 | `UNEXPECTED_FILE` | `.xlsx`, `.bak`, temporary export or archive | review |
+| `UNEXPECTED_DIRECTORY` | `.git`, `.venv` or cache directory | review |
 | `POTENTIAL_SECRET` | obvious token or credential pattern | high |
 
 Rules should prefer structured fields and clear patterns. Generic person-name detection is out of scope for the first version because it would create too many false positives.
@@ -65,7 +66,9 @@ Rules should prefer structured fields and clear patterns. Generic person-name de
 - Symlinks that point outside the dataset are reported and not followed.
 - Large binary files are not read beyond the header bytes required for the check.
 - Every skipped or unreadable file is listed in the report.
+- Development and cache directories are not traversed, but remain visible as skipped entries.
 - A private term list can be supplied for names and old IDs already known to the researcher. Its values are never copied into the report.
+- Report files and the private term list must stay outside the dataset being checked.
 
 Relative filenames remain visible so the curator can locate a finding. Matched emails and values from the private term list are masked in paths, but other identifying text may still be present. Reports are working review artifacts and must not be assumed safe to publish unchanged.
 

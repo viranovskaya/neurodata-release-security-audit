@@ -32,7 +32,9 @@ All identifiers below are synthetic.
 | Clean EDF | placeholder patient/recording fields and anonymised date | no high finding |
 | Participant key | `participant_name_key.xlsx` | `SUBJECT_KEY_FILE` |
 | Unexpected backup | `.bak`, `.old`, `.zip` or temporary export | `UNEXPECTED_FILE` |
+| Development directory | `.git`, `.venv` or cache directory in the release tree | `UNEXPECTED_DIRECTORY`; directory listed as skipped |
 | External symlink | symlink points outside dataset root | `EXTERNAL_SYMLINK`; target not followed |
+| Internal symlink | symlink points to another release file | `SYMLINK_REVIEW`; target not followed through the link |
 | Symlink loop | symlink resolves to itself | `UNRESOLVED_SYMLINK`; scan continues |
 | Oversized text | text exceeds configured byte limit | `TEXT_FILE_TOO_LARGE`; file listed as skipped |
 | Malformed EDF | shorter than the common 256-byte header | `MALFORMED_HEADER`; scan continues |
@@ -45,3 +47,5 @@ All identifiers below are synthetic.
 | Source integrity | hash fixtures before and after scan | unchanged |
 | Offline operation | scan with network unavailable | identical result |
 | Report write failure | output path cannot be written | concise error and exit status `2`; no traceback |
+| Report inside dataset | output path is within the audited tree | rejected before scanning or writing |
+| Private term list inside dataset | identifier list is within the audited tree | rejected before scanning |

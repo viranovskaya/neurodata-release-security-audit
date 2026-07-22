@@ -31,7 +31,7 @@ The JSON report is deterministic. It deliberately omits a generation timestamp a
       "path": "notes.txt",
       "location": "line 2",
       "evidence": "<redacted:email,length=22>",
-      "message": "An email address should be reviewed before release."
+      "message": "Confirm this email is intentionally public; otherwise remove it."
     }
   ]
 }

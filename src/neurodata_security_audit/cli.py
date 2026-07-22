@@ -45,16 +45,32 @@ def _read_sensitive_terms(path: Path) -> tuple[str, ...]:
     )
 
 
+def _is_inside_dataset(path: Path, dataset: Path) -> bool:
+    dataset_root = dataset.expanduser().resolve(strict=True)
+    candidate = path.expanduser().resolve(strict=False)
+    return candidate == dataset_root or dataset_root in candidate.parents
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        output_paths = (args.json_path, args.markdown_path)
+        if any(
+            path is not None and _is_inside_dataset(path, args.dataset)
+            for path in output_paths
+        ):
+            raise ValueError("Report paths must be outside the dataset directory")
+        if args.sensitive_terms and _is_inside_dataset(
+            args.sensitive_terms,
+            args.dataset,
+        ):
+            raise ValueError("The sensitive term file must be outside the dataset directory")
         terms = _read_sensitive_terms(args.sensitive_terms) if args.sensitive_terms else ()
         policy = ScanPolicy(sensitive_terms=terms)
         report = scan_dataset(args.dataset, policy)
     except (
-        FileNotFoundError,
-        NotADirectoryError,
-        PermissionError,
+        OSError,
+        RuntimeError,
         UnicodeError,
         ValueError,
     ) as error:

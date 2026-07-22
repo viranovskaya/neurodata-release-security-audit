@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -149,7 +150,9 @@ def _walk(root: Path):
                 if entry.is_symlink():
                     yield "symlink", entry, relative_path
                 elif entry.is_dir():
-                    if entry.name not in _IGNORED_DIRECTORIES:
+                    if entry.name in _IGNORED_DIRECTORIES:
+                        yield "ignored_directory", entry, relative_path
+                    else:
                         subdirectories.append(entry)
                 elif entry.is_file():
                     yield "file", entry, relative_path
@@ -190,23 +193,50 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
             )
             continue
 
+        if kind == "ignored_directory":
+            report.findings.append(
+                Finding(
+                    code="UNEXPECTED_DIRECTORY",
+                    severity="review",
+                    path=relative_path,
+                    location="directory name",
+                    evidence=f"<directory:{path.name}>",
+                    message=(
+                        "Remove this development directory from the release or "
+                        "review it manually."
+                    ),
+                )
+            )
+            report.skipped_files.append(
+                SkippedFile(relative_path, "Development directory is not inspected")
+            )
+            continue
+
         if kind == "symlink":
             try:
-                path.stat()
-                target = path.resolve(strict=False)
-                try:
-                    target.relative_to(root)
-                    code = "SYMLINK_REVIEW"
-                    message = "Review this symlink manually; the scanner did not follow it."
-                except ValueError:
-                    code = "EXTERNAL_SYMLINK"
-                    message = (
-                        "Remove or replace this symlink because it points outside "
-                        "the dataset."
-                    )
+                link_value = path.readlink()
+                target = link_value if link_value.is_absolute() else path.parent / link_value
+                target = Path(os.path.abspath(target))
+                if target == path:
+                    code = "UNRESOLVED_SYMLINK"
+                    message = "Fix or remove this self-referencing symlink."
+                else:
+                    try:
+                        target.relative_to(root)
+                        code = "SYMLINK_REVIEW"
+                        message = "Review this symlink manually; the scanner did not follow it."
+                    except ValueError:
+                        code = "EXTERNAL_SYMLINK"
+                        message = (
+                            "Remove or replace this symlink because it points outside "
+                            "the dataset."
+                        )
             except (OSError, RuntimeError):
                 code = "UNRESOLVED_SYMLINK"
-                message = "Fix or remove this symlink because its target could not be resolved."
+                message = (
+                    "Fix or remove this symlink because its target could not be "
+                    "classified safely."
+                )
             report.findings.append(
                 Finding(
                     code=code,
