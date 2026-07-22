@@ -57,7 +57,7 @@ def _unexpected_file_findings(
                 path=relative_path,
                 location="filename",
                 evidence=redacted("email", email),
-                message="An email address in a path should be reviewed before release.",
+                message="Confirm this email is intentionally public; otherwise rename the path.",
             )
         )
     for term in known_terms.matches(relative_path):
@@ -68,7 +68,7 @@ def _unexpected_file_findings(
                 path=relative_path,
                 location="filename",
                 evidence=redacted("known-identifier", term),
-                message="A name or identifier from the private term list was found in a path.",
+                message="Rename this path to remove the known name or identifier.",
             )
         )
     if path.suffix.lower() in _UNEXPECTED_SUFFIXES:
@@ -79,7 +79,7 @@ def _unexpected_file_findings(
                 path=relative_path,
                 location="filename",
                 evidence=f"<file-extension:{path.suffix.lower() or 'none'}>",
-                message="This file type is unusual in a public EEG/BIDS release.",
+                message="Confirm this file belongs in the release; otherwise remove it.",
             )
         )
     if any(term in lower_name for term in _KEY_TERMS) and any(
@@ -92,7 +92,7 @@ def _unexpected_file_findings(
                 path=relative_path,
                 location="filename",
                 evidence="<redacted:participant-key-filename>",
-                message="The filename suggests a participant identity mapping file.",
+                message="Keep participant identity keys outside the release directory.",
             )
         )
     return findings
@@ -173,12 +173,16 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
         if kind in {"directory_error", "entry_error"}:
             report.findings.append(
                 Finding(
-                    code="UNREADABLE_DIRECTORY" if kind == "directory_error" else "UNREADABLE_ENTRY",
+                    code=(
+                        "UNREADABLE_DIRECTORY"
+                        if kind == "directory_error"
+                        else "UNREADABLE_ENTRY"
+                    ),
                     severity="review",
                     path=relative_path,
                     location="filesystem traversal",
                     evidence="<redacted:filesystem-error>",
-                    message="The scanner could not inspect this filesystem entry.",
+                    message="Review this entry manually and fix its access before release.",
                 )
             )
             report.skipped_files.append(
@@ -193,13 +197,16 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 try:
                     target.relative_to(root)
                     code = "SYMLINK_REVIEW"
-                    message = "A symlink is present and was not followed."
+                    message = "Review this symlink manually; the scanner did not follow it."
                 except ValueError:
                     code = "EXTERNAL_SYMLINK"
-                    message = "A symlink points outside the dataset and was not followed."
+                    message = (
+                        "Remove or replace this symlink because it points outside "
+                        "the dataset."
+                    )
             except (OSError, RuntimeError):
                 code = "UNRESOLVED_SYMLINK"
-                message = "A symlink target could not be resolved and was not followed."
+                message = "Fix or remove this symlink because its target could not be resolved."
             report.findings.append(
                 Finding(
                     code=code,
@@ -228,7 +235,10 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                             path=relative_path,
                             location="file size",
                             evidence=f"<bytes:{size}>",
-                            message="The text file exceeds the configured scan limit.",
+                            message=(
+                                "Review this file manually or raise the limit after "
+                                "checking its format."
+                            ),
                         )
                     )
                     report.skipped_files.append(
@@ -273,7 +283,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     path=relative_path,
                     location="file read",
                     evidence=f"<error:{type(error).__name__}>",
-                    message="The scanner could not inspect this file.",
+                    message="Review this file manually and fix its access before release.",
                 )
             )
     return _redact_report_paths(report, known_terms).normalized()

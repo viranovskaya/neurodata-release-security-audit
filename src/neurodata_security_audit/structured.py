@@ -65,7 +65,7 @@ def _finding_for_field(
             path=relative_path,
             location=location,
             evidence=redacted("birth-date", text),
-            message="A date-of-birth field is populated and should not be released without review.",
+            message="Remove this date of birth or replace it according to the release policy.",
         )
     if normalised in _PHONE_KEYS:
         return Finding(
@@ -74,7 +74,7 @@ def _finding_for_field(
             path=relative_path,
             location=location,
             evidence=redacted("phone", text),
-            message="A phone field is populated and should be reviewed before release.",
+            message="Confirm this phone number is intentionally public; otherwise remove it.",
         )
     if normalised in _NAME_KEYS or (allow_plain_name and normalised == "name"):
         return Finding(
@@ -83,7 +83,7 @@ def _finding_for_field(
             path=relative_path,
             location=location,
             evidence=redacted("subject-name", text),
-            message="A participant-name field is populated and should be reviewed before release.",
+            message="Remove or replace this participant name before release.",
         )
     if normalised in _RECORDING_DATE_KEYS:
         return Finding(
@@ -92,7 +92,7 @@ def _finding_for_field(
             path=relative_path,
             location=location,
             evidence=redacted("recording-date", text),
-            message="An exact acquisition date may require shifting before release.",
+            message="Confirm this date is allowed or has been shifted as required.",
         )
     return None
 
@@ -118,7 +118,7 @@ def inspect_json(text: str, relative_path: str) -> list[Finding]:
                 path=relative_path,
                 location="JSON document",
                 evidence="<redacted:parse-error>",
-                message="The JSON file could not be parsed for field-aware checks.",
+                message="Repair this JSON file; its named fields were not checked.",
             )
         ]
 
@@ -149,7 +149,7 @@ def inspect_delimited(text: str, relative_path: str, delimiter: str) -> list[Fin
                 path=relative_path,
                 location="delimited table",
                 evidence="<redacted:parse-error>",
-                message="The table could not be parsed for field-aware checks.",
+                message="Repair this table; its named fields were not checked.",
             )
         ]
 

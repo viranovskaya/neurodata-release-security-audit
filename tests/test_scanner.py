@@ -63,7 +63,10 @@ class ScannerTests(unittest.TestCase):
 
         report = scan_dataset(self.root)
         self.assertEqual([], [item for item in report.findings if item.severity == "high"])
-        self.assertIn("sub-01/eeg/sub-01_task-rest_eeg.eeg", [item.path for item in report.skipped_files])
+        self.assertIn(
+            "sub-01/eeg/sub-01_task-rest_eeg.eeg",
+            [item.path for item in report.skipped_files],
+        )
 
     def test_reviewer_demo_matches_the_documented_result(self) -> None:
         project_root = Path(__file__).resolve().parents[1]
@@ -277,7 +280,12 @@ class ScannerTests(unittest.TestCase):
         report = scan_dataset(self.root)
         codes = {finding.code for finding in report.findings if finding.path == "leaky.edf"}
         self.assertTrue(
-            {"SUBJECT_FIELD_POPULATED", "SUBJECT_NAME_FIELD", "BIRTH_DATE_FIELD", "EXACT_RECORDING_DATE"}
+            {
+                "SUBJECT_FIELD_POPULATED",
+                "SUBJECT_NAME_FIELD",
+                "BIRTH_DATE_FIELD",
+                "EXACT_RECORDING_DATE",
+            }
             <= codes
         )
         rendered = render_json(report)
@@ -408,6 +416,18 @@ class ScannerTests(unittest.TestCase):
         rendered = render_markdown(scan_dataset(self.root))
         self.assertNotIn("<script>", rendered)
         self.assertIn("notes\\|&lt;script&gt;.txt", rendered)
+
+    def test_markdown_report_explains_what_to_check(self) -> None:
+        (self.root / "notes.txt").write_text(
+            "Contact: alice@example.org\n",
+            encoding="utf-8",
+        )
+        rendered = render_markdown(scan_dataset(self.root))
+        self.assertIn("| What to check |", rendered)
+        self.assertIn(
+            "Confirm this email is intentionally public; otherwise remove it.",
+            rendered,
+        )
 
     def test_cli_writes_reports_and_returns_finding_status(self) -> None:
         (self.root / "notes.txt").write_text("Contact: alice@example.org\n", encoding="utf-8")

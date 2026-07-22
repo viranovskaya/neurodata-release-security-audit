@@ -81,7 +81,7 @@ The MVP produces:
 
 Each report records:
 
-- scanner and ruleset version;
+- scanner version;
 - files inspected, skipped and unreadable;
 - finding code and severity;
 - relative file path and safe location information;

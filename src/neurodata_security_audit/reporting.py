@@ -13,7 +13,12 @@ def render_json(report: ScanReport) -> str:
 
 
 def _markdown_text(value: object) -> str:
-    return escape(str(value), quote=False).replace("\r", "\\r").replace("\n", "\\n").replace("|", "\\|")
+    return (
+        escape(str(value), quote=False)
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+        .replace("|", "\\|")
+    )
 
 
 def render_markdown(report: ScanReport) -> str:
@@ -22,8 +27,14 @@ def render_markdown(report: ScanReport) -> str:
     lines = [
         "# NeuroData release security audit",
         "",
-        "This report identifies items that need review. It does not certify that the dataset is anonymous or compliant.",
-        "Matched emails and private terms are masked in filenames. Review the report before sharing it.",
+        (
+            "This report identifies items that need review. It does not certify "
+            "that the dataset is anonymous or compliant."
+        ),
+        (
+            "Matched emails and private terms are masked in filenames. "
+            "Review the report before sharing it."
+        ),
         "",
         "## Summary",
         "",
@@ -40,8 +51,8 @@ def render_markdown(report: ScanReport) -> str:
     if findings:
         lines.extend(
             [
-                "| Severity | Code | File | Location | Evidence |",
-                "|---|---|---|---|---|",
+                "| Severity | Code | File | Location | Evidence | What to check |",
+                "|---|---|---|---|---|---|",
             ]
         )
         for finding in findings:
@@ -51,6 +62,7 @@ def render_markdown(report: ScanReport) -> str:
                 finding["path"],
                 finding["location"],
                 finding["evidence"],
+                finding["message"],
             ]
             safe = [_markdown_text(value) for value in values]
             lines.append("| " + " | ".join(safe) + " |")

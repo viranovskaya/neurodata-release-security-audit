@@ -40,7 +40,7 @@ Open `reports/reviewer_demo.md`. The report should identify:
 - a BrainVision source filename;
 - a BrainVision recording timestamp.
 
-The invented email, name, subject code, local path and timestamp should not be reproduced in full.
+Each row should include a plain-language note under `What to check`. The invented email, name, subject code, local path and timestamp should not be reproduced in full.
 
 ## 3. Optional check on another dataset
 

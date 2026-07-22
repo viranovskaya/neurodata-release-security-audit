@@ -98,7 +98,7 @@ def scan_text(
                     path=relative_path,
                     location=location,
                     evidence=redacted("known-identifier", term),
-                    message="A name or identifier from the private term list was found.",
+                    message="Remove or replace this known name or identifier before release.",
                 )
             )
         for match in _EMAIL.finditer(line):
@@ -109,7 +109,7 @@ def scan_text(
                     path=relative_path,
                     location=location,
                     evidence=redacted("email", match.group(0)),
-                    message="An email address should be reviewed before release.",
+                    message="Confirm this email is intentionally public; otherwise remove it.",
                 )
             )
         for match in _LABELLED_PHONE.finditer(line):
@@ -121,7 +121,10 @@ def scan_text(
                     path=relative_path,
                     location=location,
                     evidence=redacted("phone", value),
-                    message="A labelled phone number should be reviewed before release.",
+                    message=(
+                        "Confirm this phone number is intentionally public; "
+                        "otherwise remove it."
+                    ),
                 )
             )
         for pattern in _LOCAL_PATHS:
@@ -133,7 +136,7 @@ def scan_text(
                         path=relative_path,
                         location=location,
                         evidence=redacted("local-path", match.group(0)),
-                        message="A local computer path can reveal user or institution details.",
+                        message="Replace this local computer path with a relative or generic path.",
                     )
                 )
         for match in _BIRTH_DATE.finditer(line):
@@ -144,7 +147,10 @@ def scan_text(
                     path=relative_path,
                     location=location,
                     evidence=redacted("birth-date-field", match.group(0)),
-                    message="A labelled date of birth should not be released without review.",
+                    message=(
+                        "Remove this date of birth or replace it according to "
+                        "the release policy."
+                    ),
                 )
             )
         match = _SUBJECT_NAME.search(line)
@@ -156,7 +162,7 @@ def scan_text(
                     path=relative_path,
                     location=location,
                     evidence=redacted("subject-name-field", match.group(0)),
-                    message="A populated participant-name field should be reviewed before release.",
+                    message="Remove or replace this participant name before release.",
                 )
             )
         if _ACQUISITION_DATE.search(line):
@@ -167,7 +173,7 @@ def scan_text(
                     path=relative_path,
                     location=location,
                     evidence="<redacted:recording-date-field>",
-                    message="An exact acquisition date may require shifting before release.",
+                    message="Confirm this date is allowed or has been shifted as required.",
                 )
             )
         if suffix.endswith(".vmrk") and _BRAINVISION_NEW_SEGMENT.search(line):
@@ -178,7 +184,7 @@ def scan_text(
                     path=relative_path,
                     location=location,
                     evidence="<redacted:brainvision-timestamp>",
-                    message="A BrainVision New Segment marker contains an exact timestamp.",
+                    message="Confirm this timestamp is allowed or has been shifted as required.",
                 )
             )
         for secret_kind, pattern in _SECRET_PATTERNS:
@@ -190,7 +196,7 @@ def scan_text(
                         path=relative_path,
                         location=location,
                         evidence=redacted(secret_kind, match.group(0)),
-                        message="A credential-shaped value should be removed or verified.",
+                        message="If this is a real credential, remove it and rotate it.",
                     )
                 )
     return findings

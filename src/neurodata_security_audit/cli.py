@@ -51,7 +51,13 @@ def main(argv: list[str] | None = None) -> int:
         terms = _read_sensitive_terms(args.sensitive_terms) if args.sensitive_terms else ()
         policy = ScanPolicy(sensitive_terms=terms)
         report = scan_dataset(args.dataset, policy)
-    except (FileNotFoundError, NotADirectoryError, PermissionError, UnicodeError, ValueError) as error:
+    except (
+        FileNotFoundError,
+        NotADirectoryError,
+        PermissionError,
+        UnicodeError,
+        ValueError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 

@@ -55,8 +55,8 @@ def inspect_brainvision(text: str, relative_path: str) -> list[Finding]:
                     location=f"line {line_number}, {match.group(1)}",
                     evidence=redacted("brainvision-file-reference", value),
                     message=(
-                        "A BrainVision file reference does not match the released filename "
-                        "and may preserve a source-system name."
+                        "Confirm this BrainVision reference is intended; otherwise rename it "
+                        "to match the released file."
                     ),
                 )
             )
@@ -76,7 +76,7 @@ def inspect_edf_header(
                 path=relative_path,
                 location="file content",
                 evidence="<bytes:0>",
-                message="The file is an empty repository fixture, not an inspectable EDF/BDF payload.",
+                message="Confirm this empty fixture is intentional; no EDF/BDF header was checked.",
             )
         ]
     if header.startswith(_GIT_LFS_PREFIX):
@@ -87,7 +87,7 @@ def inspect_edf_header(
                 path=relative_path,
                 location="file content",
                 evidence="<git-lfs-pointer>",
-                message="The repository contains a Git LFS pointer, not the EDF/BDF payload.",
+                message="Fetch the Git LFS payload before relying on this audit.",
             )
         ]
     if len(header) < _EDF_HEADER_BYTES:
@@ -98,7 +98,7 @@ def inspect_edf_header(
                 path=relative_path,
                 location="EDF common header",
                 evidence=f"<header-bytes:{len(header)}>",
-                message="The EDF/BDF common header is shorter than 256 bytes.",
+                message="Repair or replace this file; its EDF/BDF header was not checked.",
             )
         ]
 
@@ -119,7 +119,7 @@ def inspect_edf_header(
                 path=relative_path,
                 location="EDF patient field",
                 evidence=f"<redacted:edf-patient-field,length={len(patient)}>",
-                message="The EDF/BDF patient field is populated and needs manual review.",
+                message="Confirm this patient field contains only approved pseudonymous metadata.",
             )
         )
 
@@ -132,7 +132,7 @@ def inspect_edf_header(
                 path=relative_path,
                 location="EDF patient field",
                 evidence=f"<redacted:edf-birth-date,length={len(birth_date.group(0))}>",
-                message="The EDF/BDF patient field contains a full date of birth.",
+                message="Remove this date of birth or replace it according to the release policy.",
             )
         )
 
@@ -149,7 +149,7 @@ def inspect_edf_header(
                     path=relative_path,
                     location="EDF patient field",
                     evidence=f"<redacted:edf-patient-name,length={len(patient_name)}>",
-                    message="The EDF+ patient-name position is populated.",
+                    message="Remove or replace this participant name before release.",
                 )
             )
 
@@ -161,7 +161,7 @@ def inspect_edf_header(
                 path=relative_path,
                 location="EDF recording field",
                 evidence=f"<redacted:edf-recording-field,length={len(recording)}>",
-                message="The EDF/BDF recording-information field needs manual review.",
+                message="Confirm this recording field contains no identifying information.",
             )
         )
 
@@ -173,7 +173,7 @@ def inspect_edf_header(
                 path=relative_path,
                 location="EDF start-date field",
                 evidence="<redacted:edf-start-date>",
-                message="The EDF/BDF start date does not use a recognised placeholder value.",
+                message="Confirm this date is allowed or has been shifted as required.",
             )
         )
     return findings
