@@ -111,6 +111,173 @@ class ScannerTests(unittest.TestCase):
         for secret in (email, phone, local_path, token):
             self.assertNotIn(secret, rendered)
 
+    def test_network_and_machine_values_are_detected_and_masked(self) -> None:
+        values = (
+            r"\\acquisition-server\eeg\sub-01",
+            "/mnt/lab/eeg/sub-01",
+            "acquisition-pc.local",
+            "10.20.30.40",
+            "AA:BB:CC:DD:EE:FF",
+            "lab.operator",
+        )
+        (self.root / "runtime.log").write_text(
+            "UNC path: \\\\acquisition-server\\eeg\\sub-01\n"
+            "Data path: /mnt/lab/eeg/sub-01\n"
+            "Hostname: acquisition-pc.local\n"
+            "IP address: 10.20.30.40\n"
+            "MAC address: AA:BB:CC:DD:EE:FF\n"
+            "Username: lab.operator\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertTrue(
+            {
+                "NETWORK_PATH",
+                "LOCAL_HOSTNAME",
+                "NETWORK_ADDRESS",
+                "DEVICE_ADDRESS",
+                "ACCOUNT_NAME",
+            }
+            <= codes
+        )
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_credentials_and_database_url_are_detected_and_masked(self) -> None:
+        values = (
+            "correct-horse-battery",
+            "postgresql://dbuser:db-password@internal-db/study",
+        )
+        (self.root / "settings.toml").write_text(
+            'password = "correct-horse-battery"\n'
+            'database_url = "postgresql://dbuser:db-password@internal-db/study"\n',
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        secret_findings = [
+            finding for finding in report.findings if finding.code == "POTENTIAL_SECRET"
+        ]
+        self.assertGreaterEqual(len(secret_findings), 2)
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_source_config_and_notebook_files_are_scanned(self) -> None:
+        (self.root / "pipeline.py").write_text(
+            'source_path = "/data/private/eeg"\n',
+            encoding="utf-8",
+        )
+        notebook = {
+            "cells": [
+                {
+                    "cell_type": "code",
+                    "source": ["hostname: acquisition-pc\n"],
+                    "outputs": [],
+                    "metadata": {},
+                    "execution_count": None,
+                }
+            ],
+            "metadata": {},
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        }
+        (self.root / "analysis.ipynb").write_text(
+            json.dumps(notebook),
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        self.assertEqual(
+            ["analysis.ipynb", "pipeline.py"],
+            report.files_inspected,
+        )
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("NETWORK_PATH", codes)
+        self.assertIn("LOCAL_HOSTNAME", codes)
+
+    def test_sensitive_os_and_editor_files_are_visible(self) -> None:
+        (self.root / ".env").write_text("EXAMPLE_MODE=true\n", encoding="utf-8")
+        (self.root / ".env.production").write_text(
+            "api_key=synthetic-secret-value\n",
+            encoding="utf-8",
+        )
+        (self.root / "id_rsa").write_text(
+            "-----BEGIN OPENSSH PRIVATE KEY-----\nsynthetic\n",
+            encoding="utf-8",
+        )
+        (self.root / "private.pem").write_text(
+            "-----BEGIN PRIVATE KEY-----\nsynthetic\n",
+            encoding="utf-8",
+        )
+        (self.root / ".DS_Store").write_bytes(b"synthetic")
+        (self.root / "notes.swp").write_bytes(b"synthetic")
+        codes = set(self._codes())
+        self.assertIn("SENSITIVE_CONFIG_FILE", codes)
+        self.assertIn("POTENTIAL_SECRET", codes)
+        self.assertIn("OS_METADATA_FILE", codes)
+        self.assertIn("UNEXPECTED_FILE", codes)
+        report = scan_dataset(self.root)
+        self.assertIn(".env.production", report.files_inspected)
+        self.assertIn("private.pem", report.files_inspected)
+
+    def test_sensitive_config_evidence_does_not_repeat_a_known_id(self) -> None:
+        known_id = "SITEA-0042"
+        (self.root / f".env.{known_id}").write_text(
+            "EXAMPLE_MODE=true\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root, ScanPolicy(sensitive_terms=(known_id,)))
+        rendered = render_json(report) + render_markdown(report)
+        self.assertIn("SENSITIVE_CONFIG_FILE", {item.code for item in report.findings})
+        self.assertNotIn(known_id, rendered)
+
+    def test_structured_technical_fields_are_detected_and_masked(self) -> None:
+        values = {
+            "hostname": "acquisition-pc",
+            "ipAddress": "10.20.30.40",
+            "macAddress": "AA:BB:CC:DD:EE:FF",
+            "username": "lab.operator",
+        }
+        (self.root / "runtime.json").write_text(
+            json.dumps({"runtime": values}),
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertTrue(
+            {"LOCAL_HOSTNAME", "NETWORK_ADDRESS", "DEVICE_ADDRESS", "ACCOUNT_NAME"}
+            <= codes
+        )
+        rendered = render_json(report) + render_markdown(report)
+        for value in values.values():
+            self.assertNotIn(value, rendered)
+
+    def test_public_url_and_placeholder_secret_are_not_flagged(self) -> None:
+        (self.root / "README").write_text(
+            "Documentation: https://example.org/data/demo\n"
+            "Password: n/a\n"
+            "Hostname: localhost\n"
+            "IP address: 127.0.0.1\n",
+            encoding="utf-8",
+        )
+        (self.root / "runtime.json").write_text(
+            json.dumps(
+                {
+                    "hostname": "localhost",
+                    "ipAddress": "127.0.0.1",
+                    "username": "unknown",
+                }
+            ),
+            encoding="utf-8",
+        )
+        codes = set(self._codes())
+        self.assertNotIn("NETWORK_PATH", codes)
+        self.assertNotIn("POTENTIAL_SECRET", codes)
+        self.assertNotIn("LOCAL_HOSTNAME", codes)
+        self.assertNotIn("NETWORK_ADDRESS", codes)
+        self.assertNotIn("ACCOUNT_NAME", codes)
+
     def test_home_paths_for_supported_platforms_are_masked(self) -> None:
         paths = (
             "/Users/alice/private/participants.csv",
@@ -178,6 +345,24 @@ class ScannerTests(unittest.TestCase):
             ["<redacted:email-001>", "<redacted:email-002>"],
             [item.path for item in report.skipped_files],
         )
+
+    def test_phone_personal_id_and_secret_in_filenames_are_masked(self) -> None:
+        values = (
+            "phone_+34600123456",
+            "mrn_MRN928374",
+            "ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
+        )
+        for value in values:
+            (self.root / f"{value}.txt").write_text("synthetic\n", encoding="utf-8")
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertTrue(
+            {"DIRECT_PHONE", "DIRECT_PERSONAL_ID", "POTENTIAL_SECRET"} <= codes
+        )
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+        self.assertIn("<redacted:sensitive-path-", rendered)
 
     def test_private_terms_are_deduplicated_case_insensitively(self) -> None:
         policy = ScanPolicy(sensitive_terms=("Jane Doe", "jane doe", "JANE DOE"))
@@ -281,6 +466,76 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual("JSON field participant.full_name", name_findings[0].location)
         rendered = render_json(report) + render_markdown(report)
         self.assertNotIn("Jane Doe", rendered)
+
+    def test_structured_personal_ids_addresses_and_linked_ids_are_masked(self) -> None:
+        values = {
+            "medicalRecordNumber": "MRN-928374",
+            "streetAddress": "12 Example Street",
+            "patientId": "HOSP-0042",
+        }
+        document = {
+            "patient": values,
+            "Authors": [{"name": "Researcher Name", "address": "University Lab"}],
+        }
+        (self.root / "sidecar.json").write_text(
+            json.dumps(document),
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("DIRECT_PERSONAL_ID", codes)
+        self.assertIn("POSTAL_ADDRESS_FIELD", codes)
+        self.assertIn("LINKED_SOURCE_ID", codes)
+        address_findings = [
+            finding
+            for finding in report.findings
+            if finding.code == "POSTAL_ADDRESS_FIELD"
+        ]
+        self.assertEqual(1, len(address_findings))
+        rendered = render_json(report) + render_markdown(report)
+        for value in values.values():
+            self.assertNotIn(value, rendered)
+        self.assertNotIn("University Lab", rendered)
+
+    def test_bids_scans_acquisition_time_is_reviewed_and_masked(self) -> None:
+        acquisition_time = "2026-07-22T10:30:00"
+        (self.root / "sub-01_scans.tsv").write_text(
+            f"filename\tacq_time\neeg/sub-01_task-rest_eeg.edf\t{acquisition_time}\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        self.assertIn("EXACT_RECORDING_DATE", {finding.code for finding in report.findings})
+        rendered = render_json(report) + render_markdown(report)
+        self.assertNotIn(acquisition_time, rendered)
+
+    def test_labelled_text_personal_fields_are_detected_and_masked(self) -> None:
+        values = (
+            "MRN-928374",
+            "12 Example Street",
+            "HOSP-0042",
+        )
+        (self.root / "notes.txt").write_text(
+            "Medical record number: MRN-928374\n"
+            "Patient address: 12 Example Street\n"
+            "Original subject ID: HOSP-0042\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertTrue(
+            {"DIRECT_PERSONAL_ID", "POSTAL_ADDRESS_FIELD", "LINKED_SOURCE_ID"}
+            <= codes
+        )
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_standard_bids_participant_id_is_not_treated_as_source_id(self) -> None:
+        (self.root / "participants.tsv").write_text(
+            "participant_id\tage\nsub-01\t34\n",
+            encoding="utf-8",
+        )
+        self.assertNotIn("LINKED_SOURCE_ID", self._codes())
 
     def test_participants_table_fields_are_detected_and_masked(self) -> None:
         values = ("1990-01-02", "Jane Doe", "+34 600 123 456")

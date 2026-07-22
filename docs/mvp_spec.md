@@ -32,7 +32,7 @@ The tool receives one local dataset directory and scans it without modifying the
 - BIDS `.tsv` and `.json` metadata;
 - BrainVision `.vhdr` and `.vmrk` files;
 - the fixed header area of EDF and BDF files;
-- small text files such as `.txt`, `.md`, `.csv` and `.log`;
+- small text, source, config and notebook files;
 - filenames and the dataset directory structure;
 - unexpected release files such as spreadsheets, backups and temporary exports.
 
@@ -46,13 +46,23 @@ The EEG signal payload is not loaded or analysed.
 | `DIRECT_PHONE` | phone number in a note or log | high |
 | `SUBJECT_NAME_FIELD` | populated patient-name field in EDF | high |
 | `BIRTH_DATE_FIELD` | full date of birth in a header or table | high |
+| `DIRECT_PERSONAL_ID` | medical record, national or passport identifier | high |
+| `POSTAL_ADDRESS_FIELD` | participant home or postal address | high |
 | `SUBJECT_KEY_FILE` | participant mapping spreadsheet in the release tree | high |
 | `KNOWN_IDENTIFIER` | value from a private project-specific name or ID list | high |
+| `LINKED_SOURCE_ID` | source, hospital, legacy or genetic identifier | review |
 | `EXACT_RECORDING_DATE` | unshifted BrainVision or EDF acquisition date | review |
 | `LOCAL_PATH` | `/Users/name/...` or `C:\Users\name\...` | review |
+| `NETWORK_PATH` | UNC share or mounted-volume path | review |
+| `LOCAL_HOSTNAME` | acquisition computer or workstation name | review |
+| `NETWORK_ADDRESS` | labelled IP address | review |
+| `DEVICE_ADDRESS` | labelled MAC or device address | review |
+| `ACCOUNT_NAME` | local login or account name | review |
 | `SOURCE_FILENAME` | original participant-labelled recording name | review |
 | `UNEXPECTED_FILE` | `.xlsx`, `.bak`, temporary export or archive | review |
 | `UNEXPECTED_DIRECTORY` | `.git`, `.venv` or cache directory | review |
+| `SENSITIVE_CONFIG_FILE` | `.env`, credential file or private-key filename | review |
+| `OS_METADATA_FILE` | `.DS_Store`, `Thumbs.db` or `desktop.ini` | review |
 | `POTENTIAL_SECRET` | obvious token or credential pattern | high |
 
 Rules should prefer structured fields and clear patterns. Generic person-name detection is out of scope for the first version because it would create too many false positives.

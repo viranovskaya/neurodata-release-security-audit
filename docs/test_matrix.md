@@ -20,8 +20,18 @@ All identifiers below are synthetic.
 | Direct email | email in a text sidecar | `DIRECT_EMAIL`; full email absent from reports |
 | Email in filename | filename is an email address | `DIRECT_EMAIL`; report path masked |
 | Labelled phone | `Phone: +1 202 555 0199` | `DIRECT_PHONE`; number masked |
+| Direct personal ID | medical record or national identifier field | `DIRECT_PERSONAL_ID`; value masked |
+| Participant address | structured or labelled address | `POSTAL_ADDRESS_FIELD`; value masked |
+| Linked source ID | original, hospital, legacy or genetic ID | `LINKED_SOURCE_ID`; value masked |
+| Standard BIDS participant ID | `participant_id` with `sub-01` | no source-ID finding |
+| BIDS acquisition time | `acq_time` in `*_scans.tsv` | `EXACT_RECORDING_DATE`; value masked |
 | Local path | macOS, Linux and Windows home paths | `LOCAL_PATH`; path value masked |
+| Network and mounted paths | UNC share and `/mnt/...` path | `NETWORK_PATH`; value masked |
+| Host and account details | hostname, IP, MAC and username | review findings; values masked |
 | Secret | GitHub-token-shaped synthetic string | `POTENTIAL_SECRET`; token masked |
+| Config secret | password assignment and database URL | `POTENTIAL_SECRET`; values masked |
+| Source and notebook text | Python path and notebook host value | files inspected; findings masked |
+| Sensitive filename | phone, personal ID or token in a path | finding path masked |
 | BrainVision date | `New Segment` marker with full timestamp | `EXACT_RECORDING_DATE` |
 | Clean BrainVision | header and marker files without identifying fields | no high finding |
 | BrainVision source name | released header references an old recording basename | `SOURCE_FILENAME`; source name masked |
@@ -33,6 +43,8 @@ All identifiers below are synthetic.
 | Participant key | `participant_name_key.xlsx` | `SUBJECT_KEY_FILE` |
 | Unexpected backup | `.bak`, `.old`, `.zip` or temporary export | `UNEXPECTED_FILE` |
 | Development directory | `.git`, `.venv` or cache directory in the release tree | `UNEXPECTED_DIRECTORY`; directory listed as skipped |
+| Sensitive config file | `.env`, credential JSON or private-key filename | `SENSITIVE_CONFIG_FILE` |
+| OS metadata | `.DS_Store`, `Thumbs.db` or `desktop.ini` | `OS_METADATA_FILE` |
 | External symlink | symlink points outside dataset root | `EXTERNAL_SYMLINK`; target not followed |
 | Internal symlink | symlink points to another release file | `SYMLINK_REVIEW`; target not followed through the link |
 | Symlink loop | symlink resolves to itself | `UNRESOLVED_SYMLINK`; scan continues |

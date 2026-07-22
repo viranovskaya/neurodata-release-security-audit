@@ -88,6 +88,10 @@ Private v0.1 candidate. The synthetic test suite, six public BIDS EEG examples a
 
 The exact scope is in [docs/mvp_spec.md](docs/mvp_spec.md). Test runs are documented in [docs/calibration.md](docs/calibration.md) and [docs/real_dataset_check.md](docs/real_dataset_check.md).
 
+The current implementation and pending leak categories are tracked in [docs/leak_coverage.md](docs/leak_coverage.md).
+
+The latest implementation cross-check is in [docs/progress_report_2026-07-22.md](docs/progress_report_2026-07-22.md).
+
 The short independent test is in [docs/external_review_guide.md](docs/external_review_guide.md).
 
 ## License

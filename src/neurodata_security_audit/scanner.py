@@ -7,16 +7,92 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from . import __version__
-from .detectors import KnownTermMatcher, find_emails, redacted, scan_text
+from .detectors import (
+    KnownTermMatcher,
+    find_emails,
+    find_sensitive_path_values,
+    redacted,
+    scan_text,
+)
 from .models import Finding, ScanReport, SkippedFile
 from .readers import decode_small_text, inspect_brainvision, inspect_edf_header
 from .structured import inspect_delimited, inspect_json
 
-_TEXT_SUFFIXES = {".tsv", ".json", ".txt", ".md", ".csv", ".log", ".vhdr", ".vmrk"}
-_TEXT_NAMES = {"README", "CHANGES"}
+_TEXT_SUFFIXES = {
+    ".bash",
+    ".cfg",
+    ".conf",
+    ".csv",
+    ".html",
+    ".ini",
+    ".ipynb",
+    ".js",
+    ".json",
+    ".key",
+    ".log",
+    ".m",
+    ".md",
+    ".pem",
+    ".ps1",
+    ".py",
+    ".r",
+    ".sh",
+    ".sql",
+    ".toml",
+    ".ts",
+    ".tsv",
+    ".txt",
+    ".vhdr",
+    ".vmrk",
+    ".xml",
+    ".yaml",
+    ".yml",
+    ".zsh",
+}
+_TEXT_NAMES = {
+    ".env",
+    ".netrc",
+    ".npmrc",
+    ".pypirc",
+    "CHANGES",
+    "Dockerfile",
+    "id_ed25519",
+    "id_rsa",
+    "Makefile",
+    "README",
+}
 _SIGNAL_PAYLOAD_SUFFIXES = {".eeg"}
 _EDF_SUFFIXES = {".edf", ".bdf"}
-_UNEXPECTED_SUFFIXES = {".xlsx", ".xls", ".ods", ".bak", ".old", ".tmp", ".zip", ".7z", ".rar"}
+_UNEXPECTED_SUFFIXES = {
+    ".7z",
+    ".bak",
+    ".key",
+    ".ods",
+    ".old",
+    ".orig",
+    ".p12",
+    ".pem",
+    ".pfx",
+    ".rar",
+    ".rej",
+    ".swo",
+    ".swp",
+    ".tmp",
+    ".xls",
+    ".xlsx",
+    ".zip",
+}
+_SENSITIVE_CONFIG_NAMES = {
+    ".env",
+    ".netrc",
+    ".npmrc",
+    ".pypirc",
+    "credentials.json",
+    "id_ed25519",
+    "id_rsa",
+    "secrets.json",
+}
+_OS_METADATA_NAMES = {".ds_store", "desktop.ini", "thumbs.db"}
 _IGNORED_DIRECTORIES = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache"}
 _KEY_TERMS = ("participant", "subject", "patient", "identifier", "identity")
 _MAPPING_TERMS = ("key", "map", "mapping", "link", "lookup", "names")
@@ -72,6 +148,17 @@ def _unexpected_file_findings(
                 message="Rename this path to remove the known name or identifier.",
             )
         )
+    for code, kind, value, message in find_sensitive_path_values(relative_path):
+        findings.append(
+            Finding(
+                code=code,
+                severity="high",
+                path=relative_path,
+                location="filename",
+                evidence=redacted(kind, value),
+                message=message,
+            )
+        )
     if path.suffix.lower() in _UNEXPECTED_SUFFIXES:
         findings.append(
             Finding(
@@ -81,6 +168,28 @@ def _unexpected_file_findings(
                 location="filename",
                 evidence=f"<file-extension:{path.suffix.lower() or 'none'}>",
                 message="Confirm this file belongs in the release; otherwise remove it.",
+            )
+        )
+    if lower_name in _SENSITIVE_CONFIG_NAMES or lower_name.startswith(".env."):
+        findings.append(
+            Finding(
+                code="SENSITIVE_CONFIG_FILE",
+                severity="review",
+                path=relative_path,
+                location="filename",
+                evidence="<sensitive-config-file>",
+                message="Confirm this configuration file contains no credential or private path.",
+            )
+        )
+    if lower_name in _OS_METADATA_NAMES:
+        findings.append(
+            Finding(
+                code="OS_METADATA_FILE",
+                severity="review",
+                path=relative_path,
+                location="filename",
+                evidence="<os-metadata-file>",
+                message="Remove this operating-system metadata file from the release.",
             )
         )
     if any(term in lower_name for term in _KEY_TERMS) and any(
@@ -112,11 +221,31 @@ def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> S
         )
     )
     email_terms = KnownTermMatcher(path_emails, label="email")
-    if not known_terms.terms and not email_terms.terms:
+    sensitive_path_values = tuple(
+        sorted(
+            {
+                value
+                for path in paths
+                for _, _, value, _ in find_sensitive_path_values(path)
+            },
+            key=str.casefold,
+        )
+    )
+    sensitive_path_terms = KnownTermMatcher(
+        sensitive_path_values,
+        label="sensitive-path",
+    )
+    if (
+        not known_terms.terms
+        and not email_terms.terms
+        and not sensitive_path_terms.terms
+    ):
         return report
 
     def redact_path(path: str) -> str:
-        return email_terms.redact(known_terms.redact(path))
+        return sensitive_path_terms.redact(
+            email_terms.redact(known_terms.redact(path))
+        )
 
     return ScanReport(
         scanner_version=report.scanner_version,
@@ -255,7 +384,11 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
         report.findings.extend(_unexpected_file_findings(relative_path, known_terms))
         suffix = path.suffix.lower()
         try:
-            if suffix in _TEXT_SUFFIXES or path.name in _TEXT_NAMES:
+            if (
+                suffix in _TEXT_SUFFIXES
+                or path.name in _TEXT_NAMES
+                or path.name.lower().startswith(".env.")
+            ):
                 size = path.stat().st_size
                 if size > policy.max_text_bytes:
                     report.findings.append(

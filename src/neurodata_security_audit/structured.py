@@ -19,19 +19,61 @@ _NAME_KEYS = {
     "patient_name",
     "participant_name",
 }
+_DIRECT_ID_KEYS = {
+    "medical_record_number",
+    "medical_record_id",
+    "mrn",
+    "national_id",
+    "national_identifier",
+    "passport_number",
+    "social_security_number",
+    "ssn",
+    "nhs_number",
+    "health_insurance_number",
+}
+_LINKED_ID_KEYS = {
+    "genetic_id",
+    "hospital_id",
+    "legacy_id",
+    "original_id",
+    "original_subject_id",
+    "patient_id",
+    "source_id",
+    "source_participant_id",
+    "source_subject_id",
+}
+_ADDRESS_KEYS = {
+    "home_address",
+    "postal_address",
+    "street_address",
+}
+_CONTEXT_ADDRESS_KEYS = {"address", "postal_code", "postcode", "zip_code"}
+_HOST_KEYS = {"host", "hostname", "computer_name", "machine_name", "workstation"}
+_NETWORK_ADDRESS_KEYS = {"ip", "ip_address", "host_ip", "server_ip"}
+_DEVICE_ADDRESS_KEYS = {"mac", "mac_address", "device_address"}
+_ACCOUNT_KEYS = {"account_name", "login", "user", "username"}
 _RECORDING_DATE_KEYS = {
+    "acq_date",
+    "acq_datetime",
+    "acq_time",
     "acquisition_date",
     "acquisition_date_time",
     "acquisition_datetime",
+    "acquisition_time",
     "recording_date",
     "recording_date_time",
     "recording_datetime",
+    "recording_time",
     "measurement_date",
     "measurement_date_time",
     "measurement_datetime",
+    "measurement_time",
     "meas_date",
+    "scan_date",
+    "scan_datetime",
 }
 _PLACEHOLDERS = {"", "n/a", "na", "none", "null", "unknown", "x"}
+_TECHNICAL_PLACEHOLDERS = {"0.0.0.0", "127.0.0.1", "example", "localhost"}
 _PERSON_CONTEXT_PARTS = {
     "participant",
     "participants",
@@ -66,6 +108,7 @@ def _finding_for_field(
     location: str,
     *,
     allow_plain_name: bool = False,
+    allow_context_address: bool = False,
 ) -> Finding | None:
     normalised = _normalise_key(key)
     text = _display_value(value)
@@ -101,6 +144,38 @@ def _finding_for_field(
             evidence=redacted("subject-name", text),
             message="Remove or replace this participant name before release.",
         )
+    if normalised in _DIRECT_ID_KEYS:
+        return Finding(
+            code="DIRECT_PERSONAL_ID",
+            severity="high",
+            path=relative_path,
+            location=location,
+            evidence=redacted("personal-id", text),
+            message="Remove or replace this direct personal identifier before release.",
+        )
+    if normalised in _LINKED_ID_KEYS:
+        return Finding(
+            code="LINKED_SOURCE_ID",
+            severity="review",
+            path=relative_path,
+            location=location,
+            evidence=redacted("linked-source-id", text),
+            message=(
+                "Confirm this linked identifier is an approved pseudonym and cannot "
+                "reconnect the release to a source system."
+            ),
+        )
+    if normalised in _ADDRESS_KEYS or (
+        allow_context_address and normalised in _CONTEXT_ADDRESS_KEYS
+    ):
+        return Finding(
+            code="POSTAL_ADDRESS_FIELD",
+            severity="high",
+            path=relative_path,
+            location=location,
+            evidence=redacted("postal-address", text),
+            message="Remove this participant address before release.",
+        )
     if normalised in _RECORDING_DATE_KEYS:
         return Finding(
             code="EXACT_RECORDING_DATE",
@@ -110,6 +185,43 @@ def _finding_for_field(
             evidence=redacted("recording-date", text),
             message="Confirm this date is allowed or has been shifted as required.",
         )
+    for keys, code, kind, message in (
+        (
+            _HOST_KEYS,
+            "LOCAL_HOSTNAME",
+            "hostname",
+            "Replace this local host name with a generic value.",
+        ),
+        (
+            _NETWORK_ADDRESS_KEYS,
+            "NETWORK_ADDRESS",
+            "ip-address",
+            "Confirm this network address is safe to share or replace it.",
+        ),
+        (
+            _DEVICE_ADDRESS_KEYS,
+            "DEVICE_ADDRESS",
+            "device-address",
+            "Remove this device address unless it is required and safe to share.",
+        ),
+        (
+            _ACCOUNT_KEYS,
+            "ACCOUNT_NAME",
+            "account-name",
+            "Replace this local account name with a generic value.",
+        ),
+    ):
+        if normalised in keys:
+            if text.casefold() in _TECHNICAL_PLACEHOLDERS:
+                return None
+            return Finding(
+                code=code,
+                severity="review",
+                path=relative_path,
+                location=location,
+                evidence=redacted(kind, text),
+                message=message,
+            )
     return None
 
 
@@ -158,6 +270,7 @@ def inspect_json(text: str, relative_path: str) -> list[Finding]:
             relative_path,
             f"JSON field {field_path}",
             allow_plain_name=_is_person_context(path[:-1]),
+            allow_context_address=_is_person_context(path[:-1]),
         )
         if finding is not None:
             findings.append(finding)
@@ -193,6 +306,7 @@ def inspect_delimited(text: str, relative_path: str, delimiter: str) -> list[Fin
                 relative_path,
                 f"row {row_number}, column {_normalise_key(key)}",
                 allow_plain_name=allow_plain_name,
+                allow_context_address=allow_plain_name,
             )
             if finding is not None:
                 findings.append(finding)

@@ -38,7 +38,18 @@ Build a small, explainable pre-release security check for EEG datasets. The scan
 
 **Gate:** implementation and documentation agree; no public claims exceed the evidence.
 
-**Current checkpoint:** 42 tests pass. Six public EEG BIDS examples were used for initial false-positive review, and four real Sleep-EDF files were checked without copying them into the repository. A clean package installation and the installed command were also checked.
+**Current checkpoint:** 54 tests pass. Six public EEG BIDS examples and four real Sleep-EDF files were recalibrated after the first expanded leak-coverage batch. The clean installation and deterministic installed-command checks also pass for this stage.
+
+## Phase 4b — Complete planned leak coverage
+
+- Add the missing structured BIDS acquisition-time and direct-identifier fields.
+- Cover labelled medical IDs, participant addresses and source-system links.
+- Scan network locations, host details and credential-shaped config values.
+- Inspect common source, config and notebook files as bounded text.
+- Flag secret-bearing, OS and editor files in the release tree.
+- Keep the full matrix and explicit non-goals in `leak_coverage.md`.
+
+**Gate:** every planned rule has a positive test, a masking assertion and a clean counterexample. Public BIDS and real EEG calibration remains stable or each change is explained.
 
 ## Phase 5 — External validation
 

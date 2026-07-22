@@ -15,6 +15,13 @@ _LOCAL_PATHS = (
     re.compile(r"/(?:Users|home)/[^\s\"'<>]+"),
     re.compile(r"[A-Z]:\\Users\\[^\s\"'<>]+", re.I),
 )
+_NETWORK_PATHS = (
+    re.compile(r"\\\\[A-Za-z0-9._-]+\\[^\s\"'<>]+"),
+    re.compile(
+        r"(?<![A-Za-z0-9:])/(?:Volumes|mnt|media|srv|scratch|cluster|data|tmp)/"
+        r"[^\s\"'<>]+"
+    ),
+)
 _BIRTH_DATE = re.compile(
     r"\b(?:date[ _-]*of[ _-]*birth|birth[ _-]*date|birthday|dob)\b\s*[:=,\t]\s*"
     r"(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|"
@@ -25,8 +32,48 @@ _SUBJECT_NAME = re.compile(
     r"^\s*(?:subject|patient|participant)[ _-]*name\s*[:=,\t]\s*(?!x\b|n/?a\b|none\b).+",
     re.I,
 )
+_DIRECT_PERSONAL_ID = re.compile(
+    r"^\s*(?:medical[ _-]*record[ _-]*(?:number|id)|mrn|national[ _-]*(?:id|identifier)|"
+    r"passport[ _-]*number|social[ _-]*security[ _-]*number|ssn|nhs[ _-]*number|"
+    r"health[ _-]*insurance[ _-]*number)\s*[:=,\t]\s*(?!x\b|n/?a\b|none\b).+",
+    re.I,
+)
+_LINKED_SOURCE_ID = re.compile(
+    r"^\s*(?:original|source|legacy|hospital)[ _-]*"
+    r"(?:subject|participant|patient)?[ _-]*id\s*[:=,\t]\s*"
+    r"(?!x\b|n/?a\b|none\b).+",
+    re.I,
+)
+_SUBJECT_ADDRESS = re.compile(
+    r"^\s*(?:subject|patient|participant)[ _-]*"
+    r"(?:(?:home|postal|street)[ _-]*)?address\s*[:=,\t]\s*"
+    r"(?!x\b|n/?a\b|none\b).+",
+    re.I,
+)
 _ACQUISITION_DATE = re.compile(
-    r"^\s*(?:acquisition|recording|measurement)[ _-]*(?:date|datetime)\s*[:=,\t]",
+    r"^\s*(?:(?:acq|acquisition|recording|measurement|scan)[ _-]*"
+    r"(?:date|datetime|time)|meas[ _-]*date)\s*[:=,\t]",
+    re.I,
+)
+_LABELLED_HOST = re.compile(
+    r"\b(?:host|hostname|computer|workstation|machine)\s*[:=]\s*"
+    r"[\"']?([A-Za-z0-9][A-Za-z0-9._-]{1,252})",
+    re.I,
+)
+_IP_OCTET = r"(?:25[0-5]|2[0-4]\d|1?\d?\d)"
+_LABELLED_IP = re.compile(
+    rf"\b(?:ip|ip[ _-]*address|host[ _-]*ip|server[ _-]*ip)\s*[:=]\s*"
+    rf"[\"']?({_IP_OCTET}(?:\.{_IP_OCTET}){{3}})",
+    re.I,
+)
+_LABELLED_MAC = re.compile(
+    r"\b(?:mac|mac[ _-]*address|device[ _-]*address)\s*[:=]\s*"
+    r"[\"']?([0-9A-F]{2}(?::[0-9A-F]{2}){5})",
+    re.I,
+)
+_LABELLED_ACCOUNT = re.compile(
+    r"\b(?:login|user|username|account[ _-]*name)\s*[:=]\s*"
+    r"[\"']?([A-Za-z0-9][A-Za-z0-9._-]{1,127})",
     re.I,
 )
 _BRAINVISION_NEW_SEGMENT = re.compile(
@@ -38,6 +85,42 @@ _SECRET_PATTERNS = (
     ("aws-access-key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
     ("private-key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")),
     ("bearer-token", re.compile(r"\bBearer\s+[A-Za-z0-9._~+/-]{20,}={0,2}\b", re.I)),
+    (
+        "credential-assignment",
+        re.compile(
+            r"(?:^|[\s,{])[\"']?(?:api[_-]?key|client[_-]?secret|password|passwd|"
+            r"access[_-]?token|refresh[_-]?token|secret[_-]?key)[\"']?\s*[:=]\s*"
+            r"[\"']?[^\s\"'#,;]{8,}",
+            re.I,
+        ),
+    ),
+    (
+        "database-credential",
+        re.compile(
+            r"\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp)://"
+            r"[^:\s/@]+:[^@\s/]+@[^\s\"'<>]+",
+            re.I,
+        ),
+    ),
+)
+_TECHNICAL_PLACEHOLDERS = {
+    "0.0.0.0",
+    "127.0.0.1",
+    "example",
+    "localhost",
+    "n/a",
+    "na",
+    "none",
+    "null",
+    "unknown",
+}
+_PATH_PHONE = re.compile(
+    r"(?:phone|telephone|tel|mobile)[ _-]*(\+?[0-9][0-9 ()-]{7,}[0-9])",
+    re.I,
+)
+_PATH_PERSONAL_ID = re.compile(
+    r"(?:mrn|ssn|passport|nhs)[ _-]*([A-Za-z0-9][A-Za-z0-9._-]{3,})",
+    re.I,
 )
 
 
@@ -78,6 +161,41 @@ class KnownTermMatcher:
 
 def find_emails(value: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(match.group(0) for match in _EMAIL.finditer(value)))
+
+
+def find_sensitive_path_values(
+    value: str,
+) -> tuple[tuple[str, str, str, str], ...]:
+    matches: list[tuple[str, str, str, str]] = []
+    for match in _PATH_PHONE.finditer(value):
+        matches.append(
+            (
+                "DIRECT_PHONE",
+                "phone",
+                match.group(0),
+                "Rename this path to remove the phone number.",
+            )
+        )
+    for match in _PATH_PERSONAL_ID.finditer(value):
+        matches.append(
+            (
+                "DIRECT_PERSONAL_ID",
+                "personal-id",
+                match.group(0),
+                "Rename this path to remove the direct personal identifier.",
+            )
+        )
+    for secret_kind, pattern in _SECRET_PATTERNS:
+        for match in pattern.finditer(value):
+            matches.append(
+                (
+                    "POTENTIAL_SECRET",
+                    secret_kind,
+                    match.group(0),
+                    "Rename this path and rotate the value if it is a real credential.",
+                )
+            )
+    return tuple(matches)
 
 
 def scan_text(
@@ -139,6 +257,21 @@ def scan_text(
                         message="Replace this local computer path with a relative or generic path.",
                     )
                 )
+        for pattern in _NETWORK_PATHS:
+            for match in pattern.finditer(line):
+                findings.append(
+                    Finding(
+                        code="NETWORK_PATH",
+                        severity="review",
+                        path=relative_path,
+                        location=location,
+                        evidence=redacted("network-path", match.group(0)),
+                        message=(
+                            "Replace this network or mounted-volume path with a relative "
+                            "or generic path."
+                        ),
+                    )
+                )
         for match in _BIRTH_DATE.finditer(line):
             findings.append(
                 Finding(
@@ -165,6 +298,45 @@ def scan_text(
                     message="Remove or replace this participant name before release.",
                 )
             )
+        match = _DIRECT_PERSONAL_ID.search(line)
+        if match:
+            findings.append(
+                Finding(
+                    code="DIRECT_PERSONAL_ID",
+                    severity="high",
+                    path=relative_path,
+                    location=location,
+                    evidence=redacted("personal-id-field", match.group(0)),
+                    message="Remove or replace this direct personal identifier before release.",
+                )
+            )
+        match = _LINKED_SOURCE_ID.search(line)
+        if match:
+            findings.append(
+                Finding(
+                    code="LINKED_SOURCE_ID",
+                    severity="review",
+                    path=relative_path,
+                    location=location,
+                    evidence=redacted("linked-source-id-field", match.group(0)),
+                    message=(
+                        "Confirm this linked identifier is an approved pseudonym and "
+                        "cannot reconnect the release to a source system."
+                    ),
+                )
+            )
+        match = _SUBJECT_ADDRESS.search(line)
+        if match:
+            findings.append(
+                Finding(
+                    code="POSTAL_ADDRESS_FIELD",
+                    severity="high",
+                    path=relative_path,
+                    location=location,
+                    evidence=redacted("postal-address-field", match.group(0)),
+                    message="Remove this participant address before release.",
+                )
+            )
         if _ACQUISITION_DATE.search(line):
             findings.append(
                 Finding(
@@ -176,6 +348,44 @@ def scan_text(
                     message="Confirm this date is allowed or has been shifted as required.",
                 )
             )
+        for pattern, code, kind, message in (
+            (
+                _LABELLED_HOST,
+                "LOCAL_HOSTNAME",
+                "hostname",
+                "Replace this local host name with a generic value.",
+            ),
+            (
+                _LABELLED_IP,
+                "NETWORK_ADDRESS",
+                "ip-address",
+                "Confirm this network address is safe to share or replace it.",
+            ),
+            (
+                _LABELLED_MAC,
+                "DEVICE_ADDRESS",
+                "device-address",
+                "Remove this device address unless it is required and safe to share.",
+            ),
+            (
+                _LABELLED_ACCOUNT,
+                "ACCOUNT_NAME",
+                "account-name",
+                "Replace this local account name with a generic value.",
+            ),
+        ):
+            match = pattern.search(line)
+            if match and match.group(1).casefold() not in _TECHNICAL_PLACEHOLDERS:
+                findings.append(
+                    Finding(
+                        code=code,
+                        severity="review",
+                        path=relative_path,
+                        location=location,
+                        evidence=redacted(kind, match.group(1)),
+                        message=message,
+                    )
+                )
         if suffix.endswith(".vmrk") and _BRAINVISION_NEW_SEGMENT.search(line):
             findings.append(
                 Finding(
