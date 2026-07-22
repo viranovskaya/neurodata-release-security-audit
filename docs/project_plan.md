@@ -38,6 +38,8 @@ Build a small, explainable pre-release security check for EEG datasets. The scan
 
 **Gate:** implementation and documentation agree; no public claims exceed the evidence.
 
+**Current checkpoint:** 19 synthetic tests pass. Six public EEG BIDS examples were scanned for initial false-positive review; the results and resulting placeholder-file fix are recorded in `docs/calibration.md`.
+
 ## Phase 5 — External validation
 
 - Ask BIDS/MNE and neurodata privacy researchers whether the scope fills a real gap.

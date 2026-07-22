@@ -9,6 +9,7 @@ from .detectors import redacted, scan_text
 from .models import Finding
 
 _EDF_HEADER_BYTES = 256
+_GIT_LFS_PREFIX = b"version https://git-lfs.github.com/spec/v1"
 _EDF_BIRTH_DATE = re.compile(r"\b\d{2}-[A-Z]{3}-\d{4}\b", re.I)
 _EDF_DATE = re.compile(r"\d{2}\.\d{2}\.\d{2}")
 _PLACEHOLDER_DATES = {"01.01.01", "01.01.85", "00.00.00"}
@@ -58,6 +59,28 @@ def inspect_brainvision(text: str, relative_path: str) -> list[Finding]:
 
 
 def inspect_edf_header(header: bytes, relative_path: str) -> list[Finding]:
+    if not header:
+        return [
+            Finding(
+                code="EMPTY_PLACEHOLDER",
+                severity="info",
+                path=relative_path,
+                location="file content",
+                evidence="<bytes:0>",
+                message="The file is an empty repository fixture, not an inspectable EDF/BDF payload.",
+            )
+        ]
+    if header.startswith(_GIT_LFS_PREFIX):
+        return [
+            Finding(
+                code="GIT_LFS_POINTER",
+                severity="info",
+                path=relative_path,
+                location="file content",
+                evidence="<git-lfs-pointer>",
+                message="The repository contains a Git LFS pointer, not the EDF/BDF payload.",
+            )
+        ]
     if len(header) < _EDF_HEADER_BYTES:
         return [
             Finding(

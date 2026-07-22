@@ -10,7 +10,7 @@ Reports retain relative filenames so a researcher can locate a problem. A filena
 
 ## Current status
 
-Local MVP. It has structured JSON/TSV/CSV checks, BrainVision and EDF/BDF header checks, deterministic masked reports, and synthetic tests. It has not been published or validated on real datasets yet.
+Local MVP. It has structured JSON/TSV/CSV checks, BrainVision and EDF/BDF header checks, deterministic masked reports, 19 synthetic tests, and an initial calibration on six public BIDS examples. It has not been published or independently validated yet.
 
 ## Run locally
 
@@ -36,4 +36,4 @@ This tool does not certify that a dataset is anonymous or compliant with GDPR, H
 
 The current threat model is accidental release by an honest curator. It does not cover malicious concurrent modification of a dataset during a scan, encrypted archives, malware, or adversarial files designed to exploit the parser.
 
-The design scope is recorded in [docs/mvp_spec.md](docs/mvp_spec.md).
+The design scope is recorded in [docs/mvp_spec.md](docs/mvp_spec.md). The first public-example calibration is documented in [docs/calibration.md](docs/calibration.md).

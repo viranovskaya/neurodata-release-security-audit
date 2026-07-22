@@ -25,6 +25,8 @@ All identifiers below are synthetic.
 | Symlink loop | symlink resolves to itself | `UNRESOLVED_SYMLINK`; scan continues |
 | Oversized text | text exceeds configured byte limit | `TEXT_FILE_TOO_LARGE`; file listed as skipped |
 | Malformed EDF | shorter than the common 256-byte header | `MALFORMED_HEADER`; scan continues |
+| EDF/BDF Git LFS pointer | repository contains a pointer instead of the payload | informational finding, not `MALFORMED_HEADER` |
+| Empty EDF/BDF fixture | public example repository contains a zero-byte placeholder | informational finding, not `MALFORMED_HEADER` |
 | Unreadable directory | one nested directory raises a read error | visible review finding; other files still scanned |
 | Determinism | scan same tree twice | identical JSON |
 | Source integrity | hash fixtures before and after scan | unchanged |

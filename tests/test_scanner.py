@@ -169,6 +169,23 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("MALFORMED_HEADER", {finding.code for finding in report.findings})
         self.assertIn("README", report.files_inspected)
 
+    def test_git_lfs_pointer_is_not_reported_as_malformed_edf(self) -> None:
+        (self.root / "recording.edf").write_text(
+            "version https://git-lfs.github.com/spec/v1\n"
+            "oid sha256:0000000000000000000000000000000000000000000000000000000000000000\n"
+            "size 123456\n",
+            encoding="ascii",
+        )
+        codes = set(self._codes())
+        self.assertIn("GIT_LFS_POINTER", codes)
+        self.assertNotIn("MALFORMED_HEADER", codes)
+
+    def test_empty_edf_fixture_is_not_reported_as_malformed(self) -> None:
+        (self.root / "recording.edf").write_bytes(b"")
+        codes = set(self._codes())
+        self.assertIn("EMPTY_PLACEHOLDER", codes)
+        self.assertNotIn("MALFORMED_HEADER", codes)
+
     def test_participant_key_and_backup_are_visible(self) -> None:
         (self.root / "participant_name_key.xlsx").write_bytes(b"synthetic")
         (self.root / "notes.bak").write_text("old", encoding="utf-8")
