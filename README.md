@@ -86,6 +86,8 @@ Private v0.1 candidate. The synthetic test suite, six public BIDS EEG examples a
 
 The exact scope is in [docs/mvp_spec.md](docs/mvp_spec.md). Test runs are documented in [docs/calibration.md](docs/calibration.md) and [docs/real_dataset_check.md](docs/real_dataset_check.md).
 
+The short independent test is in [docs/external_review_guide.md](docs/external_review_guide.md).
+
 ## License
 
 MIT

@@ -23,7 +23,7 @@ def render_markdown(report: ScanReport) -> str:
         "# NeuroData release security audit",
         "",
         "This report identifies items that need review. It does not certify that the dataset is anonymous or compliant.",
-        "Relative filenames are retained for remediation, so review this report before sharing it.",
+        "Matched emails and private terms are masked in filenames. Review the report before sharing it.",
         "",
         "## Summary",
         "",

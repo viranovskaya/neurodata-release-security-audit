@@ -65,6 +65,31 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual([], [item for item in report.findings if item.severity == "high"])
         self.assertIn("sub-01/eeg/sub-01_task-rest_eeg.eeg", [item.path for item in report.skipped_files])
 
+    def test_reviewer_demo_matches_the_documented_result(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        demo = project_root / "examples" / "reviewer_demo"
+        policy = ScanPolicy(sensitive_terms=("Jane Doe", "SITEA-0042"))
+        report = scan_dataset(demo, policy)
+        self.assertEqual(
+            {
+                "files_inspected": 5,
+                "files_skipped": 2,
+                "findings_high": 6,
+                "findings_review": 4,
+                "findings_info": 0,
+            },
+            report.to_dict()["summary"],
+        )
+        rendered = render_json(report) + render_markdown(report)
+        for value in (
+            "Jane Doe",
+            "SITEA-0042",
+            "study.contact@example.org",
+            "/Users/reviewer/private/SITEA-0042.csv",
+            "20260722123456789012",
+        ):
+            self.assertNotIn(value, rendered)
+
     def test_direct_values_are_detected_and_masked(self) -> None:
         email = "alice.researcher@example.org"
         phone = "+1 202 555 0199"
