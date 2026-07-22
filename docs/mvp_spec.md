@@ -1,0 +1,154 @@
+# NeuroData Release Security Audit
+
+Working title for a local pre-release privacy checker for EEG datasets organised with BIDS.
+
+**Status:** local MVP, 22 July 2026. Implemented and tested locally; not published or independently validated.
+
+## The problem
+
+Researchers can validate a BIDS dataset and anonymise recordings during conversion, but still accidentally publish identifying or operational information elsewhere in the release. Common examples include an original participant name in an EEG header, an exact recording date in a marker file, an email address in a free-text field, a local computer path, or a forgotten participant-key spreadsheet.
+
+The first version answers one narrow question:
+
+> Does this release contain obvious direct identifiers or technical remnants that should be reviewed before it is shared?
+
+It is an independent check after conversion. It does not replace the BIDS Validator, MNE-BIDS anonymisation, metaprivBIDS, or human review.
+
+## Intended user
+
+A researcher or data manager preparing an EEG dataset for:
+
+- a public repository such as OpenNeuro;
+- transfer to another research group;
+- an institutional archive;
+- a supplementary research-software release.
+
+## MVP scope
+
+The tool receives one local dataset directory and scans it without modifying the source files.
+
+### Files inspected
+
+- BIDS `.tsv` and `.json` metadata;
+- BrainVision `.vhdr` and `.vmrk` files;
+- the fixed header area of EDF and BDF files;
+- small text files such as `.txt`, `.md`, `.csv` and `.log`;
+- filenames and the dataset directory structure;
+- unexpected release files such as spreadsheets, backups and temporary exports.
+
+The EEG signal payload is not loaded or analysed.
+
+### Initial finding types
+
+| Code | Example | Initial severity |
+|---|---|---|
+| `DIRECT_EMAIL` | email address in a sidecar or README | high |
+| `DIRECT_PHONE` | phone number in a note or log | high |
+| `SUBJECT_NAME_FIELD` | populated patient-name field in EDF | high |
+| `BIRTH_DATE_FIELD` | full date of birth in a header or table | high |
+| `SUBJECT_KEY_FILE` | participant mapping spreadsheet in the release tree | high |
+| `EXACT_RECORDING_DATE` | unshifted BrainVision or EDF acquisition date | review |
+| `LOCAL_PATH` | `/Users/name/...` or `C:\Users\name\...` | review |
+| `SOURCE_FILENAME` | original participant-labelled recording name | review |
+| `FREE_TEXT_REVIEW` | non-empty comments or descriptions that may need inspection | review |
+| `UNEXPECTED_FILE` | `.xlsx`, `.bak`, temporary export or archive | review |
+| `POTENTIAL_SECRET` | obvious token or credential pattern | high |
+
+Rules should prefer structured fields and clear patterns. Generic person-name detection is out of scope for the first version because it would create too many false positives.
+
+## Safety rules
+
+- Local execution only. No dataset content is uploaded.
+- Read-only by default. The tool never redacts or rewrites source files.
+- Reports never reproduce a complete sensitive value. They show the finding type, file, location and a masked preview.
+- The scanner stays inside the directory explicitly supplied by the user.
+- Symlinks that point outside the dataset are reported and not followed.
+- Large binary files are not read beyond the header bytes required for the check.
+- Every skipped or unreadable file is listed in the report.
+
+Relative filenames remain visible so the curator can locate a finding. Because filenames can themselves contain identifying text, reports are working review artifacts and must not be assumed safe to publish unchanged.
+
+The MVP assumes accidental disclosure by an honest dataset curator. Malicious concurrent changes during a scan, encrypted archives, malware and adversarial parser inputs are outside the current threat model.
+
+## Output
+
+The MVP produces:
+
+1. a concise terminal summary;
+2. a deterministic JSON report for CI or archiving;
+3. an optional Markdown report for manual review.
+
+Each report records:
+
+- scanner and ruleset version;
+- files inspected, skipped and unreadable;
+- finding code and severity;
+- relative file path and safe location information;
+- masked evidence;
+- a short explanation and suggested manual check.
+
+The report must say **review required**, not **dataset is anonymous**.
+
+## Explicit non-goals
+
+The project does not:
+
+- certify GDPR, HIPAA or ethics compliance;
+- guarantee anonymity or rule out re-identification;
+- measure uniqueness in demographic tables;
+- assess whether the EEG signal itself can identify a participant;
+- remove information automatically;
+- scan remote storage, cloud accounts or databases;
+- perform malware analysis or penetration testing.
+
+Statistical disclosure risk in `participants.tsv` is already addressed by metaprivBIDS and should remain a separate task.
+
+## Validation plan
+
+The first benchmark uses synthetic data only:
+
+- a clean minimal BIDS/BrainVision dataset;
+- the same dataset with one seeded leak per rule;
+- an EDF fixture with synthetic patient and recording fields;
+- unexpected spreadsheet, backup, log and symlink cases;
+- realistic clean strings that should not be flagged.
+
+Acceptance criteria for v0.1:
+
+- every seeded high-risk leak is detected;
+- no complete seeded identifier appears in the generated report;
+- clean fixtures produce no high-risk findings;
+- repeated scans produce identical JSON;
+- tests confirm that source files are unchanged;
+- the scanner performs no network requests;
+- unsupported or malformed files fail safely and remain visible in the report.
+
+Public datasets can be used later for usability testing, not as a source of known leaks. Any credible privacy problem found in a public dataset must be reported privately to its maintainers before details are discussed publicly.
+
+## Relationship to existing tools
+
+| Tool | Relationship |
+|---|---|
+| BIDS Validator | validates dataset structure; this project checks release-time privacy indicators |
+| MNE-BIDS | can anonymise during conversion; this project audits the resulting release |
+| metaprivBIDS | measures statistical re-identification risk in tables; this project checks direct and technical leakage |
+| BIDSonym | focuses mainly on MRI de-identification and metadata removal |
+| EDF de-identification tools | rewrite one format; this project performs a read-only cross-file audit |
+
+## Possible later work
+
+- FIF and EEGLAB metadata readers;
+- EGI MFF support;
+- optional metaprivBIDS hand-off for participant-table analysis;
+- configurable institutional policies;
+- HTML report;
+- integration with release CI;
+- a benchmark paper or software publication after independent validation.
+
+## Naming
+
+Current working title: **NeuroData Release Security Audit**.
+
+Possible repository name: `neurodata-release-security-audit`.
+
+No exact GitHub repository or PyPI project with this name was found on 22 July 2026. The name remains provisional until implementation and packaging begin.

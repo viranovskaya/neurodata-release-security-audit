@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:neurodata-release-security-audit:report:1",
+  "title": "NeuroData Release Security Audit report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "scanner_version",
+    "summary",
+    "files_inspected",
+    "skipped_files",
+    "findings"
+  ],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "scanner_version": {"type": "string"},
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "files_inspected",
+        "files_skipped",
+        "findings_high",
+        "findings_review",
+        "findings_info"
+      ],
+      "properties": {
+        "files_inspected": {"type": "integer", "minimum": 0},
+        "files_skipped": {"type": "integer", "minimum": 0},
+        "findings_high": {"type": "integer", "minimum": 0},
+        "findings_review": {"type": "integer", "minimum": 0},
+        "findings_info": {"type": "integer", "minimum": 0}
+      }
+    },
+    "files_inspected": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "skipped_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "reason"],
+        "properties": {
+          "path": {"type": "string"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "severity", "path", "location", "evidence", "message"],
+        "properties": {
+          "code": {"type": "string"},
+          "severity": {"enum": ["high", "review", "info"]},
+          "path": {"type": "string"},
+          "location": {"type": "string"},
+          "evidence": {"type": "string"},
+          "message": {"type": "string"}
+        }
+      }
+    }
+  }
+}
