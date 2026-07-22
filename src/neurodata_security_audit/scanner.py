@@ -15,8 +15,15 @@ from .detectors import (
     scan_text,
 )
 from .models import Finding, ScanReport, SkippedFile
-from .readers import decode_small_text, inspect_brainvision, inspect_edf_header
-from .structured import inspect_delimited, inspect_json
+from .readers import (
+    FormatReaderUnavailable,
+    decode_small_text,
+    inspect_brainvision,
+    inspect_edf_header,
+    inspect_eeglab_metadata,
+    inspect_mne_format,
+)
+from .structured import inspect_delimited, inspect_json, inspect_xml
 
 _TEXT_SUFFIXES = {
     ".bash",
@@ -61,8 +68,9 @@ _TEXT_NAMES = {
     "Makefile",
     "README",
 }
-_SIGNAL_PAYLOAD_SUFFIXES = {".eeg"}
+_SIGNAL_PAYLOAD_SUFFIXES = {".eeg", ".fdt"}
 _EDF_SUFFIXES = {".edf", ".bdf"}
+_MNE_FILE_FORMATS = {".fif": "fif", ".set": "eeglab"}
 _UNEXPECTED_SUFFIXES = {
     ".7z",
     ".bak",
@@ -282,12 +290,20 @@ def _walk(root: Path):
                     if entry.name in _IGNORED_DIRECTORIES:
                         yield "ignored_directory", entry, relative_path
                     else:
+                        if entry.suffix.lower() == ".mff":
+                            yield "format_directory", entry, relative_path
                         subdirectories.append(entry)
                 elif entry.is_file():
                     yield "file", entry, relative_path
             except OSError:
                 yield "entry_error", entry, relative_path
         pending.extend(reversed(subdirectories))
+
+
+def _mne_format_for_path(path: Path) -> str | None:
+    if path.name.lower().endswith(".fif.gz"):
+        return "fif"
+    return _MNE_FILE_FORMATS.get(path.suffix.lower())
 
 
 def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> ScanReport:
@@ -341,6 +357,54 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
             )
             continue
 
+        if kind == "format_directory":
+            try:
+                report.findings.extend(
+                    inspect_mne_format(path, relative_path, "mff", known_terms)
+                )
+                report.files_inspected.append(relative_path)
+            except FormatReaderUnavailable:
+                report.findings.append(
+                    Finding(
+                        code="FORMAT_READER_UNAVAILABLE",
+                        severity="review",
+                        path=relative_path,
+                        location="MFF recording metadata",
+                        evidence="<optional-reader-unavailable>",
+                        message=(
+                            "Install the 'formats' extra to inspect the MFF recording as a whole. "
+                            "Its bounded XML files are still checked separately."
+                        ),
+                    )
+                )
+                report.skipped_files.append(
+                    SkippedFile(
+                        relative_path,
+                        "MFF recording reader is unavailable; XML files are still inspected",
+                    )
+                )
+            except Exception as error:
+                report.findings.append(
+                    Finding(
+                        code="FORMAT_METADATA_UNREADABLE",
+                        severity="review",
+                        path=relative_path,
+                        location="MFF recording metadata",
+                        evidence=f"<error:{type(error).__name__}>",
+                        message=(
+                            "Review this MFF recording manually; its recording metadata could "
+                            "not be read. Bounded XML files are still checked separately."
+                        ),
+                    )
+                )
+                report.skipped_files.append(
+                    SkippedFile(
+                        relative_path,
+                        f"Could not inspect MFF recording metadata: {type(error).__name__}",
+                    )
+                )
+            continue
+
         if kind == "symlink":
             try:
                 link_value = path.readlink()
@@ -383,6 +447,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
 
         report.findings.extend(_unexpected_file_findings(relative_path, known_terms))
         suffix = path.suffix.lower()
+        mne_format = _mne_format_for_path(path)
         try:
             if (
                 suffix in _TEXT_SUFFIXES
@@ -418,6 +483,8 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     report.findings.extend(inspect_delimited(text, relative_path, "\t"))
                 elif suffix == ".csv":
                     report.findings.extend(inspect_delimited(text, relative_path, ","))
+                elif suffix == ".xml":
+                    report.findings.extend(inspect_xml(text, relative_path))
                 if suffix in {".vhdr", ".vmrk"}:
                     report.findings.extend(inspect_brainvision(text, relative_path))
             elif suffix in _EDF_SUFFIXES:
@@ -427,6 +494,138 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 report.findings.extend(
                     inspect_edf_header(header, relative_path, known_terms)
                 )
+            elif mne_format is not None:
+                with path.open("rb") as stream:
+                    prefix = stream.read(128)
+                if not prefix:
+                    report.files_inspected.append(relative_path)
+                    report.findings.append(
+                        Finding(
+                            code="EMPTY_PLACEHOLDER",
+                            severity="info",
+                            path=relative_path,
+                            location="file content",
+                            evidence="<bytes:0>",
+                            message=(
+                                "Confirm this empty fixture is intentional; no format metadata "
+                                "was checked."
+                            ),
+                        )
+                    )
+                    continue
+                if prefix.startswith(b"version https://git-lfs.github.com/spec/v1"):
+                    report.files_inspected.append(relative_path)
+                    report.findings.append(
+                        Finding(
+                            code="GIT_LFS_POINTER",
+                            severity="info",
+                            path=relative_path,
+                            location="file content",
+                            evidence="<git-lfs-pointer>",
+                            message="Fetch the Git LFS payload before relying on this audit.",
+                        )
+                    )
+                    continue
+                eeglab_metadata_reader_unavailable = False
+                eeglab_skip_mne = False
+                if mne_format == "eeglab":
+                    try:
+                        eeglab_findings = inspect_eeglab_metadata(
+                            path,
+                            relative_path,
+                            known_terms,
+                            root,
+                        )
+                        report.findings.extend(eeglab_findings)
+                        eeglab_skip_mne = any(
+                            finding.code
+                            in {
+                                "EEGLAB_METADATA_COVERAGE_LIMIT",
+                                "EXTERNAL_DATA_REFERENCE",
+                            }
+                            for finding in eeglab_findings
+                        )
+                    except FormatReaderUnavailable:
+                        eeglab_metadata_reader_unavailable = True
+                    except Exception as error:
+                        report.findings.append(
+                            Finding(
+                                code="EEGLAB_METADATA_UNREADABLE",
+                                severity="review",
+                                path=relative_path,
+                                location="EEGLAB MATLAB metadata",
+                                evidence=f"<error:{type(error).__name__}>",
+                                message=(
+                                    "Review this EEGLAB file manually; its private text fields "
+                                    "could not be inspected safely."
+                                ),
+                            )
+                        )
+                if eeglab_skip_mne:
+                    report.files_inspected.append(relative_path)
+                    report.skipped_files.append(
+                        SkippedFile(
+                            relative_path,
+                            "EEGLAB signal-safe metadata coverage is incomplete; "
+                            "the MNE reader was not called",
+                        )
+                    )
+                    continue
+                try:
+                    report.findings.extend(
+                        inspect_mne_format(
+                            path,
+                            relative_path,
+                            mne_format,
+                            known_terms,
+                        )
+                    )
+                    report.files_inspected.append(relative_path)
+                    if eeglab_metadata_reader_unavailable:
+                        report.findings.append(
+                            Finding(
+                                code="EEGLAB_METADATA_READER_UNAVAILABLE",
+                                severity="review",
+                                path=relative_path,
+                                location="EEGLAB MATLAB metadata",
+                                evidence="<optional-reader-unavailable>",
+                                message=(
+                                    "Install the 'formats' extra before relying on the audit of "
+                                    "EEGLAB comments, history and source-file fields."
+                                ),
+                            )
+                        )
+                except FormatReaderUnavailable:
+                    report.findings.append(
+                        Finding(
+                            code="FORMAT_READER_UNAVAILABLE",
+                            severity="review",
+                            path=relative_path,
+                            location=f"{mne_format.upper()} metadata",
+                            evidence="<optional-reader-unavailable>",
+                            message="Install the 'formats' extra to inspect this file's metadata.",
+                        )
+                    )
+                    report.skipped_files.append(
+                        SkippedFile(relative_path, "Optional format reader is unavailable")
+                    )
+                except Exception as error:
+                    report.findings.append(
+                        Finding(
+                            code="FORMAT_METADATA_UNREADABLE",
+                            severity="review",
+                            path=relative_path,
+                            location=f"{mne_format.upper()} metadata",
+                            evidence=f"<error:{type(error).__name__}>",
+                            message="Review this file manually; its format metadata was not read.",
+                        )
+                    )
+                    report.skipped_files.append(
+                        SkippedFile(
+                            relative_path,
+                            f"Could not inspect format metadata: {type(error).__name__}",
+                        )
+                    )
             elif suffix in _SIGNAL_PAYLOAD_SUFFIXES:
                 report.skipped_files.append(
                     SkippedFile(relative_path, "EEG signal payload is outside the MVP scope")

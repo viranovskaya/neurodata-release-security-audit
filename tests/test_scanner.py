@@ -1,18 +1,26 @@
 from __future__ import annotations
 
 from contextlib import redirect_stderr, redirect_stdout
+from datetime import date, datetime, timezone
 import hashlib
 import io
 import json
+from numbers import Number
 import os
 import socket
 import tempfile
+from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 from neurodata_security_audit.cli import main
 from neurodata_security_audit.reporting import render_json, render_markdown
+from neurodata_security_audit.readers import (
+    FormatReaderUnavailable,
+    inspect_eeglab_metadata,
+    inspect_mne_info,
+)
 from neurodata_security_audit.scanner import ScanPolicy, scan_dataset
 
 
@@ -105,7 +113,10 @@ class ScannerTests(unittest.TestCase):
 
         report = scan_dataset(self.root)
         codes = {finding.code for finding in report.findings}
-        self.assertTrue({"DIRECT_EMAIL", "DIRECT_PHONE", "LOCAL_PATH", "POTENTIAL_SECRET"} <= codes)
+        self.assertTrue(
+            {"DIRECT_EMAIL", "DIRECT_PHONE", "LOCAL_PATH", "POTENTIAL_SECRET"}
+            <= codes
+        )
 
         rendered = render_json(report) + render_markdown(report)
         for secret in (email, phone, local_path, token):
@@ -566,6 +577,395 @@ class ScannerTests(unittest.TestCase):
         report = scan_dataset(self.root)
         self.assertIn("MALFORMED_JSON", {finding.code for finding in report.findings})
         self.assertIn("README", report.files_inspected)
+
+    def test_xml_personal_and_device_fields_are_detected_and_masked(self) -> None:
+        values = (
+            "Jane",
+            "Doe",
+            "HOSP-0042",
+            "1990-01-02",
+            "2026-07-22T10:30:00Z",
+            "Acquisition Operator",
+            "EGI-300-928374",
+        )
+        mff = self.root / "recording.mff"
+        mff.mkdir()
+        (mff / "subject.xml").write_text(
+            "<recording><subject><firstName>Jane</firstName><lastName>Doe</lastName>"
+            "<id>HOSP-0042</id><dateOfBirth>1990-01-02</dateOfBirth></subject>"
+            "<recordTime>2026-07-22T10:30:00Z</recordTime>"
+            "<operator>Acquisition Operator</operator>"
+            "<device><serialNumber>EGI-300-928374</serialNumber></device></recording>",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertTrue(
+            {
+                "SUBJECT_NAME_FIELD",
+                "LINKED_SOURCE_ID",
+                "BIRTH_DATE_FIELD",
+                "EXACT_RECORDING_DATE",
+                "PERSONNEL_FIELD",
+                "DEVICE_IDENTIFIER",
+                "FORMAT_READER_UNAVAILABLE",
+            }
+            <= codes
+        )
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_xml_document_type_is_not_parsed(self) -> None:
+        (self.root / "metadata.xml").write_text(
+            '<!DOCTYPE root [<!ENTITY name "Jane Doe">]><root>&name;</root>',
+            encoding="utf-8",
+        )
+        codes = set(self._codes())
+        self.assertIn("UNSAFE_XML_DECLARATION", codes)
+        self.assertNotIn("MALFORMED_XML", codes)
+
+    def test_mne_info_privacy_fields_are_detected_and_masked(self) -> None:
+        values = (
+            "Jane",
+            "Quinn",
+            "Doe",
+            "HOSP-0042",
+            "42",
+            "2026-07-22T10:30:00+00:00",
+            "Acquisition Operator",
+            "DEVICE-928374",
+            "SITE-A",
+            "/Users/operator/private/project",
+            "Internal Project 42",
+            "Participant was called after recording",
+            "Processing Operator",
+            "ORIGINAL-GUID-928374",
+        )
+        info = {
+            "subject_info": {
+                "first_name": values[0],
+                "middle_name": values[1],
+                "last_name": values[2],
+                "birthday": date(1990, 1, 2),
+                "his_id": values[3],
+                "id": 42,
+            },
+            "meas_date": datetime(2026, 7, 22, 10, 30, tzinfo=timezone.utc),
+            "experimenter": values[6],
+            "device_info": {"serial": values[7], "site": values[8]},
+            "working_dir": values[9],
+            "file_id": {"machid": [101, 202], "secs": 0},
+            "meas_id": {"machid": [101, 202], "secs": 0},
+            "proj_id": 42,
+            "proj_name": values[10],
+            "description": values[11],
+            "proc_history": [
+                {
+                    "experimenter": values[12],
+                    "date": datetime(2026, 7, 21, tzinfo=timezone.utc),
+                }
+            ],
+            "helium_info": {"orig_file_guid": values[13]},
+        }
+        findings = inspect_mne_info(info, "sub-01_task-rest_eeg.fif")
+        report = scan_dataset(self.root)
+        report.findings.extend(findings)
+        codes = {finding.code for finding in findings}
+        self.assertTrue(
+            {
+                "SUBJECT_NAME_FIELD",
+                "BIRTH_DATE_FIELD",
+                "LINKED_SOURCE_ID",
+                "EXACT_RECORDING_DATE",
+                "PERSONNEL_FIELD",
+                "DEVICE_IDENTIFIER",
+                "LOCAL_PATH",
+                "ACQUISITION_SYSTEM_ID",
+                "PROJECT_IDENTIFIER",
+                "FREE_TEXT_METADATA",
+            }
+            <= codes
+        )
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_fif_and_eeglab_use_metadata_only_readers(self) -> None:
+        for name in ("sub-01_task-rest_eeg.fif", "sub-01_task-rest_eeg.set"):
+            (self.root / name).write_bytes(b"synthetic-format-placeholder")
+
+        closed: list[str] = []
+
+        class FakeRaw:
+            preload = False
+            info = {"meas_date": datetime(2026, 7, 22, tzinfo=timezone.utc)}
+
+            def close(self) -> None:
+                closed.append("set")
+
+        io_module = SimpleNamespace(
+            read_info=lambda path, verbose: {
+                "subject_info": {"his_id": "HOSP-0042"}
+            },
+            read_raw_eeglab=lambda path, preload, verbose: FakeRaw(),
+        )
+        with (
+            patch(
+                "neurodata_security_audit.readers._load_mne",
+                return_value=SimpleNamespace(io=io_module),
+            ),
+            patch(
+                "neurodata_security_audit.scanner.inspect_eeglab_metadata",
+                return_value=[],
+            ),
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertEqual(
+            ["sub-01_task-rest_eeg.fif", "sub-01_task-rest_eeg.set"],
+            report.files_inspected,
+        )
+        self.assertEqual(["set"], closed)
+        self.assertTrue(
+            {"LINKED_SOURCE_ID", "EXACT_RECORDING_DATE"}
+            <= {finding.code for finding in report.findings}
+        )
+
+    def test_empty_mne_identifiers_are_not_reported(self) -> None:
+        findings = inspect_mne_info(
+            {
+                "file_id": {"machid": [0, 0], "secs": 0},
+                "meas_id": None,
+                "subject_info": None,
+            },
+            "sub-01_task-rest_eeg.fif",
+        )
+        self.assertNotIn(
+            "ACQUISITION_SYSTEM_ID",
+            {finding.code for finding in findings},
+        )
+
+    def test_numeric_mne_identifier_is_not_treated_as_an_array(self) -> None:
+        class NumericScalar(Number):
+            def __eq__(self, other: object) -> bool:
+                return other == 1
+
+            def reshape(self, *args: object) -> object:
+                raise AssertionError("numeric scalars must not be expanded")
+
+        findings = inspect_mne_info(
+            {
+                "file_id": {"machid": NumericScalar()},
+                "subject_info": None,
+            },
+            "sub-01_task-rest_eeg.fif",
+        )
+        self.assertIn(
+            "ACQUISITION_SYSTEM_ID",
+            {finding.code for finding in findings},
+        )
+
+    def test_preloaded_eeglab_signal_fails_visibly(self) -> None:
+        (self.root / "recording.set").write_bytes(b"synthetic-format-placeholder")
+
+        class FakeRaw:
+            preload = True
+            info = {}
+
+            def close(self) -> None:
+                pass
+
+        io_module = SimpleNamespace(
+            read_raw_eeglab=lambda path, preload, verbose: FakeRaw(),
+        )
+        with patch(
+            "neurodata_security_audit.readers._load_mne",
+            return_value=SimpleNamespace(io=io_module),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "FORMAT_PRELOADED_SIGNAL",
+            {finding.code for finding in report.findings},
+        )
+
+    def test_eeglab_private_fields_are_detected_and_masked(self) -> None:
+        values = {
+            "subject": ["HOSP-0042"],
+            "filename": ["Jane_Doe_original.set"],
+            "filepath": ["/Users/operator/private/eeg"],
+            "comments": ["Contact: eeg.operator@example.org"],
+        }
+        with patch(
+            "neurodata_security_audit.readers._read_eeglab_metadata",
+            return_value=(values, True),
+        ):
+            findings = inspect_eeglab_metadata(
+                self.root / "sub-01_task-rest_eeg.set",
+                "sub-01_task-rest_eeg.set",
+                None,
+            )
+        codes = {finding.code for finding in findings}
+        self.assertTrue(
+            {
+                "LINKED_SOURCE_ID",
+                "SOURCE_FILENAME",
+                "LOCAL_PATH",
+                "DIRECT_EMAIL",
+                "FREE_TEXT_METADATA",
+            }
+            <= codes
+        )
+        report = scan_dataset(self.root)
+        report.findings.extend(findings)
+        rendered = render_json(report) + render_markdown(report)
+        for value in (
+            "HOSP-0042",
+            "Jane_Doe_original.set",
+            "/Users/operator/private/eeg",
+            "eeg.operator@example.org",
+        ):
+            self.assertNotIn(value, rendered)
+
+    def test_nested_eeglab_metadata_gap_is_visible(self) -> None:
+        with patch(
+            "neurodata_security_audit.readers._read_eeglab_metadata",
+            return_value=({}, False),
+        ):
+            findings = inspect_eeglab_metadata(
+                self.root / "legacy.set",
+                "legacy.set",
+                None,
+            )
+        self.assertEqual(["EEGLAB_METADATA_COVERAGE_LIMIT"], [x.code for x in findings])
+
+    def test_nested_eeglab_structure_does_not_call_mne(self) -> None:
+        (self.root / "recording.set").write_bytes(b"synthetic-format-placeholder")
+
+        with (
+            patch(
+                "neurodata_security_audit.readers._read_eeglab_metadata",
+                return_value=({}, False),
+            ),
+            patch(
+                "neurodata_security_audit.readers._load_mne",
+                side_effect=AssertionError("MNE reader must not be called"),
+            ),
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertIn(
+            "EEGLAB_METADATA_COVERAGE_LIMIT",
+            {finding.code for finding in report.findings},
+        )
+        self.assertEqual(
+            ["recording.set"],
+            [item.path for item in report.skipped_files],
+        )
+
+    def test_external_eeglab_data_reference_does_not_call_mne(self) -> None:
+        (self.root / "recording.set").write_bytes(b"synthetic-format-placeholder")
+        external_path = "../../private/participant_data.fdt"
+
+        with (
+            patch(
+                "neurodata_security_audit.readers._read_eeglab_metadata",
+                return_value=({"data": [external_path]}, True),
+            ),
+            patch(
+                "neurodata_security_audit.readers._load_mne",
+                side_effect=AssertionError("MNE reader must not be called"),
+            ),
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertIn(
+            "EXTERNAL_DATA_REFERENCE",
+            {finding.code for finding in report.findings},
+        )
+        self.assertNotIn(
+            external_path,
+            render_json(report) + render_markdown(report),
+        )
+
+    def test_missing_eeglab_metadata_reader_is_visible(self) -> None:
+        (self.root / "recording.set").write_bytes(b"synthetic-format-placeholder")
+
+        class FakeRaw:
+            preload = False
+            info = {}
+
+            def close(self) -> None:
+                pass
+
+        with (
+            patch(
+                "neurodata_security_audit.scanner.inspect_eeglab_metadata",
+                side_effect=FormatReaderUnavailable(),
+            ),
+            patch(
+                "neurodata_security_audit.readers._load_mne",
+                return_value=SimpleNamespace(
+                    io=SimpleNamespace(
+                        read_raw_eeglab=lambda path, preload, verbose: FakeRaw()
+                    )
+                ),
+            ),
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertIn(
+            "EEGLAB_METADATA_READER_UNAVAILABLE",
+            {finding.code for finding in report.findings},
+        )
+
+    def test_mff_reader_uses_preload_false_and_xml_remains_inspected(self) -> None:
+        mff = self.root / "recording.mff"
+        mff.mkdir()
+        (mff / "info.xml").write_text(
+            "<recording><recordTime>2026-07-22T10:30:00Z</recordTime></recording>",
+            encoding="utf-8",
+        )
+        calls: list[tuple[bool, bool]] = []
+
+        class FakeRaw:
+            preload = False
+            info = {"subject_info": {"his_id": "HOSP-0042"}}
+
+            def close(self) -> None:
+                pass
+
+        def read_raw_egi(path, preload, events_as_annotations, verbose):
+            calls.append((preload, events_as_annotations))
+            return FakeRaw()
+
+        io_module = SimpleNamespace(read_raw_egi=read_raw_egi)
+        with patch(
+            "neurodata_security_audit.readers._load_mne",
+            return_value=SimpleNamespace(io=io_module),
+        ):
+            report = scan_dataset(self.root)
+        self.assertEqual([(False, True)], calls)
+        self.assertIn("recording.mff", report.files_inspected)
+        self.assertIn("recording.mff/info.xml", report.files_inspected)
+        self.assertTrue(
+            {"LINKED_SOURCE_ID", "EXACT_RECORDING_DATE"}
+            <= {finding.code for finding in report.findings}
+        )
+
+    def test_empty_and_lfs_optional_formats_are_visible_without_reader(self) -> None:
+        (self.root / "empty.set").write_bytes(b"")
+        (self.root / "pointer.fif").write_text(
+            "version https://git-lfs.github.com/spec/v1\n"
+            "oid sha256:0000000000000000000000000000000000000000000000000000000000000000\n"
+            "size 123456\n",
+            encoding="ascii",
+        )
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("EMPTY_PLACEHOLDER", codes)
+        self.assertIn("GIT_LFS_POINTER", codes)
+        self.assertNotIn("FORMAT_READER_UNAVAILABLE", codes)
 
     def test_clean_and_leaky_edf_headers(self) -> None:
         _write_edf(self.root / "clean.edf", "X X X X", "Startdate X X X X", "01.01.85")

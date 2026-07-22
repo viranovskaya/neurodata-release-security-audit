@@ -21,6 +21,9 @@ classifiers = [
 ]
 dependencies = []
 
+[project.optional-dependencies]
+formats = ["mne[hdf5]>=1.12.1"]
+
 [project.scripts]
 neurodata-security-audit = "neurodata_security_audit.cli:main"
 

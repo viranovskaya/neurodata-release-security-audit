@@ -254,7 +254,9 @@ def scan_text(
                         path=relative_path,
                         location=location,
                         evidence=redacted("local-path", match.group(0)),
-                        message="Replace this local computer path with a relative or generic path.",
+                        message=(
+                            "Replace this local computer path with a relative or generic path."
+                        ),
                     )
                 )
         for pattern in _NETWORK_PATHS:

@@ -53,6 +53,19 @@ All identifiers below are synthetic.
 | Malformed JSON | invalid JSON sidecar | `MALFORMED_JSON`; scan continues |
 | EDF/BDF Git LFS pointer | repository contains a pointer instead of the payload | informational finding, not `MALFORMED_HEADER` |
 | Empty EDF/BDF fixture | public example repository contains a zero-byte placeholder | informational finding, not `MALFORMED_HEADER` |
+| FIF personal metadata | names, birthday, source ID, measurement date and experimenter in `Info` | field-specific findings; values masked |
+| FIF device metadata | device serial and site in `Info` | `DEVICE_IDENTIFIER`; values masked |
+| FIF acquisition identifiers | non-zero `file_id`, `meas_id`, processing GUID and project fields | review findings; values masked |
+| Format free text | MNE description and EEGLAB comments/history | `FREE_TEXT_METADATA` plus clear pattern findings |
+| EEGLAB top-level metadata | subject, source filename, filepath and comments | source ID, filename, path and contact findings; values masked |
+| EEGLAB signal handling | continuous embedded and external `.fdt` layouts | MNE reader called with `preload=False`; preloaded result fails visibly |
+| Legacy nested EEGLAB | one `EEG` or `ALLEEG` MATLAB variable | `EEGLAB_METADATA_COVERAGE_LIMIT`; signal structure not loaded |
+| External EEGLAB data reference | `.set` points to an absolute or escaping `.fdt` path | visible finding; MNE reader is not called |
+| Missing EEGLAB text reader | main MNE reader works but safe MATLAB text reader is missing | visible `EEGLAB_METADATA_READER_UNAVAILABLE` finding |
+| MFF recording | optional MNE reader plus bounded XML files | reader uses `preload=False`; XML remains independently inspected |
+| MFF personal XML | subject name, ID, date, operator and device serial | field-specific findings; values masked |
+| XML document type or entity | bounded XML contains a declaration that can expand content | `UNSAFE_XML_DECLARATION`; document not parsed |
+| Optional format placeholder | empty file or Git LFS pointer | informational coverage note without importing MNE |
 | Unreadable directory | one nested directory raises a read error | visible review finding; other files still scanned |
 | Unreadable file | one text file raises a read error | `UNREADABLE_FILE`; other files still scanned |
 | Determinism | scan same tree twice | identical JSON |

@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import re
+import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -15,6 +16,9 @@ from .models import Finding
 _DOB_KEYS = {"date_of_birth", "birth_date", "birthdate", "birthday", "dob"}
 _PHONE_KEYS = {"phone", "phone_number", "telephone", "tel", "mobile"}
 _NAME_KEYS = {
+    "first_name",
+    "last_name",
+    "middle_name",
     "subject_name",
     "patient_name",
     "participant_name",
@@ -52,6 +56,8 @@ _HOST_KEYS = {"host", "hostname", "computer_name", "machine_name", "workstation"
 _NETWORK_ADDRESS_KEYS = {"ip", "ip_address", "host_ip", "server_ip"}
 _DEVICE_ADDRESS_KEYS = {"mac", "mac_address", "device_address"}
 _ACCOUNT_KEYS = {"account_name", "login", "user", "username"}
+_PERSONNEL_KEYS = {"experimenter", "operator", "technician"}
+_DEVICE_IDENTIFIER_KEYS = {"device_id", "device_serial", "serial_number"}
 _RECORDING_DATE_KEYS = {
     "acq_date",
     "acq_datetime",
@@ -64,6 +70,9 @@ _RECORDING_DATE_KEYS = {
     "recording_date_time",
     "recording_datetime",
     "recording_time",
+    "record_date",
+    "record_datetime",
+    "record_time",
     "measurement_date",
     "measurement_date_time",
     "measurement_datetime",
@@ -109,6 +118,7 @@ def _finding_for_field(
     *,
     allow_plain_name: bool = False,
     allow_context_address: bool = False,
+    allow_context_id: bool = False,
 ) -> Finding | None:
     normalised = _normalise_key(key)
     text = _display_value(value)
@@ -153,7 +163,9 @@ def _finding_for_field(
             evidence=redacted("personal-id", text),
             message="Remove or replace this direct personal identifier before release.",
         )
-    if normalised in _LINKED_ID_KEYS:
+    if normalised in _LINKED_ID_KEYS or (
+        allow_context_id and normalised in {"id", "his_id"}
+    ):
         return Finding(
             code="LINKED_SOURCE_ID",
             severity="review",
@@ -222,6 +234,24 @@ def _finding_for_field(
                 evidence=redacted(kind, text),
                 message=message,
             )
+    if normalised in _PERSONNEL_KEYS:
+        return Finding(
+            code="PERSONNEL_FIELD",
+            severity="review",
+            path=relative_path,
+            location=location,
+            evidence=redacted("personnel-field", text),
+            message="Confirm this staff name is intended for the release.",
+        )
+    if normalised in _DEVICE_IDENTIFIER_KEYS:
+        return Finding(
+            code="DEVICE_IDENTIFIER",
+            severity="review",
+            path=relative_path,
+            location=location,
+            evidence=redacted("device-identifier", text),
+            message="Confirm this acquisition-device identifier is safe to share.",
+        )
     return None
 
 
@@ -271,6 +301,7 @@ def inspect_json(text: str, relative_path: str) -> list[Finding]:
             f"JSON field {field_path}",
             allow_plain_name=_is_person_context(path[:-1]),
             allow_context_address=_is_person_context(path[:-1]),
+            allow_context_id=_is_person_context(path[:-1]),
         )
         if finding is not None:
             findings.append(finding)
@@ -307,7 +338,79 @@ def inspect_delimited(text: str, relative_path: str, delimiter: str) -> list[Fin
                 f"row {row_number}, column {_normalise_key(key)}",
                 allow_plain_name=allow_plain_name,
                 allow_context_address=allow_plain_name,
+                allow_context_id=allow_plain_name,
             )
             if finding is not None:
                 findings.append(finding)
+    return findings
+
+
+def _xml_tag(tag: object) -> str:
+    return str(tag).rsplit("}", 1)[-1]
+
+
+def inspect_xml(text: str, relative_path: str) -> list[Finding]:
+    """Check named XML fields without resolving document types or entities."""
+
+    if re.search(r"<!\s*(?:DOCTYPE|ENTITY)\b", text, re.I):
+        return [
+            Finding(
+                code="UNSAFE_XML_DECLARATION",
+                severity="review",
+                path=relative_path,
+                location="XML document",
+                evidence="<redacted:xml-declaration>",
+                message="Review this XML manually; document types and entities are not parsed.",
+            )
+        ]
+    try:
+        root = ET.fromstring(text)
+    except (ET.ParseError, UnicodeError):
+        return [
+            Finding(
+                code="MALFORMED_XML",
+                severity="review",
+                path=relative_path,
+                location="XML document",
+                evidence="<redacted:parse-error>",
+                message="Repair this XML file; its named fields were not checked.",
+            )
+        ]
+
+    findings: list[Finding] = []
+
+    def visit(element: ET.Element, parents: tuple[object, ...]) -> None:
+        tag = _xml_tag(element.tag)
+        path = (*parents, tag)
+        context = _is_person_context(path[:-1])
+        text_value = (element.text or "").strip()
+        if text_value and not list(element):
+            finding = _finding_for_field(
+                tag,
+                text_value,
+                relative_path,
+                "XML field " + ".".join(_normalise_key(part) for part in path),
+                allow_plain_name=context,
+                allow_context_address=context,
+                allow_context_id=context,
+            )
+            if finding is not None:
+                findings.append(finding)
+        for key, value in element.attrib.items():
+            finding = _finding_for_field(
+                _xml_tag(key),
+                value,
+                relative_path,
+                "XML attribute "
+                + ".".join(_normalise_key(part) for part in (*path, key)),
+                allow_plain_name=_is_person_context(path),
+                allow_context_address=_is_person_context(path),
+                allow_context_id=_is_person_context(path),
+            )
+            if finding is not None:
+                findings.append(finding)
+        for child in element:
+            visit(child, path)
+
+    visit(root, ())
     return findings

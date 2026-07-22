@@ -32,6 +32,8 @@ The tool receives one local dataset directory and scans it without modifying the
 - BIDS `.tsv` and `.json` metadata;
 - BrainVision `.vhdr` and `.vmrk` files;
 - the fixed header area of EDF and BDF files;
+- FIF, continuous EEGLAB `.set` and EGI MFF recording metadata through optional readers;
+- bounded XML metadata, including MFF XML files;
 - small text, source, config and notebook files;
 - filenames and the dataset directory structure;
 - unexpected release files such as spreadsheets, backups and temporary exports.
@@ -64,6 +66,15 @@ The EEG signal payload is not loaded or analysed.
 | `SENSITIVE_CONFIG_FILE` | `.env`, credential file or private-key filename | review |
 | `OS_METADATA_FILE` | `.DS_Store`, `Thumbs.db` or `desktop.ini` | review |
 | `POTENTIAL_SECRET` | obvious token or credential pattern | high |
+| `PERSONNEL_FIELD` | experimenter, operator or technician field | review |
+| `DEVICE_IDENTIFIER` | acquisition device serial or site identifier | review |
+| `ACQUISITION_SYSTEM_ID` | FIF machine ID or original acquisition GUID | review |
+| `PROJECT_IDENTIFIER` | internal project ID or name in format metadata | review |
+| `FREE_TEXT_METADATA` | populated description, comments or processing history | review |
+| `FORMAT_READER_UNAVAILABLE` | optional reader is not installed | review |
+| `EEGLAB_METADATA_READER_UNAVAILABLE` | safe MATLAB text-field reader is not installed | review |
+| `EEGLAB_METADATA_COVERAGE_LIMIT` | legacy nested MATLAB structure cannot be separated safely from signal data | review |
+| `EXTERNAL_DATA_REFERENCE` | EEGLAB data path points outside the selected release | review |
 
 Rules should prefer structured fields and clear patterns. Generic person-name detection is out of scope for the first version because it would create too many false positives.
 
@@ -75,6 +86,9 @@ Rules should prefer structured fields and clear patterns. Generic person-name de
 - The scanner stays inside the directory explicitly supplied by the user.
 - Symlinks that point outside the dataset are reported and not followed.
 - Large binary files are not read beyond the header bytes required for the check.
+- Optional MNE readers are called with signal preloading disabled.
+- A reader that returns preloaded signal data produces a visible coverage finding.
+- XML document types and entities are rejected before parsing.
 - Every skipped or unreadable file is listed in the report.
 - Development and cache directories are not traversed, but remain visible as skipped entries.
 - A private term list can be supplied for names and old IDs already known to the researcher. Its values are never copied into the report.
@@ -152,8 +166,7 @@ Public datasets can be used later for usability testing, not as a source of know
 
 ## Possible later work
 
-- FIF and EEGLAB metadata readers;
-- EGI MFF support;
+- support for additional EEGLAB MATLAB layouts without loading signal arrays;
 - optional metaprivBIDS hand-off for participant-table analysis;
 - configurable institutional policies;
 - HTML report;

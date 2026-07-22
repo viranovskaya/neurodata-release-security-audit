@@ -22,8 +22,11 @@ This matrix keeps the project scope concrete. A checked item has a detector, mas
 |---|---|---|
 | Local user paths | macOS, Linux and Windows home paths | implemented |
 | Source recording names | BrainVision references to old basenames | implemented |
+| External format references | EEGLAB signal path leaves the selected release directory | implemented as a review finding; reference is not followed |
 | Credentials | common tokens, bearer strings and private-key blocks | implemented |
 | Network locations | UNC paths, mounted volumes, hostnames and IP addresses | implemented |
+| Acquisition-system traces | FIF machine IDs, original GUIDs, project IDs and device serials | implemented as review findings |
+| Format free text | FIF descriptions and EEGLAB comments/history | implemented as manual-review findings plus pattern checks |
 | Config credentials | password, API key and connection-string assignments | implemented |
 | Source and config files | Python, MATLAB, shell, YAML, TOML, INI and notebooks | implemented |
 | Secret-bearing files | `.env`, credential files, private keys and certificate bundles | implemented |
@@ -34,7 +37,9 @@ This matrix keeps the project scope concrete. A checked item has a detector, mas
 
 ## Format boundary
 
-The current readers cover BIDS text metadata, BrainVision and EDF/BDF common headers. FIF, EEGLAB `.set` and EGI MFF need separate readers and fixtures. They will be added only after the text and release-tree coverage above passes calibration.
+The current readers cover BIDS text metadata, BrainVision, EDF/BDF common headers, FIF `Info`, continuous EEGLAB `.set` metadata and EGI MFF recording metadata. FIF, EEGLAB and MFF use the optional `formats` installation because they depend on MNE. MFF XML is still checked as bounded text when that extra is not installed.
+
+EEGLAB top-level MATLAB metadata and MATLAB 7.3 text fields are checked without selecting the signal array. A legacy file that stores everything inside one nested `EEG` or `ALLEEG` variable receives `EEGLAB_METADATA_COVERAGE_LIMIT`; the MNE reader is not called for that file. MATLAB 7.3 files stay on the same conservative text-only path. An absolute or escaping external data reference receives `EXTERNAL_DATA_REFERENCE` and also stops the MNE reader. Epoched EEGLAB data have the same safe limitation if a metadata-only reader is not available.
 
 ## Gate before external review
 

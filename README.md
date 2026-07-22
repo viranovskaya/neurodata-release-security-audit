@@ -13,6 +13,8 @@ The scanner is read-only. It does not upload anything, change the dataset or loa
 - BIDS JSON, TSV and CSV metadata;
 - BrainVision `.vhdr` and `.vmrk` files;
 - the common header of EDF and BDF files;
+- FIF, continuous EEGLAB `.set` and EGI MFF recording metadata with the optional format readers;
+- bounded XML metadata inside MFF directories;
 - small text files, filenames and the release directory tree;
 - backups, spreadsheets, archives, symlinks and files it could not read.
 
@@ -26,7 +28,15 @@ From the repository root:
 python3 -m pip install .
 ```
 
-This installs the `neurodata-security-audit` command. There are no runtime dependencies outside the Python standard library.
+This installs the `neurodata-security-audit` command and the standard-library checks.
+
+To inspect FIF, EEGLAB and MFF recording metadata too:
+
+```bash
+python3 -m pip install ".[formats]"
+```
+
+These readers use MNE with signal preloading disabled. If the optional readers are missing or cannot inspect a format safely, the gap is shown in the report instead of treating the file as clean.
 
 ## Run
 
@@ -80,17 +90,21 @@ The matching values are masked in file contents and report paths. The command re
 
 This is an extra release check, not proof that a dataset is anonymous or legally compliant. It does not replace the BIDS Validator, format-specific anonymisation or human review. It also does not test whether the EEG signal itself could identify someone.
 
+Legacy EEGLAB files that store the whole dataset inside one nested MATLAB structure receive a visible coverage warning. The scanner does not call MNE for that file because it may also load the signal array. MATLAB 7.3 files stay on a conservative text-only path. External data references that leave the selected release directory are reported and are not followed.
+
 The current version is designed for accidental release mistakes. It does not inspect encrypted archives, malware or files written to attack the parser.
 
 ## Status
 
-Private v0.1 candidate. The synthetic test suite, six public BIDS EEG examples and four real Sleep-EDF files have been checked. Independent review has not happened yet.
+Private v0.1 candidate. The synthetic test suite, small real-format FIF and EEGLAB integration fixtures, six public BIDS EEG examples and four real Sleep-EDF files have been checked. Independent review has not happened yet.
 
 The exact scope is in [docs/mvp_spec.md](docs/mvp_spec.md). Test runs are documented in [docs/calibration.md](docs/calibration.md) and [docs/real_dataset_check.md](docs/real_dataset_check.md).
 
 The current implementation and pending leak categories are tracked in [docs/leak_coverage.md](docs/leak_coverage.md).
 
 The latest implementation cross-check is in [docs/progress_report_2026-07-22.md](docs/progress_report_2026-07-22.md).
+
+The final local gate is recorded in [docs/final_local_gate_2026-07-22.md](docs/final_local_gate_2026-07-22.md).
 
 The short independent test is in [docs/external_review_guide.md](docs/external_review_guide.md).
 
