@@ -1,5 +1,7 @@
 # NeuroData Release Security Audit
 
+[![tests](https://github.com/viranovskaya/neurodata-release-security-audit/actions/workflows/tests.yml/badge.svg)](https://github.com/viranovskaya/neurodata-release-security-audit/actions/workflows/tests.yml)
+
 A local, read-only check for privacy and metadata leaks in EEG datasets prepared for sharing.
 
 The first version focuses on BIDS text metadata, BrainVision files, and EDF/BDF headers. It looks for clear release risks such as direct contact details, dates of birth, unshifted recording dates, local computer paths, participant-key files, and obvious credentials.
@@ -37,3 +39,7 @@ This tool does not certify that a dataset is anonymous or compliant with GDPR, H
 The current threat model is accidental release by an honest curator. It does not cover malicious concurrent modification of a dataset during a scan, encrypted archives, malware, or adversarial files designed to exploit the parser.
 
 The design scope is recorded in [docs/mvp_spec.md](docs/mvp_spec.md). The first public-example calibration is documented in [docs/calibration.md](docs/calibration.md).
+
+## License
+
+MIT
