@@ -1041,6 +1041,143 @@ class ScannerTests(unittest.TestCase):
             {"LINKED_SOURCE_ID", "EXACT_RECORDING_DATE"}
             <= {finding.code for finding in report.findings}
         )
+
+    def test_nifti_reader_inspects_header_without_loading_voxels(self) -> None:
+        nifti = self.root / "sub-01_T1w.nii"
+        nifti.write_bytes(b"synthetic-nifti-placeholder")
+        values = (
+            "Jane Doe",
+            "study.contact@example.org",
+            "/Users/operator/private/original.nii",
+            "HOSP-0042",
+        )
+
+        class FakeHeader(dict):
+            extensions: tuple[object, ...] = ()
+
+        class FakeImage:
+            header = FakeHeader(
+                {
+                    "descrip": (
+                        f"Participant {values[0]}, contact {values[1]}"
+                    ).encode(),
+                    "aux_file": values[2].encode(),
+                    "intent_name": b"rest",
+                    "db_name": values[3].encode(),
+                }
+            )
+
+            @property
+            def dataobj(self):
+                raise AssertionError("voxel data must not be accessed")
+
+        class FakeNibabel:
+            @staticmethod
+            def load(path: str, *, mmap: bool, keep_file_open: bool):
+                self.assertEqual(nifti.resolve(), Path(path))
+                self.assertFalse(mmap)
+                self.assertFalse(keep_file_open)
+                return FakeImage()
+
+        with patch(
+            "neurodata_security_audit.imaging._load_nibabel",
+            return_value=FakeNibabel(),
+        ):
+            report = scan_dataset(
+                self.root,
+                ScanPolicy(sensitive_terms=("Jane Doe",)),
+            )
+
+        codes = {item.code for item in report.findings}
+        self.assertTrue(
+            {
+                "KNOWN_IDENTIFIER",
+                "DIRECT_EMAIL",
+                "LOCAL_PATH",
+                "FREE_TEXT_METADATA",
+                "SOURCE_FILENAME",
+                "LINKED_SOURCE_ID",
+            }
+            <= codes
+        )
+        coverage = next(item for item in report.coverage if item.path == nifti.name)
+        self.assertEqual("header_or_structure_only", coverage.status)
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_nifti_extension_is_a_visible_coverage_boundary(self) -> None:
+        nifti = self.root / "sub-01_T1w.nii.gz"
+        nifti.write_bytes(b"synthetic-nifti-placeholder")
+
+        class FakeExtension:
+            @staticmethod
+            def get_code() -> int:
+                return 6
+
+        class FakeHeader(dict):
+            extensions = (FakeExtension(),)
+
+        image = SimpleNamespace(
+            header=FakeHeader(
+                {
+                    "descrip": b"",
+                    "aux_file": b"",
+                    "intent_name": b"",
+                    "db_name": b"",
+                }
+            )
+        )
+        with patch(
+            "neurodata_security_audit.imaging._load_nibabel",
+            return_value=SimpleNamespace(load=lambda *args, **kwargs: image),
+        ):
+            report = scan_dataset(self.root)
+        extension = next(
+            item for item in report.findings if item.code == "NIFTI_EXTENSION_PRESENT"
+        )
+        self.assertEqual("<nifti-extension-code:6>", extension.evidence)
+
+    def test_missing_nifti_reader_is_visible(self) -> None:
+        nifti = self.root / "sub-01_T1w.nii"
+        nifti.write_bytes(b"synthetic-nifti-placeholder")
+        with patch(
+            "neurodata_security_audit.scanner.inspect_nifti_metadata",
+            side_effect=FormatReaderUnavailable("synthetic"),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "FORMAT_READER_UNAVAILABLE",
+            {item.code for item in report.findings},
+        )
+        coverage = next(item for item in report.coverage if item.path == nifti.name)
+        self.assertEqual("unsupported_manual_review", coverage.status)
+
+    def test_unreadable_nifti_metadata_is_visible_without_error_details(self) -> None:
+        nifti = self.root / "sub-01_T1w.nii"
+        nifti.write_bytes(b"synthetic-nifti-placeholder")
+        private_error = "Jane Doe at /Users/jane/private"
+        with patch(
+            "neurodata_security_audit.scanner.inspect_nifti_metadata",
+            side_effect=ValueError(private_error),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "FORMAT_METADATA_UNREADABLE",
+            {item.code for item in report.findings},
+        )
+        self.assertNotIn(private_error, render_json(report) + render_markdown(report))
+
+    def test_nifti_pair_image_is_treated_as_payload(self) -> None:
+        image = self.root / "sub-01_T1w.img"
+        image.write_bytes(b"synthetic image payload")
+
+        report = scan_dataset(self.root)
+
+        entry = next(item for item in report.coverage if item.path == image.name)
+        self.assertEqual("payload_not_opened", entry.status)
+        self.assertNotIn(image.name, report.files_inspected)
+
     def test_empty_mne_identifiers_are_not_reported(self) -> None:
         findings = inspect_mne_info(
             {

@@ -15,6 +15,7 @@ from .detectors import (
     redacted,
     scan_text,
 )
+from .imaging import inspect_nifti_metadata
 from .models import (
     CoverageEntry,
     CoverageStatus,
@@ -93,6 +94,7 @@ _TEXT_NAMES = {
     "authorized_keys",
 }
 _SIGNAL_PAYLOAD_SUFFIXES = {".eeg", ".fdt"}
+_IMAGE_PAYLOAD_SUFFIXES = {".img"}
 _EDF_SUFFIXES = {".edf", ".bdf"}
 _MNE_FILE_FORMATS = {".fif": "fif", ".set": "eeglab"}
 _UNEXPECTED_SUFFIXES = {
@@ -469,6 +471,11 @@ def _mne_format_for_path(path: Path) -> str | None:
     if path.name.lower().endswith(".fif.gz"):
         return "fif"
     return _MNE_FILE_FORMATS.get(path.suffix.lower())
+
+
+def _is_nifti_path(path: Path) -> bool:
+    lower_name = path.name.lower()
+    return lower_name.endswith(".nii.gz") or path.suffix.lower() in {".nii", ".hdr"}
 
 
 def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
@@ -886,6 +893,68 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 report.findings.extend(
                     inspect_edf_header(header, relative_path, known_terms)
                 )
+            elif _is_nifti_path(path):
+                try:
+                    report.findings.extend(
+                        inspect_nifti_metadata(path, relative_path, known_terms)
+                    )
+                    report.files_inspected.append(relative_path)
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "header_or_structure_only",
+                        "NIfTI header metadata was inspected; voxels were not loaded",
+                    )
+                except FormatReaderUnavailable:
+                    report.findings.append(
+                        Finding(
+                            code="FORMAT_READER_UNAVAILABLE",
+                            severity="review",
+                            path=relative_path,
+                            location="NIfTI metadata",
+                            evidence="<optional-reader-unavailable>",
+                            message=(
+                                "Install the 'imaging' extra to inspect this NIfTI header."
+                            ),
+                        )
+                    )
+                    report.skipped_files.append(
+                        SkippedFile(
+                            relative_path,
+                            "Optional NIfTI metadata reader is unavailable",
+                        )
+                    )
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "unsupported_manual_review",
+                        "The optional NIfTI metadata reader is unavailable",
+                    )
+                except Exception as error:
+                    report.findings.append(
+                        Finding(
+                            code="FORMAT_METADATA_UNREADABLE",
+                            severity="review",
+                            path=relative_path,
+                            location="NIfTI metadata",
+                            evidence=f"<error:{type(error).__name__}>",
+                            message=(
+                                "Review this file manually; its NIfTI header was not read."
+                            ),
+                        )
+                    )
+                    report.skipped_files.append(
+                        SkippedFile(
+                            relative_path,
+                            f"Could not inspect NIfTI metadata: {type(error).__name__}",
+                        )
+                    )
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "unsupported_manual_review",
+                        "The NIfTI metadata reader failed",
+                    )
             elif mne_format is not None:
                 with path.open("rb") as stream:
                     prefix = stream.read(128)
@@ -1054,15 +1123,18 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                         "unsupported_manual_review",
                         "The format metadata reader failed",
                     )
-            elif suffix in _SIGNAL_PAYLOAD_SUFFIXES:
+            elif suffix in _SIGNAL_PAYLOAD_SUFFIXES | _IMAGE_PAYLOAD_SUFFIXES:
                 report.skipped_files.append(
-                    SkippedFile(relative_path, "EEG signal payload is outside the MVP scope")
+                    SkippedFile(
+                        relative_path,
+                        "Signal or image payload is not parsed or loaded",
+                    )
                 )
                 record_coverage(
                     relative_path,
                     "file",
                     "payload_not_opened",
-                    "Signal payload was hashed but not parsed or loaded",
+                    "Signal or image payload was hashed but not parsed or loaded",
                 )
             else:
                 report.skipped_files.append(
