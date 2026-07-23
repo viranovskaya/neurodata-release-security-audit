@@ -236,7 +236,7 @@ def _finding_for_field(
     if text is None:
         return None
 
-    if normalised in _SECRET_KEYS and len(text) >= 8:
+    if normalised in _SECRET_KEYS:
         return Finding(
             code="POTENTIAL_SECRET",
             severity="high",

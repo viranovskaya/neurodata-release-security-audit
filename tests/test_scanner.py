@@ -372,6 +372,25 @@ class ScannerTests(unittest.TestCase):
         )
         self.assertNotIn("POTENTIAL_SECRET", set(self._codes()))
 
+    def test_short_structured_credentials_are_not_missed(self) -> None:
+        values = ("q", "ab", "abc", "abcd", "abcde", "abcdef", "abcdefg")
+        for value in values:
+            with self.subTest(length=len(value)):
+                (self.root / "runtime.json").write_text(
+                    json.dumps({"password": value}),
+                    encoding="utf-8",
+                )
+                findings = [
+                    finding
+                    for finding in scan_dataset(self.root).findings
+                    if finding.code == "POTENTIAL_SECRET"
+                ]
+                self.assertEqual(1, len(findings))
+                self.assertEqual(
+                    f"<redacted:potential-secret,length={len(value)}>",
+                    findings[0].evidence,
+                )
+
     def test_similar_structured_keys_are_not_credentials(self) -> None:
         (self.root / "runtime.json").write_text(
             json.dumps(
