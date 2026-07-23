@@ -63,9 +63,12 @@ The later benchmark branch adds:
 - complete synthetic sleep, imaging and clean BrainVision release folders;
 - a regression fix for phone columns such as `emergency_contact_phone`;
 - a strict 21-finding locked split;
-- hash-pinned reader checks on public EEGLAB and KIT files.
+- a historical v1 reader layer with hash-pinned public EEGLAB and KIT files;
+- a v2 reader layer that retains those files and adds an EGI MFF directory from
+  MNE's public testing-data repository, pinned by commit and directory hash.
 
-The public reader checks passed independent engineering review. They confirm
+The v1 reader checks passed independent engineering review while MFF was still
+explicitly unscored. The current v2 result passes all three fixtures, including
+the MFF recording reader and its bounded metadata files. These checks confirm
 reader execution, `preload=False`, source hashes and integrity checks, but they
-are not privacy ground truth. EGI MFF remains unscored in the public-fixture
-layer.
+are not privacy ground truth.
