@@ -15,18 +15,20 @@ from neurodata_security_audit.usability import (
 from usability.build_reports import build_reports
 
 
-def _task(task_id: str, capability: str, *, critical: bool) -> dict[str, object]:
+def _task(task_id: str, expected: str) -> dict[str, object]:
+    report_code = "a" if task_id == "task_01" else "b"
     return {
         "task_id": task_id,
-        "report": "reports/example.html",
-        "capability": capability,
+        "report": f"reports/report-{report_code}.html",
+        "capability": "release_decision",
         "prompt": "Choose the correct next step.",
         "choices": [
             {"value": "correct", "label": "Correct"},
             {"value": "wrong", "label": "Wrong"},
         ],
-        "expected": "correct",
-        "critical": critical,
+        "expected": expected,
+        "critical": True,
+        "choice_group": "decision",
     }
 
 
@@ -49,8 +51,8 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                         "critical_accuracy": 1.0,
                     },
                     "tasks": [
-                        _task("release", "release_decision", critical=True),
-                        _task("location", "finding_location", critical=False),
+                        _task("task_01", "correct"),
+                        _task("task_02", "wrong"),
                     ],
                 }
             ),
@@ -62,8 +64,8 @@ class UsabilityBenchmarkTests(unittest.TestCase):
         self,
         root: Path,
         participant: str,
-        release_answer: str,
-        location_answer: str,
+        first_answer: str,
+        second_answer: str,
     ) -> Path:
         path = root / f"{participant}.json"
         path.write_text(
@@ -73,14 +75,14 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                     "participant_id": participant,
                     "responses": [
                         {
-                            "task_id": "release",
-                            "answer": release_answer,
+                            "task_id": "task_01",
+                            "answer": first_answer,
                             "elapsed_seconds": 12.5,
                             "confidence": 4,
                         },
                         {
-                            "task_id": "location",
-                            "answer": location_answer,
+                            "task_id": "task_02",
+                            "answer": second_answer,
                             "elapsed_seconds": 20,
                             "confidence": 3,
                         },
@@ -96,8 +98,8 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             root = Path(directory)
             spec = self._write_spec(root)
             responses = [
-                self._write_response(root, "reviewer-01", "correct", "correct"),
-                self._write_response(root, "reviewer-02", "correct", "correct"),
+                self._write_response(root, "reviewer-01", "correct", "wrong"),
+                self._write_response(root, "reviewer-02", "correct", "wrong"),
             ]
             result = score_usability(spec, responses)
 
@@ -114,12 +116,12 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             root = Path(directory)
             spec = self._write_spec(root)
             responses = [
-                self._write_response(root, "reviewer-01", "wrong", "correct"),
-                self._write_response(root, "reviewer-02", "correct", "correct"),
+                self._write_response(root, "reviewer-01", "wrong", "wrong"),
+                self._write_response(root, "reviewer-02", "correct", "wrong"),
             ]
             result = score_usability(spec, responses)
 
-        self.assertEqual(result["summary"]["critical_accuracy"], 0.5)
+        self.assertEqual(result["summary"]["critical_accuracy"], 0.75)
         self.assertFalse(result["summary"]["thresholds_met"])
 
     def test_incomplete_pilot_is_not_a_pass(self) -> None:
@@ -130,7 +132,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                 root,
                 "reviewer-01",
                 "correct",
-                "correct",
+                "wrong",
             )
             result = score_usability(spec, [response])
 
@@ -149,7 +151,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                         "participant_id": "reviewer-01",
                         "responses": [
                             {
-                                "task_id": "release",
+                                "task_id": "task_01",
                                 "answer": "correct",
                                 "elapsed_seconds": 10,
                                 "confidence": 4,
@@ -170,7 +172,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                 root,
                 "reviewer-01",
                 "correct",
-                "correct",
+                "wrong",
             )
             duplicate = root / "duplicate.json"
             duplicate.write_bytes(first.read_bytes())
@@ -196,7 +198,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                 root,
                 "reviewer-01",
                 "correct",
-                "correct",
+                "wrong",
             )
             data = json.loads(response.read_text(encoding="utf-8"))
             data["responses"][0]["elapsed_seconds"] = False
@@ -205,6 +207,75 @@ class UsabilityBenchmarkTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "non-negative time"):
                 score_usability(spec, [response])
+
+    def test_nonfinite_time_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spec = self._write_spec(root)
+            for value in (float("nan"), float("inf"), float("-inf")):
+                with self.subTest(value=value):
+                    response = self._write_response(
+                        root,
+                        "reviewer-01",
+                        "correct",
+                        "wrong",
+                    )
+                    data = json.loads(response.read_text(encoding="utf-8"))
+                    data["responses"][0]["elapsed_seconds"] = value
+                    response.write_text(json.dumps(data), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "non-negative time"):
+                        score_usability(spec, [response])
+
+    def test_personal_id_and_extra_fields_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spec = self._write_spec(root)
+
+            response = self._write_response(
+                root,
+                "reviewer-01",
+                "correct",
+                "wrong",
+            )
+            data = json.loads(response.read_text(encoding="utf-8"))
+            data["participant_id"] = "person@example.com"
+            response.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "administrator-assigned"):
+                score_usability(spec, [response])
+
+            data["participant_id"] = "reviewer-01"
+            data["email"] = "person@example.com"
+            response.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "unexpected fields"):
+                score_usability(spec, [response])
+
+            data.pop("email")
+            data["responses"][0]["free_text"] = "Jane Doe"
+            response.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "unexpected fields"):
+                score_usability(spec, [response])
+
+    def test_critical_choice_group_must_be_balanced(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spec = self._write_spec(root)
+            data = json.loads(spec.read_text(encoding="utf-8"))
+            data["tasks"][1]["expected"] = "correct"
+            spec.write_text(json.dumps(data), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "must use every choice"):
+                score_usability(spec, [])
+
+    def test_task_and_report_names_must_be_opaque(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spec = self._write_spec(root)
+            data = json.loads(spec.read_text(encoding="utf-8"))
+            data["tasks"][0]["report"] = "reports/high.html"
+            spec.write_text(json.dumps(data), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "opaque"):
+                score_usability(spec, [])
 
     def test_response_template_matches_precommitted_tasks(self) -> None:
         spec = json.loads(
@@ -237,6 +308,10 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             second = build_reports(Path(second_dir))
 
             self.assertEqual(set(first), set(second))
+            self.assertEqual(
+                {Path(task["report"]).name for task in spec["tasks"]},
+                {path.name for path in first.values()},
+            )
             for name in first:
                 self.assertEqual(
                     first[name].read_bytes(),
@@ -248,7 +323,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                 json.dumps(
                     {
                         "schema_version": "1",
-                        "participant_id": "synthetic-control",
+                        "participant_id": "reviewer-99",
                         "responses": [
                             {
                                 "task_id": task["task_id"],
@@ -267,15 +342,23 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                 [response_path],
             )
 
-        self.assertEqual(result["summary"]["tasks_per_participant"], 10)
+        self.assertEqual(result["summary"]["tasks_per_participant"], 12)
         self.assertEqual(result["summary"]["overall_accuracy"], 1.0)
         self.assertEqual(result["summary"]["status"], "pilot_incomplete")
         self.assertFalse(result["summary"]["thresholds_met"])
 
+    def test_report_builder_rejects_stale_html(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "high.html").write_text("stale", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "unexpected HTML"):
+                build_reports(root)
+
     def test_large_report_groups_actions_and_keeps_individual_rows(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             reports = build_reports(Path(directory))
-            rendered = reports["large_review"].read_text(encoding="utf-8")
+            rendered = reports["report-e"].read_text(encoding="utf-8")
 
         self.assertIn(
             "121 individual items are summarized in 5 action groups",
@@ -290,7 +373,11 @@ class UsabilityBenchmarkTests(unittest.TestCase):
     def test_reviewer_packet_does_not_contain_the_answer_key(self) -> None:
         rendered = render_reviewer_packet(self.project_root / "usability" / "spec.json")
 
-        self.assertIn("clean_release_decision", rendered)
-        self.assertIn("[clean](reports/clean.html)", rendered)
+        self.assertIn("task_01", rendered)
+        self.assertIn("[Report A](reports/report-a.html)", rendered)
+        self.assertNotRegex(
+            rendered,
+            r"\[(clean|high|coverage|integrity)",
+        )
         self.assertNotIn('"expected"', rendered)
         self.assertNotIn("Expected answer", rendered)

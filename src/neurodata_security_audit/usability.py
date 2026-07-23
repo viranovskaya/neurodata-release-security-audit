@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import re
 import statistics
 from collections import defaultdict
 from collections.abc import Iterable
 from pathlib import Path
+
+_PARTICIPANT_ID = re.compile(r"reviewer-[0-9]{2,3}")
+_TASK_ID = re.compile(r"task_[0-9]{2}")
+_REPORT_PATH = re.compile(r"reports/report-[a-z]\.html")
 
 
 def _load_json(path: Path) -> dict[str, object]:
@@ -22,20 +28,45 @@ def _sha256(path: Path) -> str:
 
 
 def _validate_spec(data: dict[str, object]) -> list[dict[str, object]]:
+    allowed_top_level = {"schema_version", "suite_name", "thresholds", "tasks"}
+    unexpected = set(data) - allowed_top_level
+    if unexpected:
+        raise ValueError(
+            "Usability specification has unexpected fields: "
+            + ", ".join(sorted(unexpected))
+        )
     if data.get("schema_version") != "1":
         raise ValueError("Usability specification must use schema version 1")
+    if not isinstance(data.get("suite_name"), str) or not data["suite_name"]:
+        raise ValueError("Usability specification needs a suite_name")
     tasks = data.get("tasks")
     if not isinstance(tasks, list) or not tasks:
         raise ValueError("Usability specification must contain tasks")
 
     seen: set[str] = set()
     validated: list[dict[str, object]] = []
+    choice_groups: dict[str, list[dict[str, object]]] = defaultdict(list)
     for raw_task in tasks:
         if not isinstance(raw_task, dict):
             raise ValueError("Each usability task must be an object")
+        allowed_task_fields = {
+            "task_id",
+            "report",
+            "capability",
+            "prompt",
+            "choices",
+            "expected",
+            "critical",
+            "choice_group",
+        }
+        unexpected = set(raw_task) - allowed_task_fields
+        if unexpected:
+            raise ValueError(
+                "Usability task has unexpected fields: " + ", ".join(sorted(unexpected))
+            )
         task_id = raw_task.get("task_id")
-        if not isinstance(task_id, str) or not task_id:
-            raise ValueError("Each usability task needs a task_id")
+        if not isinstance(task_id, str) or not _TASK_ID.fullmatch(task_id):
+            raise ValueError("Each usability task needs an opaque task_XX ID")
         if task_id in seen:
             raise ValueError(f"Duplicate usability task ID: {task_id}")
         seen.add(task_id)
@@ -44,8 +75,8 @@ def _validate_spec(data: dict[str, object]) -> list[dict[str, object]]:
         if not isinstance(capability, str) or not capability:
             raise ValueError(f"{task_id} needs a capability")
         report = raw_task.get("report")
-        if not isinstance(report, str) or not report:
-            raise ValueError(f"{task_id} needs a report")
+        if not isinstance(report, str) or not _REPORT_PATH.fullmatch(report):
+            raise ValueError(f"{task_id} needs an opaque reports/report-x.html path")
         prompt = raw_task.get("prompt")
         if not isinstance(prompt, str) or not prompt:
             raise ValueError(f"{task_id} needs a prompt")
@@ -70,7 +101,38 @@ def _validate_spec(data: dict[str, object]) -> list[dict[str, object]]:
             raise ValueError(f"{task_id} expected answer is not a choice")
         if not isinstance(raw_task.get("critical"), bool):
             raise ValueError(f"{task_id} must set critical to true or false")
+        choice_group = raw_task.get("choice_group")
+        if choice_group is not None and (
+            not isinstance(choice_group, str) or not choice_group
+        ):
+            raise ValueError(f"{task_id} has an invalid choice_group")
+        if bool(raw_task["critical"]) and choice_group is None:
+            raise ValueError(f"{task_id} critical task needs a balanced choice_group")
+        if isinstance(choice_group, str):
+            choice_groups[choice_group].append(raw_task)
         validated.append(raw_task)
+
+    for group_name, group_tasks in sorted(choice_groups.items()):
+        if len(group_tasks) < 2:
+            raise ValueError(f"{group_name} choice_group needs at least two tasks")
+        prompts = {str(task["prompt"]) for task in group_tasks}
+        choices = {
+            tuple(
+                (str(choice["value"]), str(choice["label"]))
+                for choice in task["choices"]  # type: ignore[index]
+            )
+            for task in group_tasks
+        }
+        if len(prompts) != 1 or len(choices) != 1:
+            raise ValueError(
+                f"{group_name} choice_group must reuse one prompt and choice set"
+            )
+        choice_values = {value for value, _ in next(iter(choices))}
+        expected_values = {str(task["expected"]) for task in group_tasks}
+        if expected_values != choice_values:
+            raise ValueError(
+                f"{group_name} choice_group must use every choice as an expected answer"
+            )
     return validated
 
 
@@ -104,11 +166,21 @@ def _validate_responses(
     data: dict[str, object],
     tasks: dict[str, dict[str, object]],
 ) -> tuple[str, list[dict[str, object]]]:
+    allowed_top_level = {"schema_version", "participant_id", "responses"}
+    unexpected = set(data) - allowed_top_level
+    if unexpected:
+        raise ValueError(
+            "Response file has unexpected fields: " + ", ".join(sorted(unexpected))
+        )
     if data.get("schema_version") != "1":
         raise ValueError("Response file must use schema version 1")
     participant_id = data.get("participant_id")
-    if not isinstance(participant_id, str) or not participant_id.strip():
-        raise ValueError("Response file needs a pseudonymous participant_id")
+    if not isinstance(participant_id, str) or not _PARTICIPANT_ID.fullmatch(
+        participant_id
+    ):
+        raise ValueError(
+            "Response file needs an administrator-assigned reviewer-XX participant_id"
+        )
     responses = data.get("responses")
     if not isinstance(responses, list):
         raise ValueError(f"{participant_id} responses must be a list")
@@ -118,6 +190,18 @@ def _validate_responses(
     for response in responses:
         if not isinstance(response, dict):
             raise ValueError(f"{participant_id} has an invalid response")
+        allowed_response_fields = {
+            "task_id",
+            "answer",
+            "elapsed_seconds",
+            "confidence",
+        }
+        unexpected = set(response) - allowed_response_fields
+        if unexpected:
+            raise ValueError(
+                f"{participant_id} response has unexpected fields: "
+                + ", ".join(sorted(unexpected))
+            )
         task_id = response.get("task_id")
         if task_id not in tasks:
             raise ValueError(f"{participant_id} has unknown task {task_id}")
@@ -136,6 +220,7 @@ def _validate_responses(
         if (
             isinstance(elapsed, bool)
             or not isinstance(elapsed, (int, float))
+            or not math.isfinite(elapsed)
             or elapsed < 0
         ):
             raise ValueError(f"{participant_id} needs non-negative time for {task_id}")
@@ -409,10 +494,11 @@ def render_reviewer_packet(specification_path: str | Path) -> str:
         report = str(task["report"])
         if report != current_report:
             current_report = report
+            report_code = Path(report).stem.removeprefix("report-").upper()
             lines.extend(
                 [
                     "",
-                    f"## Report: [{Path(report).stem}]({report})",
+                    f"## Report: [Report {report_code}]({report})",
                 ]
             )
         lines.extend(

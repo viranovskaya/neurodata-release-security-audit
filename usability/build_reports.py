@@ -182,12 +182,22 @@ def _large_report() -> ScanReport:
 def build_reports(output_dir: Path = REPORTS) -> dict[str, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     reports = {
-        "clean": _clean_report(),
-        "high": _high_report(),
-        "coverage_gap": _coverage_report(),
-        "integrity_failure": _integrity_report(),
-        "large_review": _large_report(),
+        "report-a": _clean_report(),
+        "report-b": _high_report(),
+        "report-c": _coverage_report(),
+        "report-d": _integrity_report(),
+        "report-e": _large_report(),
     }
+    expected_names = {f"{name}.html" for name in reports}
+    unexpected = sorted(
+        path.name
+        for path in output_dir.glob("*.html")
+        if path.name not in expected_names
+    )
+    if unexpected:
+        raise ValueError(
+            "Report directory contains unexpected HTML files: " + ", ".join(unexpected)
+        )
     paths = {}
     for name, report in reports.items():
         path = output_dir / f"{name}.html"

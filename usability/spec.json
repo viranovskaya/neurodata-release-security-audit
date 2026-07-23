@@ -9,52 +9,116 @@
   },
   "tasks": [
     {
-      "task_id": "clean_release_decision",
-      "report": "reports/clean.html",
+      "task_id": "task_01",
+      "report": "reports/report-c.html",
       "capability": "release_decision",
-      "prompt": "What does this report support?",
+      "prompt": "What should happen next?",
       "choices": [
         {
-          "value": "checked_areas_clear",
-          "label": "No high or review findings were found in the checked areas, but coverage and format limits still need review."
+          "value": "continue_scope_review",
+          "label": "Continue to the remaining coverage and format checks."
         },
         {
-          "value": "anonymous",
-          "label": "The dataset is anonymous and ready to publish."
+          "value": "hold_high",
+          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
         },
         {
-          "value": "blocked",
-          "label": "The dataset must not be released because the integrity check failed."
+          "value": "hold_coverage",
+          "label": "Hold the release decision and manually review an unsupported entry."
+        },
+        {
+          "value": "invalidate_integrity",
+          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
         }
       ],
-      "expected": "checked_areas_clear",
-      "critical": true
+      "expected": "hold_coverage",
+      "critical": true,
+      "choice_group": "release_action"
     },
     {
-      "task_id": "high_release_decision",
-      "report": "reports/high.html",
+      "task_id": "task_02",
+      "report": "reports/report-a.html",
       "capability": "release_decision",
-      "prompt": "Can this copy be released now?",
+      "prompt": "What should happen next?",
       "choices": [
         {
-          "value": "do_not_release",
-          "label": "No. Resolve the high-priority finding first."
+          "value": "continue_scope_review",
+          "label": "Continue to the remaining coverage and format checks."
         },
         {
-          "value": "release_with_note",
-          "label": "Yes, if the README mentions the finding."
+          "value": "hold_high",
+          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
         },
         {
-          "value": "report_invalid",
-          "label": "No decision is possible because the integrity check failed."
+          "value": "hold_coverage",
+          "label": "Hold the release decision and manually review an unsupported entry."
+        },
+        {
+          "value": "invalidate_integrity",
+          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
         }
       ],
-      "expected": "do_not_release",
-      "critical": true
+      "expected": "continue_scope_review",
+      "critical": true,
+      "choice_group": "release_action"
     },
     {
-      "task_id": "high_file",
-      "report": "reports/high.html",
+      "task_id": "task_03",
+      "report": "reports/report-d.html",
+      "capability": "release_decision",
+      "prompt": "What should happen next?",
+      "choices": [
+        {
+          "value": "continue_scope_review",
+          "label": "Continue to the remaining coverage and format checks."
+        },
+        {
+          "value": "hold_high",
+          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+        },
+        {
+          "value": "hold_coverage",
+          "label": "Hold the release decision and manually review an unsupported entry."
+        },
+        {
+          "value": "invalidate_integrity",
+          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+        }
+      ],
+      "expected": "invalidate_integrity",
+      "critical": true,
+      "choice_group": "release_action"
+    },
+    {
+      "task_id": "task_04",
+      "report": "reports/report-b.html",
+      "capability": "release_decision",
+      "prompt": "What should happen next?",
+      "choices": [
+        {
+          "value": "continue_scope_review",
+          "label": "Continue to the remaining coverage and format checks."
+        },
+        {
+          "value": "hold_high",
+          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+        },
+        {
+          "value": "hold_coverage",
+          "label": "Hold the release decision and manually review an unsupported entry."
+        },
+        {
+          "value": "invalidate_integrity",
+          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+        }
+      ],
+      "expected": "hold_high",
+      "critical": true,
+      "choice_group": "release_action"
+    },
+    {
+      "task_id": "task_05",
+      "report": "reports/report-b.html",
       "capability": "finding_file",
       "prompt": "Which file needs correction?",
       "choices": [
@@ -75,118 +139,112 @@
       "critical": false
     },
     {
-      "task_id": "high_location",
-      "report": "reports/high.html",
+      "task_id": "task_06",
+      "report": "reports/report-b.html",
       "capability": "finding_location",
-      "prompt": "Which field is named in the report?",
+      "prompt": "Which field is named in the finding?",
       "choices": [
         {
           "value": "birthday",
           "label": "subject_info.birthday"
         },
         {
-          "value": "name",
-          "label": "subject_info.name"
+          "value": "contact",
+          "label": "row 3, column contact"
         },
         {
-          "value": "meas_date",
-          "label": "measurement_date"
+          "value": "technician",
+          "label": "Recording.TechnicianContact"
         }
       ],
       "expected": "birthday",
       "critical": false
     },
     {
-      "task_id": "high_remediation",
-      "report": "reports/high.html",
+      "task_id": "task_07",
+      "report": "reports/report-b.html",
       "capability": "remediation",
-      "prompt": "What is the safest next step?",
+      "prompt": "Which correction matches the finding?",
       "choices": [
         {
-          "value": "private_format_aware",
-          "label": "Edit a private working copy with a format-aware FIF tool, rerun the audit, then verify the scientific properties."
+          "value": "fif_copy",
+          "label": "Use a format-aware FIF tool on a private copy, then rerun and verify the scientific content."
         },
         {
-          "value": "delete_original",
-          "label": "Delete the original file and rebuild it from the report."
+          "value": "tsv_copy",
+          "label": "Edit the contact cell in a private TSV copy, then rerun and validate the table."
         },
         {
-          "value": "open_text_editor",
-          "label": "Open the FIF file in a text editor and remove the matched bytes."
+          "value": "mff_copy",
+          "label": "Re-export a private MFF copy with a tested format-aware workflow, then rerun and validate it."
         }
       ],
-      "expected": "private_format_aware",
-      "critical": true
+      "expected": "fif_copy",
+      "critical": false
     },
     {
-      "task_id": "coverage_gap",
-      "report": "reports/coverage_gap.html",
+      "task_id": "task_08",
+      "report": "reports/report-c.html",
       "capability": "coverage_gap",
-      "prompt": "What still needs manual review?",
+      "prompt": "Which entry still needs manual review?",
       "choices": [
         {
           "value": "xyz",
-          "label": "sub-01/eeg/sub-01_task-rest_eeg.xyz because its payload was not parsed."
+          "label": "sub-01/eeg/sub-01_task-rest_eeg.xyz"
         },
         {
-          "value": "nothing",
-          "label": "Nothing; zero findings means complete coverage."
+          "value": "fif",
+          "label": "sub-01/eeg/sub-01_task-rest_eeg.fif"
         },
         {
-          "value": "manifest",
-          "label": "The SHA-256 manifest because hashes were not generated."
+          "value": "participants",
+          "label": "participants.tsv"
         }
       ],
       "expected": "xyz",
-      "critical": true
+      "critical": false
     },
     {
-      "task_id": "integrity_reliability",
-      "report": "reports/integrity_failure.html",
-      "capability": "integrity_failure",
-      "prompt": "Can the individual findings be relied on yet?",
+      "task_id": "task_09",
+      "report": "reports/report-d.html",
+      "capability": "integrity_reliability",
+      "prompt": "Can the finding list be used for the next review step?",
       "choices": [
         {
+          "value": "usable_with_limits",
+          "label": "Yes, with the stated coverage and format limits."
+        },
+        {
           "value": "provisional",
-          "label": "No. The finding list is provisional until a new scan passes both integrity checks."
-        },
-        {
-          "value": "yes",
-          "label": "Yes. The high-priority email finding is enough to continue remediation."
-        },
-        {
-          "value": "ignore_manifest",
-          "label": "Yes. Only the release-tree recheck matters."
+          "label": "No, it is provisional until a new scan passes both integrity checks."
         }
       ],
       "expected": "provisional",
-      "critical": true
+      "critical": true,
+      "choice_group": "integrity_reliability"
     },
     {
-      "task_id": "integrity_next_step",
-      "report": "reports/integrity_failure.html",
-      "capability": "remediation",
-      "prompt": "What should happen first?",
+      "task_id": "task_10",
+      "report": "reports/report-a.html",
+      "capability": "integrity_reliability",
+      "prompt": "Can the finding list be used for the next review step?",
       "choices": [
         {
-          "value": "stabilize_rerun",
-          "label": "Stop writes, restore or stabilize the candidate, and rerun the audit."
+          "value": "usable_with_limits",
+          "label": "Yes, with the stated coverage and format limits."
         },
         {
-          "value": "remove_email",
-          "label": "Remove the email from participants.tsv before doing anything else."
-        },
-        {
-          "value": "publish_report",
-          "label": "Publish the report so another person can inspect the email finding."
+          "value": "provisional",
+          "label": "No, it is provisional until a new scan passes both integrity checks."
         }
       ],
-      "expected": "stabilize_rerun",
-      "critical": true
+      "expected": "usable_with_limits",
+      "critical": true,
+      "choice_group": "integrity_reliability"
     },
     {
-      "task_id": "large_review_count",
-      "report": "reports/large_review.html",
+      "task_id": "task_11",
+      "report": "reports/report-e.html",
       "capability": "large_report",
       "prompt": "How many review items need a curator decision?",
       "choices": [
@@ -207,8 +265,8 @@
       "critical": false
     },
     {
-      "task_id": "large_review_target",
-      "report": "reports/large_review.html",
+      "task_id": "task_12",
+      "report": "reports/report-e.html",
       "capability": "large_report",
       "prompt": "Where is the unique technician-contact item?",
       "choices": [

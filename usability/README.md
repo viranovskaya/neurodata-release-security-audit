@@ -31,11 +31,20 @@ Give the reviewer only:
 
 Record one pseudonymous participant ID, the selected answer, elapsed seconds
 and confidence from 1 to 5. Do not collect names, emails or free-text personal
-details.
+details. The administrator assigns IDs in the form `reviewer-01`; the scorer
+rejects other ID formats and any extra response fields.
 
 Keep the task order fixed. Some reports are opened more than once, so elapsed
 time is descriptive only: later answers may be faster because the reviewer has
 already seen the report. The pass gate uses accuracy, not time.
+
+The report and task names are deliberately opaque. Every critical task belongs
+to a balanced choice group: the same prompt and choices are reused across
+reports, and every choice is correct for at least one report. The specification
+validator rejects an unbalanced critical group before any responses are
+collected. Task order is also deliberately different from answer order. These
+checks prevent the packet structure from revealing which critical answer is
+expected.
 
 Score complete response files:
 
@@ -53,7 +62,7 @@ The result is complete only with at least five independent reviewers:
 
 - at least 80% correct overall;
 - at least 75% correct in every capability group;
-- 100% correct on critical release, remediation, coverage and integrity tasks.
+- 100% correct on the balanced release and integrity tasks.
 
 One wrong answer that could lead to release of a blocked copy fails the
 critical gate. A good average cannot hide it.

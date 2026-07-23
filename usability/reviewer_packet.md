@@ -13,33 +13,63 @@ Complete the tasks in the order shown. Some reports are used more than once, so 
 
 This packet contains synthetic metadata only. Do not add your name, email or other personal details.
 
-## Report: [clean](reports/clean.html)
+## Report: [Report C](reports/report-c.html)
 
-### clean_release_decision
+### task_01
 
-What does this report support?
+What should happen next?
 
-- [ ] `checked_areas_clear` — No high or review findings were found in the checked areas, but coverage and format limits still need review.
-- [ ] `anonymous` — The dataset is anonymous and ready to publish.
-- [ ] `blocked` — The dataset must not be released because the integrity check failed.
-
-- Elapsed seconds:
-- Confidence (1-5):
-
-## Report: [high](reports/high.html)
-
-### high_release_decision
-
-Can this copy be released now?
-
-- [ ] `do_not_release` — No. Resolve the high-priority finding first.
-- [ ] `release_with_note` — Yes, if the README mentions the finding.
-- [ ] `report_invalid` — No decision is possible because the integrity check failed.
+- [ ] `continue_scope_review` — Continue to the remaining coverage and format checks.
+- [ ] `hold_high` — Hold this copy, correct a high-priority finding and rerun the audit.
+- [ ] `hold_coverage` — Hold the release decision and manually review an unsupported entry.
+- [ ] `invalidate_integrity` — Treat the findings as provisional, stabilize the candidate and rerun.
 
 - Elapsed seconds:
 - Confidence (1-5):
 
-### high_file
+## Report: [Report A](reports/report-a.html)
+
+### task_02
+
+What should happen next?
+
+- [ ] `continue_scope_review` — Continue to the remaining coverage and format checks.
+- [ ] `hold_high` — Hold this copy, correct a high-priority finding and rerun the audit.
+- [ ] `hold_coverage` — Hold the release decision and manually review an unsupported entry.
+- [ ] `invalidate_integrity` — Treat the findings as provisional, stabilize the candidate and rerun.
+
+- Elapsed seconds:
+- Confidence (1-5):
+
+## Report: [Report D](reports/report-d.html)
+
+### task_03
+
+What should happen next?
+
+- [ ] `continue_scope_review` — Continue to the remaining coverage and format checks.
+- [ ] `hold_high` — Hold this copy, correct a high-priority finding and rerun the audit.
+- [ ] `hold_coverage` — Hold the release decision and manually review an unsupported entry.
+- [ ] `invalidate_integrity` — Treat the findings as provisional, stabilize the candidate and rerun.
+
+- Elapsed seconds:
+- Confidence (1-5):
+
+## Report: [Report B](reports/report-b.html)
+
+### task_04
+
+What should happen next?
+
+- [ ] `continue_scope_review` — Continue to the remaining coverage and format checks.
+- [ ] `hold_high` — Hold this copy, correct a high-priority finding and rerun the audit.
+- [ ] `hold_coverage` — Hold the release decision and manually review an unsupported entry.
+- [ ] `invalidate_integrity` — Treat the findings as provisional, stabilize the candidate and rerun.
+
+- Elapsed seconds:
+- Confidence (1-5):
+
+### task_05
 
 Which file needs correction?
 
@@ -50,68 +80,68 @@ Which file needs correction?
 - Elapsed seconds:
 - Confidence (1-5):
 
-### high_location
+### task_06
 
-Which field is named in the report?
+Which field is named in the finding?
 
 - [ ] `birthday` — subject_info.birthday
-- [ ] `name` — subject_info.name
-- [ ] `meas_date` — measurement_date
+- [ ] `contact` — row 3, column contact
+- [ ] `technician` — Recording.TechnicianContact
 
 - Elapsed seconds:
 - Confidence (1-5):
 
-### high_remediation
+### task_07
 
-What is the safest next step?
+Which correction matches the finding?
 
-- [ ] `private_format_aware` — Edit a private working copy with a format-aware FIF tool, rerun the audit, then verify the scientific properties.
-- [ ] `delete_original` — Delete the original file and rebuild it from the report.
-- [ ] `open_text_editor` — Open the FIF file in a text editor and remove the matched bytes.
-
-- Elapsed seconds:
-- Confidence (1-5):
-
-## Report: [coverage_gap](reports/coverage_gap.html)
-
-### coverage_gap
-
-What still needs manual review?
-
-- [ ] `xyz` — sub-01/eeg/sub-01_task-rest_eeg.xyz because its payload was not parsed.
-- [ ] `nothing` — Nothing; zero findings means complete coverage.
-- [ ] `manifest` — The SHA-256 manifest because hashes were not generated.
+- [ ] `fif_copy` — Use a format-aware FIF tool on a private copy, then rerun and verify the scientific content.
+- [ ] `tsv_copy` — Edit the contact cell in a private TSV copy, then rerun and validate the table.
+- [ ] `mff_copy` — Re-export a private MFF copy with a tested format-aware workflow, then rerun and validate it.
 
 - Elapsed seconds:
 - Confidence (1-5):
 
-## Report: [integrity_failure](reports/integrity_failure.html)
+## Report: [Report C](reports/report-c.html)
 
-### integrity_reliability
+### task_08
 
-Can the individual findings be relied on yet?
+Which entry still needs manual review?
 
-- [ ] `provisional` — No. The finding list is provisional until a new scan passes both integrity checks.
-- [ ] `yes` — Yes. The high-priority email finding is enough to continue remediation.
-- [ ] `ignore_manifest` — Yes. Only the release-tree recheck matters.
-
-- Elapsed seconds:
-- Confidence (1-5):
-
-### integrity_next_step
-
-What should happen first?
-
-- [ ] `stabilize_rerun` — Stop writes, restore or stabilize the candidate, and rerun the audit.
-- [ ] `remove_email` — Remove the email from participants.tsv before doing anything else.
-- [ ] `publish_report` — Publish the report so another person can inspect the email finding.
+- [ ] `xyz` — sub-01/eeg/sub-01_task-rest_eeg.xyz
+- [ ] `fif` — sub-01/eeg/sub-01_task-rest_eeg.fif
+- [ ] `participants` — participants.tsv
 
 - Elapsed seconds:
 - Confidence (1-5):
 
-## Report: [large_review](reports/large_review.html)
+## Report: [Report D](reports/report-d.html)
 
-### large_review_count
+### task_09
+
+Can the finding list be used for the next review step?
+
+- [ ] `usable_with_limits` — Yes, with the stated coverage and format limits.
+- [ ] `provisional` — No, it is provisional until a new scan passes both integrity checks.
+
+- Elapsed seconds:
+- Confidence (1-5):
+
+## Report: [Report A](reports/report-a.html)
+
+### task_10
+
+Can the finding list be used for the next review step?
+
+- [ ] `usable_with_limits` — Yes, with the stated coverage and format limits.
+- [ ] `provisional` — No, it is provisional until a new scan passes both integrity checks.
+
+- Elapsed seconds:
+- Confidence (1-5):
+
+## Report: [Report E](reports/report-e.html)
+
+### task_11
 
 How many review items need a curator decision?
 
@@ -122,7 +152,7 @@ How many review items need a curator decision?
 - Elapsed seconds:
 - Confidence (1-5):
 
-### large_review_target
+### task_12
 
 Where is the unique technician-contact item?
 

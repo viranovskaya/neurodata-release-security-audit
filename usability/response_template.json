@@ -3,61 +3,73 @@
   "participant_id": "reviewer-XX",
   "responses": [
     {
-      "task_id": "clean_release_decision",
+      "task_id": "task_01",
       "answer": "",
       "elapsed_seconds": 0,
       "confidence": 1
     },
     {
-      "task_id": "high_release_decision",
+      "task_id": "task_02",
       "answer": "",
       "elapsed_seconds": 0,
       "confidence": 1
     },
     {
-      "task_id": "high_file",
+      "task_id": "task_03",
       "answer": "",
       "elapsed_seconds": 0,
       "confidence": 1
     },
     {
-      "task_id": "high_location",
+      "task_id": "task_04",
       "answer": "",
       "elapsed_seconds": 0,
       "confidence": 1
     },
     {
-      "task_id": "high_remediation",
+      "task_id": "task_05",
       "answer": "",
       "elapsed_seconds": 0,
       "confidence": 1
     },
     {
-      "task_id": "coverage_gap",
+      "task_id": "task_06",
       "answer": "",
       "elapsed_seconds": 0,
       "confidence": 1
     },
     {
-      "task_id": "integrity_reliability",
+      "task_id": "task_07",
       "answer": "",
       "elapsed_seconds": 0,
       "confidence": 1
     },
     {
-      "task_id": "integrity_next_step",
+      "task_id": "task_08",
       "answer": "",
       "elapsed_seconds": 0,
       "confidence": 1
     },
     {
-      "task_id": "large_review_count",
+      "task_id": "task_09",
       "answer": "",
       "elapsed_seconds": 0,
       "confidence": 1
     },
     {
-      "task_id": "large_review_target",
+      "task_id": "task_10",
+      "answer": "",
+      "elapsed_seconds": 0,
+      "confidence": 1
+    },
+    {
+      "task_id": "task_11",
+      "answer": "",
+      "elapsed_seconds": 0,
+      "confidence": 1
+    },
+    {
+      "task_id": "task_12",
       "answer": "",
       "elapsed_seconds": 0,
       "confidence": 1
