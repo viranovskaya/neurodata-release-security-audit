@@ -37,6 +37,47 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _directory_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    digest.update(b"neurodata-directory-sha256-v1\0")
+    for item in sorted(
+        path.rglob("*"),
+        key=lambda child: child.relative_to(path).as_posix(),
+    ):
+        relative = item.relative_to(path).as_posix()
+        if item.is_symlink():
+            raise ValueError("Fixture directories must not contain symlinks")
+        if item.is_dir():
+            digest.update(b"directory\0")
+            digest.update(relative.encode("utf-8"))
+            digest.update(b"\0")
+            continue
+        if not item.is_file():
+            raise ValueError(
+                "Fixture directories must contain only files and directories"
+            )
+        digest.update(b"file\0")
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(str(item.stat().st_size).encode("ascii"))
+        digest.update(b"\0")
+        digest.update(_sha256(item).encode("ascii"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _source_hash(path: Path, kind: str) -> str:
+    if kind == "file":
+        if not path.is_file():
+            raise ValueError("Fixture source is not a file")
+        return _sha256(path)
+    if kind == "directory":
+        if not path.is_dir():
+            raise ValueError("Fixture source is not a directory")
+        return _directory_sha256(path)
+    raise ValueError("Fixture source_kind must be 'file' or 'directory'")
+
+
 def _failed_fixture(
     fixture: dict[str, object],
     reason: str,
@@ -49,6 +90,7 @@ def _failed_fixture(
         "source_url": fixture["source_url"],
         "source_commit": fixture["source_commit"],
         "source_path": fixture["source_path"],
+        "source_kind": fixture.get("source_kind", "file"),
         "source_sha256": fixture["sha256"],
         "source_hash_matched": False,
         "source_unchanged": False,
@@ -66,22 +108,29 @@ def _run_fixture(
     fixture_root: Path,
 ) -> dict[str, object]:
     relative = _relative_path(str(fixture["source_path"]))
+    source_kind = str(fixture.get("source_kind", "file"))
     try:
         source = _fixture_source(fixture_root, relative)
     except ValueError:
         return _failed_fixture(fixture, "source_path_contains_symlink")
-    if not source.is_file():
+    if not source.exists():
         return _failed_fixture(fixture, "source_missing")
 
-    source_hash = _sha256(source)
+    try:
+        source_hash = _source_hash(source, source_kind)
+    except ValueError:
+        return _failed_fixture(fixture, "source_kind_or_contents_invalid")
     if source_hash != fixture["sha256"]:
         return _failed_fixture(fixture, "source_hash_mismatch")
 
     with tempfile.TemporaryDirectory(prefix="neurodata-format-fixture-") as directory:
         case_root = Path(directory)
         target = case_root / source.name
-        shutil.copyfile(source, target)
-        if _sha256(target) != fixture["sha256"]:
+        if source_kind == "directory":
+            shutil.copytree(source, target)
+        else:
+            shutil.copyfile(source, target)
+        if _source_hash(target, source_kind) != fixture["sha256"]:
             return _failed_fixture(fixture, "copied_fixture_hash_mismatch")
         report = scan_dataset(case_root)
 
@@ -97,7 +146,10 @@ def _run_fixture(
     forbidden = sorted(
         set(fixture.get("forbidden_codes", [])) & set(finding_counts)
     )
-    source_unchanged = _sha256(source) == source_hash
+    try:
+        source_unchanged = _source_hash(source, source_kind) == source_hash
+    except ValueError:
+        source_unchanged = False
     passed = bool(
         source_unchanged
         and coverage == fixture["expected_coverage"]
@@ -113,6 +165,7 @@ def _run_fixture(
         "source_url": fixture["source_url"],
         "source_commit": fixture["source_commit"],
         "source_path": fixture["source_path"],
+        "source_kind": source_kind,
         "source_sha256": source_hash,
         "source_hash_matched": True,
         "source_unchanged": source_unchanged,
