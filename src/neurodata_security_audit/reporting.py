@@ -63,7 +63,33 @@ def render_markdown(report: ScanReport) -> str:
         "",
     ]
     findings = data["findings"]
-    if summary["findings_high"]:
+    integrity_ok = (
+        summary["manifest_recheck_passed"]
+        and summary["release_tree_recheck_passed"]
+    )
+    if not integrity_ok:
+        manifest_status = (
+            "passed" if summary["manifest_recheck_passed"] else "failed"
+        )
+        tree_status = (
+            "passed" if summary["release_tree_recheck_passed"] else "failed"
+        )
+        lines.extend(
+            [
+                (
+                    "**Do not release or rely on this report yet.** The release "
+                    "changed during the scan or could not be rechecked "
+                    "consistently. Restore or stabilize the working copy and "
+                    "rerun the audit before using the individual findings."
+                ),
+                "",
+                f"- Manifest recheck: {manifest_status}",
+                f"- Release-tree recheck: {tree_status}",
+                "",
+            ]
+        )
+        remediation = []
+    elif summary["findings_high"]:
         lines.extend(
             [
                 (
@@ -92,7 +118,7 @@ def render_markdown(report: ScanReport) -> str:
         remediation = [
             item for item in findings if item["severity"] == "review"
         ]
-    else:
+    elif integrity_ok:
         lines.extend(
             [
                 (
@@ -125,26 +151,54 @@ def render_markdown(report: ScanReport) -> str:
                 + " |"
             )
     else:
-        lines.append("No immediate remediation tasks.")
+        lines.append(
+            "Individual remediation is deferred until integrity passes."
+            if not integrity_ok
+            else "No immediate remediation tasks."
+        )
+
+    if integrity_ok:
+        lines.extend(
+            [
+                "",
+                "After each correction:",
+                "",
+                "1. Work on a private copy and keep the original dataset unchanged.",
+                (
+                    "2. Use a format-aware tool for FIF, EDF/BDF, DICOM, NIfTI "
+                    "and EEGLAB files."
+                ),
+                (
+                    "3. Run the audit again and confirm the item is gone and "
+                    "both integrity checks pass."
+                ),
+                (
+                    "4. Verify that channels, sampling, annotations, duration "
+                    "and other scientific properties did not change unexpectedly."
+                ),
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "",
+                "Restore a reliable scan:",
+                "",
+                "1. Stop any process that is writing to the release candidate.",
+                (
+                    "2. Restore the candidate from a known source or recreate it "
+                    "in a stable private working directory."
+                ),
+                "3. Run the audit again without changing files during the scan.",
+                (
+                    "4. Continue to the finding list only after both integrity "
+                    "checks pass."
+                ),
+            ]
+        )
 
     lines.extend(
         [
-            "",
-            "After each correction:",
-            "",
-            "1. Work on a private copy and keep the original dataset unchanged.",
-            (
-                "2. Use a format-aware tool for FIF, EDF/BDF, DICOM, NIfTI and "
-                "EEGLAB files."
-            ),
-            (
-                "3. Run the audit again and confirm the item is gone and both "
-                "integrity checks pass."
-            ),
-            (
-                "4. Verify that channels, sampling, annotations, duration and "
-                "other scientific properties did not change unexpectedly."
-            ),
             "",
             "The audit never deletes or rewrites research data automatically.",
             "",

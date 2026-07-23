@@ -307,8 +307,38 @@ def _remediation_content(
     *,
     high_count: int,
     review_count: int,
+    manifest_recheck_passed: bool,
+    release_tree_recheck_passed: bool,
 ) -> tuple[str, str]:
-    if high_count:
+    integrity_ok = manifest_recheck_passed and release_tree_recheck_passed
+    if not integrity_ok:
+        selected = []
+        manifest_status = "passed" if manifest_recheck_passed else "failed"
+        tree_status = "passed" if release_tree_recheck_passed else "failed"
+        decision = (
+            '<div class="decision high"><strong>Do not release or rely on this '
+            "report yet.</strong>The release changed during the scan or could not "
+            "be rechecked consistently. Restore or stabilize the working copy and "
+            "rerun the audit before using the individual findings. "
+            f"Manifest recheck: {_text(manifest_status)}. "
+            f"Release-tree recheck: {_text(tree_status)}.</div>"
+        )
+        queue_note = (
+            "The current finding list is provisional. Use it only after a new "
+            "scan passes both integrity checks."
+        )
+        empty_message = "Individual remediation is deferred until integrity passes."
+        correction_steps = """
+    <h3>Restore a reliable scan</h3>
+    <ol class="fix-list">
+      <li>Stop any process that is writing to the release candidate.</li>
+      <li>Restore the candidate from a known source or recreate it in a stable
+      private working directory.</li>
+      <li>Run the audit again without changing files during the scan.</li>
+      <li>Continue to the finding list only after both integrity checks pass.</li>
+    </ol>
+"""
+    elif high_count:
         selected = [row for row in findings if row[0] == "high"]
         decision = (
             '<div class="decision high"><strong>Do not release this copy yet.</strong>'
@@ -322,38 +352,8 @@ def _remediation_content(
             if review_count
             else "No additional review findings remain."
         )
-    elif review_count:
-        selected = [row for row in findings if row[0] == "review"]
-        decision = (
-            '<div class="decision review"><strong>Review before release.</strong>'
-            f"The scanner found {review_count} "
-            f'item{"s" if review_count != 1 else ""} that need a curator decision.'
-            "</div>"
-        )
-        queue_note = "Work through each item below before making the release decision."
-    else:
-        selected = []
-        decision = (
-            '<div class="decision ok"><strong>No high or review findings in the '
-            "areas checked.</strong>This is not proof of anonymity. Check the "
-            "coverage gaps and the stated format limits before release.</div>"
-        )
-        queue_note = "No immediate remediation tasks were generated."
-
-    rows = (
-        (severity, path, location, message)
-        for severity, _, path, location, _, message in selected
-    )
-    table = _table(
-        ("Priority", "File", "Field or location", "What to do"),
-        rows,
-        empty="No immediate remediation tasks.",
-        renderers={0: _severity},
-    )
-    content = f"""
-    {decision}
-    {table}
-    <p class="note">{_text(queue_note)}</p>
+        empty_message = "No immediate remediation tasks."
+        correction_steps = """
     <h3>After each correction</h3>
     <ol class="fix-list">
       <li>Work on a private copy. Keep the original dataset unchanged.</li>
@@ -364,6 +364,62 @@ def _remediation_content(
       <li>Verify that channels, sampling, annotations, duration and other
       scientific properties did not change unexpectedly.</li>
     </ol>
+"""
+    elif review_count:
+        selected = [row for row in findings if row[0] == "review"]
+        decision = (
+            '<div class="decision review"><strong>Review before release.</strong>'
+            f"The scanner found {review_count} "
+            f'item{"s" if review_count != 1 else ""} that need a curator decision.'
+            "</div>"
+        )
+        queue_note = "Work through each item below before making the release decision."
+        empty_message = "No immediate remediation tasks."
+        correction_steps = """
+    <h3>After each correction</h3>
+    <ol class="fix-list">
+      <li>Work on a private copy. Keep the original dataset unchanged.</li>
+      <li>Use a format-aware tool for FIF, EDF/BDF, DICOM, NIfTI and EEGLAB
+      files. Edit JSON and TSV only when their schema permits it.</li>
+      <li>Run the audit again and confirm the item is gone and both integrity
+      checks pass.</li>
+      <li>Verify that channels, sampling, annotations, duration and other
+      scientific properties did not change unexpectedly.</li>
+    </ol>
+"""
+    else:
+        selected = []
+        decision = (
+            '<div class="decision ok"><strong>No high or review findings in the '
+            "areas checked.</strong>This is not proof of anonymity. Check the "
+            "coverage gaps and the stated format limits before release.</div>"
+        )
+        queue_note = "No immediate remediation tasks were generated."
+        empty_message = "No immediate remediation tasks."
+        correction_steps = """
+    <h3>Before release</h3>
+    <ol class="fix-list">
+      <li>Review the coverage gaps and format limits below.</li>
+      <li>Confirm that both integrity checks passed.</li>
+      <li>Document any remaining manual review decisions.</li>
+    </ol>
+"""
+
+    rows = (
+        (severity, path, location, message)
+        for severity, _, path, location, _, message in selected
+    )
+    table = _table(
+        ("Priority", "File", "Field or location", "What to do"),
+        rows,
+        empty=empty_message,
+        renderers={0: _severity},
+    )
+    content = f"""
+    {decision}
+    {table}
+    <p class="note">{_text(queue_note)}</p>
+    {correction_steps}
     <p class="note">The audit never deletes or rewrites research data
     automatically.</p>
     <div class="section-links">
@@ -411,6 +467,8 @@ def render_html(report: ScanReport) -> str:
         findings,
         high_count=summary["findings_high"],
         review_count=summary["findings_review"],
+        manifest_recheck_passed=summary["manifest_recheck_passed"],
+        release_tree_recheck_passed=summary["release_tree_recheck_passed"],
     )
 
     coverage_table = _table(
@@ -523,14 +581,20 @@ def render_html(report: ScanReport) -> str:
     status_class = "ok" if integrity_ok else "failed"
     status_text = "Integrity checks passed" if integrity_ok else "Integrity check failed"
     high_count = summary["findings_high"]
-    high_action = (
+    if not integrity_ok:
+        high_action = (
+            '<div class="report-actions"><a class="report-action" '
+            'href="#what-to-do">Resolve integrity failure</a></div>'
+        )
+    else:
+        high_action = (
         '<div class="report-actions">'
         f'<a class="report-action" href="#what-to-do">Review {high_count} '
         f'high-priority finding{"s" if high_count != 1 else ""}</a>'
         "</div>"
         if high_count
         else ""
-    )
+        )
     valid_references = (
         f"{summary['references_valid']} / {summary['references_checked']}"
     )

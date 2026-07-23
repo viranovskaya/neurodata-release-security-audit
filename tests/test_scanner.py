@@ -2872,6 +2872,49 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("This is not proof of anonymity.", rendered)
         self.assertIn("No immediate remediation tasks.", rendered)
 
+    def test_integrity_failure_overrides_all_remediation_states(self) -> None:
+        cases = (
+            ("manifest", False, True, []),
+            ("tree", True, False, []),
+            ("both", False, False, []),
+            (
+                "with-findings",
+                False,
+                True,
+                [
+                    Finding(
+                        code="DIRECT_EMAIL",
+                        severity="high",
+                        path="notes.txt",
+                        location="line 1",
+                        evidence="<redacted:email,length=18>",
+                        message="Remove this email.",
+                    )
+                ],
+            ),
+        )
+        for name, manifest_passed, tree_passed, findings in cases:
+            with self.subTest(name=name):
+                report = ScanReport(
+                    scanner_version="test",
+                    findings=findings,
+                    manifest_recheck_passed=manifest_passed,
+                    release_tree_recheck_passed=tree_passed,
+                )
+
+                html = render_html(report)
+                markdown = render_markdown(report)
+
+                for rendered in (html, markdown):
+                    self.assertIn(
+                        "Do not release or rely on this report yet.",
+                        rendered,
+                    )
+                    self.assertIn("before using the individual findings", rendered)
+                    self.assertIn("only after both integrity checks pass", rendered)
+                    self.assertNotIn("No immediate remediation tasks", rendered)
+                self.assertIn("Resolve integrity failure", html)
+
     def test_cli_writes_reports_and_returns_finding_status(self) -> None:
         (self.root / "notes.txt").write_text("Contact: alice@example.org\n", encoding="utf-8")
         output = Path(self.temp_dir.name) / "reports"
