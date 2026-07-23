@@ -22,9 +22,9 @@
       "unexpected_findings": 0
     },
     "personal_identity": {
-      "expected_findings": 18,
+      "expected_findings": 19,
       "labelled_precision": 1.0,
-      "matched_findings": 18,
+      "matched_findings": 19,
       "target_recall": 1.0,
       "unexpected_findings": 0
     },
@@ -220,14 +220,14 @@
       "unexpected_findings": 0
     },
     "xml": {
-      "cases": 2,
+      "cases": 3,
       "clean_controls": 0,
       "control_cases": 0,
       "control_specificity": null,
       "duplicate_findings": 0,
-      "expected_findings": 2,
+      "expected_findings": 3,
       "labelled_precision": 1.0,
-      "matched_findings": 2,
+      "matched_findings": 3,
       "target_recall": 1.0,
       "unexpected_findings": 0
     },
@@ -247,7 +247,7 @@
   "case_files": [
     {
       "path": "cases/development_core.json",
-      "sha256": "bc0cdcfaee53a54ab185df3a18332022cc1426f83aeed5e4adfa9b5448a85685"
+      "sha256": "3df7e6b47529be2700df65bc43989267be9ca87d43583e016f0c31fa5b4b991b"
     },
     {
       "path": "cases/development_archives.json",
@@ -689,6 +689,31 @@
       "expected_coverage": [],
       "expected_references": [],
       "format": "text_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_xml_dynamic_personal_id",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "DIRECT_PERSONAL_ID",
+            "location": "XML dynamic field record.<field>",
+            "path": "metadata.xml",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "xml",
       "integrity_passed": true,
       "masking_failures": [],
       "split": "development",
@@ -1528,7 +1553,7 @@
   "schema_version": "1",
   "suite_name": "development",
   "summary": {
-    "cases": 36,
+    "cases": 37,
     "cases_with_duplicates": 1,
     "clean_controls": 9,
     "control_cases": 9,
@@ -1536,14 +1561,14 @@
     "duplicate_findings": 1,
     "expected_container_members": 4,
     "expected_coverage": 16,
-    "expected_findings": 50,
+    "expected_findings": 51,
     "expected_references": 7,
     "integrity_failures": 0,
     "labelled_precision": 1.0,
     "masking_failures": 0,
     "matched_container_members": 4,
     "matched_coverage": 16,
-    "matched_findings": 50,
+    "matched_findings": 51,
     "matched_references": 7,
     "target_recall": 1.0,
     "unexpected_container_members": 0,

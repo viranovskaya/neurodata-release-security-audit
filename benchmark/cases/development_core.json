@@ -302,6 +302,24 @@
       "sensitive_terms": [],
       "seeded_values": [],
       "expected_findings": []
+    },
+    {
+      "case_id": "dev_xml_dynamic_personal_id",
+      "split": "development",
+      "format": "xml",
+      "files": {
+        "metadata.xml": "<record><field><name>medical_record_number</name><data>MRN-DYNAMIC-82</data></field></record>\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["MRN-DYNAMIC-82"],
+      "expected_findings": [
+        {
+          "code": "DIRECT_PERSONAL_ID",
+          "severity": "high",
+          "path": "metadata.xml",
+          "location": "XML dynamic field record.<field>"
+        }
+      ]
     }
   ]
 }

@@ -4,8 +4,8 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 
 ## Summary
 
-- Cases: 36
-- Expected findings matched: 50 / 50
+- Cases: 37
+- Expected findings matched: 51 / 51
 - Unexpected findings: 0
 - Duplicate findings: 1
 - Target recall: 1.000
@@ -41,6 +41,7 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 | dev_config_secret | development | config | 2/2 | 0 | 1 | 0/0 | 0/0 | 0/0 | 0 |
 | dev_empty_fields_control | development | json_control | 0/0 | 0 | 0 | 0/0 | 0/0 | 0/0 | 0 |
 | dev_technical_placeholders_control | development | text_control | 0/0 | 0 | 0 | 0/0 | 0/0 | 0/0 | 0 |
+| dev_xml_dynamic_personal_id | development | xml | 1/1 | 0 | 0 | 0/0 | 0/0 | 0/0 | 0 |
 | dev_zip_traversal | development | zip | 2/2 | 0 | 0 | 0/0 | 1/1 | 1/1 | 0 |
 | dev_zip_member_email | development | zip | 2/2 | 0 | 0 | 0/0 | 1/1 | 1/1 | 0 |
 | dev_tar_unsafe_symlink | development | tar | 3/3 | 0 | 0 | 0/0 | 1/1 | 1/1 | 0 |
@@ -78,7 +79,7 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 | tar | 1 | 3/3 | 0 | 1.000 | 1.000 |
 | text | 4 | 2/2 | 0 | 1.000 | 1.000 |
 | tsv | 1 | 1/1 | 0 | 1.000 | 1.000 |
-| xml | 2 | 2/2 | 0 | 1.000 | 1.000 |
+| xml | 3 | 3/3 | 0 | 1.000 | 1.000 |
 | zip | 3 | 5/5 | 0 | 1.000 | 1.000 |
 
 ## By finding class
@@ -88,7 +89,7 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 | dates_and_demographics | 3/3 | 0 | 1.000 | 1.000 |
 | free_text_and_sources | 1/1 | 0 | 1.000 | 1.000 |
 | linked_identity | 4/4 | 0 | 1.000 | 1.000 |
-| personal_identity | 18/18 | 0 | 1.000 | 1.000 |
+| personal_identity | 19/19 | 0 | 1.000 | 1.000 |
 | release_structure | 10/10 | 0 | 1.000 | 1.000 |
 | secrets_and_paths | 4/4 | 0 | 1.000 | 1.000 |
 | site_device_and_staff | 10/10 | 0 | 1.000 | 1.000 |

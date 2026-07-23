@@ -15,11 +15,14 @@ Each case is a small synthetic release with:
 - every seeded value that must be absent from the reports;
 - a declared development or locked split.
 
-A finding is correct only when the code, severity, file and location match. A
-masked value in the wrong field does not count as a true positive. Findings that
-are not in the case label count as unexpected. Multiple rows with the same code,
-severity, file and location count as one detected target plus a separate
-duplicate alert; they do not create extra ground-truth leaks.
+A finding is correct only when the code, severity, file and location match. The
+label uses the report-safe `Finding.path` and `Finding.location`, after dynamic
+keys and sensitive path fragments have been masked. It does not use the raw
+source key when that key is intentionally hidden from the report. A masked value
+in the wrong field does not count as a true positive. Findings that are not in
+the case label count as unexpected. Multiple rows with the same code, severity,
+file and location count as one detected target plus a separate duplicate alert;
+they do not create extra ground-truth leaks.
 
 ## Metrics
 
@@ -38,7 +41,7 @@ Coverage errors will be reported separately from missed findings: a format that
 the scanner explicitly leaves for manual review is not the same as a format it
 claims to inspect but misses.
 
-The current development set includes 36 cases and 50 labelled findings. It
+The current development set includes 37 cases and 51 labelled findings. It
 builds small EDF, BDF, BrainVision, FIF, NIfTI and DICOM files and opens them
 through the same metadata readers as a normal audit. It also covers structured
 text, release paths, archives and cross-file references. These cases were used
@@ -58,6 +61,12 @@ The first strict `locked-v2` run matches 21 of 21 labels across 10 cases, with
 zero unexpected findings, masking failures or integrity failures. This result is
 stored for reproducibility but remains subject to independent review. Even
 after review, it is a small visible holdout rather than a blind validation.
+
+An independently authored hidden-v1 set later matched 30 of 31 exact labels. The
+only mismatch had the correct code, severity and file but used a raw XML field
+path where the report intentionally emitted a masked location. The frozen hidden
+result remains a no-pass result; the case was not relabelled after the run. This
+ambiguity led to the explicit report-safe location rule above.
 
 ## Splits
 
