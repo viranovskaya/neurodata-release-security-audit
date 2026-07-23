@@ -1,0 +1,1552 @@
+{
+  "by_finding_class": {
+    "dates_and_demographics": {
+      "expected_findings": 3,
+      "labelled_precision": 1.0,
+      "matched_findings": 3,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "free_text_and_sources": {
+      "expected_findings": 1,
+      "labelled_precision": 1.0,
+      "matched_findings": 1,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "linked_identity": {
+      "expected_findings": 4,
+      "labelled_precision": 1.0,
+      "matched_findings": 4,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "personal_identity": {
+      "expected_findings": 18,
+      "labelled_precision": 1.0,
+      "matched_findings": 18,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "release_structure": {
+      "expected_findings": 10,
+      "labelled_precision": 1.0,
+      "matched_findings": 10,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "secrets_and_paths": {
+      "expected_findings": 4,
+      "labelled_precision": 1.0,
+      "matched_findings": 4,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "site_device_and_staff": {
+      "expected_findings": 10,
+      "labelled_precision": 1.0,
+      "matched_findings": 10,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    }
+  },
+  "by_format": {
+    "bdf": {
+      "cases": 1,
+      "clean_controls": 1,
+      "control_cases": 1,
+      "control_specificity": 1.0,
+      "duplicate_findings": 0,
+      "expected_findings": 0,
+      "labelled_precision": null,
+      "matched_findings": 0,
+      "target_recall": null,
+      "unexpected_findings": 0
+    },
+    "bids_reference": {
+      "cases": 4,
+      "clean_controls": 1,
+      "control_cases": 1,
+      "control_specificity": 1.0,
+      "duplicate_findings": 0,
+      "expected_findings": 3,
+      "labelled_precision": 1.0,
+      "matched_findings": 3,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "brainvision": {
+      "cases": 2,
+      "clean_controls": 1,
+      "control_cases": 1,
+      "control_specificity": 1.0,
+      "duplicate_findings": 0,
+      "expected_findings": 1,
+      "labelled_precision": 1.0,
+      "matched_findings": 1,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "config": {
+      "cases": 1,
+      "clean_controls": 0,
+      "control_cases": 0,
+      "control_specificity": null,
+      "duplicate_findings": 1,
+      "expected_findings": 2,
+      "labelled_precision": 1.0,
+      "matched_findings": 2,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "csv": {
+      "cases": 1,
+      "clean_controls": 0,
+      "control_cases": 0,
+      "control_specificity": null,
+      "duplicate_findings": 0,
+      "expected_findings": 1,
+      "labelled_precision": 1.0,
+      "matched_findings": 1,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "dicom": {
+      "cases": 1,
+      "clean_controls": 0,
+      "control_cases": 0,
+      "control_specificity": null,
+      "duplicate_findings": 0,
+      "expected_findings": 10,
+      "labelled_precision": 1.0,
+      "matched_findings": 10,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "edf": {
+      "cases": 2,
+      "clean_controls": 1,
+      "control_cases": 1,
+      "control_specificity": 1.0,
+      "duplicate_findings": 0,
+      "expected_findings": 5,
+      "labelled_precision": 1.0,
+      "matched_findings": 5,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "fif": {
+      "cases": 2,
+      "clean_controls": 0,
+      "control_cases": 0,
+      "control_specificity": null,
+      "duplicate_findings": 0,
+      "expected_findings": 6,
+      "labelled_precision": 1.0,
+      "matched_findings": 6,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "json": {
+      "cases": 8,
+      "clean_controls": 2,
+      "control_cases": 2,
+      "control_specificity": 1.0,
+      "duplicate_findings": 0,
+      "expected_findings": 6,
+      "labelled_precision": 1.0,
+      "matched_findings": 6,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "nifti": {
+      "cases": 2,
+      "clean_controls": 1,
+      "control_cases": 1,
+      "control_specificity": 1.0,
+      "duplicate_findings": 0,
+      "expected_findings": 2,
+      "labelled_precision": 1.0,
+      "matched_findings": 2,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "path": {
+      "cases": 1,
+      "clean_controls": 0,
+      "control_cases": 0,
+      "control_specificity": null,
+      "duplicate_findings": 0,
+      "expected_findings": 1,
+      "labelled_precision": 1.0,
+      "matched_findings": 1,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "tar": {
+      "cases": 1,
+      "clean_controls": 0,
+      "control_cases": 0,
+      "control_specificity": null,
+      "duplicate_findings": 0,
+      "expected_findings": 3,
+      "labelled_precision": 1.0,
+      "matched_findings": 3,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "text": {
+      "cases": 4,
+      "clean_controls": 2,
+      "control_cases": 2,
+      "control_specificity": 1.0,
+      "duplicate_findings": 0,
+      "expected_findings": 2,
+      "labelled_precision": 1.0,
+      "matched_findings": 2,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "tsv": {
+      "cases": 1,
+      "clean_controls": 0,
+      "control_cases": 0,
+      "control_specificity": null,
+      "duplicate_findings": 0,
+      "expected_findings": 1,
+      "labelled_precision": 1.0,
+      "matched_findings": 1,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "xml": {
+      "cases": 2,
+      "clean_controls": 0,
+      "control_cases": 0,
+      "control_specificity": null,
+      "duplicate_findings": 0,
+      "expected_findings": 2,
+      "labelled_precision": 1.0,
+      "matched_findings": 2,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "zip": {
+      "cases": 3,
+      "clean_controls": 0,
+      "control_cases": 0,
+      "control_specificity": null,
+      "duplicate_findings": 0,
+      "expected_findings": 5,
+      "labelled_precision": 1.0,
+      "matched_findings": 5,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    }
+  },
+  "case_files": [
+    {
+      "path": "cases/development_core.json",
+      "sha256": "65eae37525eb2ade53374812d03c1db58761d4181fb1e3be622064e34e09f0ee"
+    },
+    {
+      "path": "cases/development_archives.json",
+      "sha256": "58811fa4298a4fbff2329ecf641c26bea388e210d30bdc1631fd89829568853d"
+    },
+    {
+      "path": "cases/development_references.json",
+      "sha256": "00c7d1988331932db70dff35334e316640af528fa6fd3a6923fd3350c18d8ceb"
+    },
+    {
+      "path": "cases/development_formats.json",
+      "sha256": "44fe57ec8206514f24c9f46de8169e6ce356529dcc251d6695999914cd5d860d"
+    },
+    {
+      "path": "cases/development_eeg_formats.json",
+      "sha256": "277e89f44699ce1d605f1e26391bb85f65707fd03769777d7ab8596716eeb7c8"
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "dev_json_subject_name",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "SUBJECT_NAME_FIELD",
+            "location_contains": "participant_name",
+            "path": "sub-01_task-rest_eeg.json",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_json_birth_date",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "BIRTH_DATE_FIELD",
+            "location_contains": "date_of_birth",
+            "path": "sub-01_task-rest_eeg.json",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_json_participant_email",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "DIRECT_EMAIL",
+            "location": "JSON value <field>",
+            "path": "sub-01_task-rest_eeg.json",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_json_local_path",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "LOCAL_PATH",
+            "location": "JSON value <field>",
+            "path": "sub-01_task-rest_eeg.json",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_json_source_id",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "LINKED_SOURCE_ID",
+            "location": "JSON field source_subject_id",
+            "path": "sub-01_task-rest_eeg.json",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_known_source_id",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "KNOWN_IDENTIFIER",
+            "location_contains": "line 1",
+            "path": "notes.txt",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "text",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_filename_email",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "DIRECT_EMAIL",
+            "location": "filename",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "path",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_public_contact",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "DIRECT_EMAIL",
+            "location": "JSON value <field>.<field>",
+            "path": "dataset_description.json",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_bids_subject_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_public_url_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "text_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_tsv_phone",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "DIRECT_PHONE",
+            "location": "row 2, column phone",
+            "path": "participants.tsv",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "tsv",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_csv_passport",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "DIRECT_PERSONAL_ID",
+            "location": "row 2, column passport_number",
+            "path": "participants.csv",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "csv",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_xml_subject_name",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "SUBJECT_NAME_FIELD",
+            "location": "XML field record.participant.name",
+            "path": "metadata.xml",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "xml",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_xml_device_serial",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "DEVICE_IDENTIFIER",
+            "location": "XML field metadata.device_serial",
+            "path": "metadata.xml",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "xml",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_text_network_path",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "NETWORK_PATH",
+            "location": "line 1",
+            "path": "notes.txt",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "text",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_config_secret",
+      "duplicate_findings": [
+        {
+          "extra_count": 1,
+          "identity": {
+            "code": "POTENTIAL_SECRET",
+            "location": "line 1",
+            "path": ".env",
+            "severity": "high"
+          }
+        }
+      ],
+      "expected": [
+        {
+          "expected": {
+            "code": "SENSITIVE_CONFIG_FILE",
+            "location": "filename",
+            "path": ".env",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "POTENTIAL_SECRET",
+            "location": "line 1",
+            "path": ".env",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "config",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_empty_fields_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_technical_placeholders_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "text_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_zip_traversal",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "ARCHIVE_MEMBER_PATH_TRAVERSAL",
+            "location": "archive member 1",
+            "path": "release.zip",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "UNEXPECTED_FILE",
+            "location": "filename",
+            "path": "release.zip",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [
+        {
+          "expected": {
+            "container_path": "release.zip",
+            "member_path": "../outside/data.txt",
+            "member_type": "file"
+          },
+          "matched": true
+        }
+      ],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "release.zip",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "zip",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_zip_member_email",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "DIRECT_EMAIL",
+            "location": "archive member 1",
+            "path": "release.zip",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "UNEXPECTED_FILE",
+            "location": "filename",
+            "path": "release.zip",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [
+        {
+          "expected": {
+            "container_path": "release.zip",
+            "member_type": "file"
+          },
+          "matched": true
+        }
+      ],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "release.zip",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "zip",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_tar_unsafe_symlink",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "ARCHIVE_LINK_PATH_TRAVERSAL",
+            "location": "archive member 1",
+            "path": "release.tar",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "ARCHIVE_SPECIAL_MEMBER",
+            "location": "archive member 1",
+            "path": "release.tar",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "UNEXPECTED_FILE",
+            "location": "filename",
+            "path": "release.tar",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [
+        {
+          "expected": {
+            "container_path": "release.tar",
+            "member_path": "links/source",
+            "member_type": "symlink"
+          },
+          "matched": true
+        }
+      ],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "release.tar",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "tar",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_zip_clean_structure",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "UNEXPECTED_FILE",
+            "location": "filename",
+            "path": "release.zip",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [
+        {
+          "expected": {
+            "container_path": "release.zip",
+            "member_path": "metadata/readme.txt",
+            "member_type": "file"
+          },
+          "matched": true
+        }
+      ],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "release.zip",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "zip_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_bids_reference_valid",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [
+        {
+          "expected": {
+            "location": "JSON field Sources",
+            "source_path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+            "status": "valid_internal",
+            "target": "sub-01/source.txt"
+          },
+          "matched": true
+        }
+      ],
+      "format": "bids_reference_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_bids_reference_missing",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "MISSING_DATA_REFERENCE",
+            "location": "JSON field Sources",
+            "path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [
+        {
+          "expected": {
+            "location": "JSON field Sources",
+            "source_path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+            "status": "missing",
+            "target": "<missing-reference>"
+          },
+          "matched": true
+        }
+      ],
+      "format": "bids_reference",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_bids_reference_external",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "EXTERNAL_DATA_REFERENCE",
+            "location": "JSON field Sources",
+            "path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [
+        {
+          "expected": {
+            "location": "JSON field Sources",
+            "source_path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+            "status": "external",
+            "target": "<external-reference>"
+          },
+          "matched": true
+        }
+      ],
+      "format": "bids_reference",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_bids_reference_case_mismatch",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "CASE_MISMATCHED_REFERENCE",
+            "location": "JSON field Sources",
+            "path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [
+        {
+          "expected": {
+            "location": "JSON field Sources",
+            "source_path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+            "status": "case_mismatch",
+            "target": "<case-mismatched-reference>"
+          },
+          "matched": true
+        }
+      ],
+      "format": "bids_reference",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_edf_patient_header",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "SUBJECT_FIELD_POPULATED",
+            "location": "EDF patient field",
+            "path": "sub-01_task-rest_eeg.edf",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "BIRTH_DATE_FIELD",
+            "location": "EDF patient field",
+            "path": "sub-01_task-rest_eeg.edf",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "SUBJECT_NAME_FIELD",
+            "location": "EDF patient field",
+            "path": "sub-01_task-rest_eeg.edf",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "RECORDING_INFO_FIELD",
+            "location": "EDF recording field",
+            "path": "sub-01_task-rest_eeg.edf",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "EXACT_RECORDING_DATE",
+            "location": "EDF start-date field",
+            "path": "sub-01_task-rest_eeg.edf",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "sub-01_task-rest_eeg.edf",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "edf",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_edf_placeholder_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "sub-01_task-rest_eeg.edf",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "edf_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_nifti_description",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "SUBJECT_NAME_FIELD",
+            "location": "NIfTI header descrip",
+            "path": "sub-01_T1w.nii",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "FREE_TEXT_METADATA",
+            "location": "NIfTI header descrip",
+            "path": "sub-01_T1w.nii",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "sub-01_T1w.nii",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "nifti",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_nifti_empty_header_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "sub-01_T1w.nii",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "nifti_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_dicom_identity_fields",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "SUBJECT_NAME_FIELD",
+            "location": "DICOM PatientName",
+            "path": "image.dcm",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "BIRTH_DATE_FIELD",
+            "location": "DICOM PatientBirthDate",
+            "path": "image.dcm",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "LINKED_SOURCE_ID",
+            "location": "DICOM PatientID",
+            "path": "image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "SITE_IDENTIFIER",
+            "location": "DICOM InstitutionName",
+            "path": "image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DEVICE_IDENTIFIER",
+            "location": "DICOM DeviceSerialNumber",
+            "path": "image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "EXACT_RECORDING_DATE",
+            "location": "DICOM StudyDate",
+            "path": "image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DICOM_UID",
+            "location": "DICOM MediaStorageSOPInstanceUID",
+            "path": "image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DICOM_UID",
+            "location": "DICOM ImplementationClassUID",
+            "path": "image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DICOM_UID",
+            "location": "DICOM SOPInstanceUID",
+            "path": "image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DEVICE_IDENTIFIER",
+            "location": "DICOM ImplementationVersionName",
+            "path": "image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "image.dcm",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "dicom",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_fif_subject_info",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "SUBJECT_NAME_FIELD",
+            "location": "MNE Info subject_info.first_name",
+            "path": "sub-01_task-rest_eeg.fif",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "SUBJECT_NAME_FIELD",
+            "location": "MNE Info subject_info.last_name",
+            "path": "sub-01_task-rest_eeg.fif",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "BIRTH_DATE_FIELD",
+            "location": "MNE Info subject_info.birthday",
+            "path": "sub-01_task-rest_eeg.fif",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "LINKED_SOURCE_ID",
+            "location": "MNE Info subject_info.his_id",
+            "path": "sub-01_task-rest_eeg.fif",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "ACQUISITION_SYSTEM_ID",
+            "location": "MNE Info file_id/meas_id",
+            "path": "sub-01_task-rest_eeg.fif",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "sub-01_task-rest_eeg.fif",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "fif",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_fif_empty_info_control",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "ACQUISITION_SYSTEM_ID",
+            "location": "MNE Info file_id/meas_id",
+            "path": "sub-01_task-rest_eeg.fif",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "sub-01_task-rest_eeg.fif",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "fif_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_brainvision_valid_references_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "sub-01_task-rest_eeg.vhdr",
+            "status": "fully_inspected_metadata"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "path": "sub-01_task-rest_eeg.vmrk",
+            "status": "fully_inspected_metadata"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "path": "sub-01_task-rest_eeg.eeg",
+            "status": "payload_not_opened"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [
+        {
+          "expected": {
+            "location": "line 3, DataFile",
+            "source_path": "sub-01_task-rest_eeg.vhdr",
+            "status": "valid_internal",
+            "target": "sub-01_task-rest_eeg.eeg"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "location": "line 4, MarkerFile",
+            "source_path": "sub-01_task-rest_eeg.vhdr",
+            "status": "valid_internal",
+            "target": "sub-01_task-rest_eeg.vmrk"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "location": "line 3, DataFile",
+            "source_path": "sub-01_task-rest_eeg.vmrk",
+            "status": "valid_internal",
+            "target": "sub-01_task-rest_eeg.eeg"
+          },
+          "matched": true
+        }
+      ],
+      "format": "brainvision_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_brainvision_marker_timestamp",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "EXACT_RECORDING_DATE",
+            "location": "line 3",
+            "path": "sub-01_task-rest_eeg.vmrk",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "sub-01_task-rest_eeg.vmrk",
+            "status": "fully_inspected_metadata"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "brainvision",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_bdf_placeholder_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "sub-01_task-rest_eeg.bdf",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "bdf_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    }
+  ],
+  "locked": false,
+  "schema_version": "1",
+  "suite_name": "development",
+  "summary": {
+    "cases": 36,
+    "cases_with_duplicates": 1,
+    "clean_controls": 9,
+    "control_cases": 9,
+    "control_specificity": 1.0,
+    "duplicate_findings": 1,
+    "expected_container_members": 4,
+    "expected_coverage": 16,
+    "expected_findings": 50,
+    "expected_references": 7,
+    "integrity_failures": 0,
+    "labelled_precision": 1.0,
+    "masking_failures": 0,
+    "matched_container_members": 4,
+    "matched_coverage": 16,
+    "matched_findings": 50,
+    "matched_references": 7,
+    "target_recall": 1.0,
+    "unexpected_container_members": 0,
+    "unexpected_findings": 0,
+    "unexpected_references": 0
+  }
+}

@@ -19,6 +19,7 @@ _FINDING_CLASSES = {
         "DIRECT_EMAIL",
         "DIRECT_PERSONAL_ID",
         "DIRECT_PHONE",
+        "DICOM_IDENTITY_NOT_REMOVED",
         "POSTAL_ADDRESS_FIELD",
         "SUBJECT_FIELD_POPULATED",
         "SUBJECT_NAME_FIELD",
@@ -49,6 +50,7 @@ _FINDING_CLASSES = {
         "SUBJECT_KEY_FILE",
     },
     "free_text_and_sources": {
+        "DICOM_PRIVATE_TAG",
         "FREE_TEXT_METADATA",
         "SOURCE_FILENAME",
     },
@@ -298,6 +300,8 @@ def _group_summary(
     groups: dict[str, dict[str, object]] = {}
     for result in results:
         name = str(result[field])
+        if field == "format":
+            name = name.removesuffix("_control")
         group = groups.setdefault(
             name,
             {

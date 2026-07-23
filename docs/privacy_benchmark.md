@@ -45,6 +45,13 @@ text, release paths, archives and cross-file references. These cases were used
 while building the evaluator, so their scores are a development check rather
 than an independent validation result.
 
+The reproducible reports are stored in `benchmark/results/`. The current
+development run matches 50 of 50 labels across 36 cases. The first locked run
+matches 21 of 21 labels across 10 cases. Both have zero unexpected findings,
+masking failures and integrity failures. The locked result is a useful holdout
+check, but it is repository-visible and is not an independent or blind
+validation.
+
 ## Splits
 
 The initial cases are a development pilot. They are used to check the evaluator
