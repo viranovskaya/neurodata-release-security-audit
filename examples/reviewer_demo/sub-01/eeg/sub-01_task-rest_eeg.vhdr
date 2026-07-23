@@ -1,0 +1,4 @@
+Brain Vision Data Exchange Header File Version 1.0
+[Common Infos]
+DataFile=SITEA-0042_original.eeg
+MarkerFile=sub-01_task-rest_eeg.vmrk

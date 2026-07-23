@@ -2,7 +2,7 @@
 
 Working title for a local pre-release privacy checker for EEG datasets organised with BIDS.
 
-**Status:** local MVP, 22 July 2026. Implemented and tested locally; not published or independently validated.
+**Status:** private v0.1 candidate, 23 July 2026. Implemented and tested; not publicly released or independently validated.
 
 ## The problem
 
@@ -32,7 +32,9 @@ The tool receives one local dataset directory and scans it without modifying the
 - BIDS `.tsv` and `.json` metadata;
 - BrainVision `.vhdr` and `.vmrk` files;
 - the fixed header area of EDF and BDF files;
-- small text files such as `.txt`, `.md`, `.csv` and `.log`;
+- FIF, continuous EEGLAB `.set` and EGI MFF recording metadata through optional readers;
+- bounded XML metadata, including MFF XML files;
+- small text, source, config and notebook files;
 - filenames and the dataset directory structure;
 - unexpected release files such as spreadsheets, backups and temporary exports.
 
@@ -46,13 +48,34 @@ The EEG signal payload is not loaded or analysed.
 | `DIRECT_PHONE` | phone number in a note or log | high |
 | `SUBJECT_NAME_FIELD` | populated patient-name field in EDF | high |
 | `BIRTH_DATE_FIELD` | full date of birth in a header or table | high |
+| `DIRECT_PERSONAL_ID` | medical record, national or passport identifier | high |
+| `POSTAL_ADDRESS_FIELD` | participant home or postal address | high |
 | `SUBJECT_KEY_FILE` | participant mapping spreadsheet in the release tree | high |
+| `KNOWN_IDENTIFIER` | value from a private project-specific name or ID list | high |
+| `LINKED_SOURCE_ID` | source, hospital, legacy or genetic identifier | review |
 | `EXACT_RECORDING_DATE` | unshifted BrainVision or EDF acquisition date | review |
 | `LOCAL_PATH` | `/Users/name/...` or `C:\Users\name\...` | review |
+| `NETWORK_PATH` | UNC share or mounted-volume path | review |
+| `LOCAL_HOSTNAME` | acquisition computer or workstation name | review |
+| `NETWORK_ADDRESS` | labelled IP address | review |
+| `DEVICE_ADDRESS` | labelled MAC or device address | review |
+| `ACCOUNT_NAME` | local login or account name | review |
 | `SOURCE_FILENAME` | original participant-labelled recording name | review |
-| `FREE_TEXT_REVIEW` | non-empty comments or descriptions that may need inspection | review |
 | `UNEXPECTED_FILE` | `.xlsx`, `.bak`, temporary export or archive | review |
+| `UNEXPECTED_DIRECTORY` | `.git`, `.venv` or cache directory | review |
+| `SENSITIVE_CONFIG_FILE` | `.env`, credential file or private-key filename | review |
+| `SENSITIVE_CONFIG_DIRECTORY` | `.ssh`, `.aws` or another private configuration directory | review |
+| `OS_METADATA_FILE` | `.DS_Store`, `Thumbs.db` or `desktop.ini` | review |
 | `POTENTIAL_SECRET` | obvious token or credential pattern | high |
+| `PERSONNEL_FIELD` | experimenter, operator or technician field | review |
+| `DEVICE_IDENTIFIER` | acquisition device serial or site identifier | review |
+| `ACQUISITION_SYSTEM_ID` | FIF machine ID or original acquisition GUID | review |
+| `PROJECT_IDENTIFIER` | internal project ID or name in format metadata | review |
+| `FREE_TEXT_METADATA` | populated description, comments or processing history | review |
+| `FORMAT_READER_UNAVAILABLE` | optional reader is not installed | review |
+| `EEGLAB_METADATA_READER_UNAVAILABLE` | safe MATLAB text-field reader is not installed | review |
+| `EEGLAB_METADATA_COVERAGE_LIMIT` | legacy nested MATLAB structure cannot be separated safely from signal data | review |
+| `EXTERNAL_DATA_REFERENCE` | EEGLAB data path points outside the selected release | review |
 
 Rules should prefer structured fields and clear patterns. Generic person-name detection is out of scope for the first version because it would create too many false positives.
 
@@ -60,13 +83,24 @@ Rules should prefer structured fields and clear patterns. Generic person-name de
 
 - Local execution only. No dataset content is uploaded.
 - Read-only by default. The tool never redacts or rewrites source files.
-- Reports never reproduce a complete sensitive value. They show the finding type, file, location and a masked preview.
+- Finding evidence never reproduces a complete detected sensitive value. Reports show
+  the finding type, file, safe location and a masked preview.
 - The scanner stays inside the directory explicitly supplied by the user.
 - Symlinks that point outside the dataset are reported and not followed.
 - Large binary files are not read beyond the header bytes required for the check.
+- Optional MNE readers are called with signal preloading disabled.
+- A reader that returns preloaded signal data produces a visible coverage finding.
+- XML document types and entities are rejected before parsing.
 - Every skipped or unreadable file is listed in the report.
+- Development and cache directories are not traversed, but remain visible as skipped entries.
+- A private term list can be supplied for names and old IDs already known to the researcher. Its values are never copied into the report.
+- Report files and the private term list must stay outside the dataset being checked.
 
-Relative filenames remain visible so the curator can locate a finding. Because filenames can themselves contain identifying text, reports are working review artifacts and must not be assumed safe to publish unchanged.
+Relative filenames remain visible so the curator can locate a finding. Known terms,
+emails, labelled contact details, direct IDs, dates, obvious credentials and detected
+local or network paths are masked in release paths. Unrecognised identifying text can
+still remain. Reports are working review artifacts and must not be assumed safe to
+publish unchanged.
 
 The MVP assumes accidental disclosure by an honest dataset curator. Malicious concurrent changes during a scan, encrypted archives, malware and adversarial parser inputs are outside the current threat model.
 
@@ -80,7 +114,7 @@ The MVP produces:
 
 Each report records:
 
-- scanner and ruleset version;
+- scanner version;
 - files inspected, skipped and unreadable;
 - finding code and severity;
 - relative file path and safe location information;
@@ -112,6 +146,7 @@ The first benchmark uses synthetic data only:
 - an EDF fixture with synthetic patient and recording fields;
 - unexpected spreadsheet, backup, log and symlink cases;
 - realistic clean strings that should not be flagged.
+- boundary-aware matching against a private synthetic name and identifier list.
 
 Acceptance criteria for v0.1:
 
@@ -137,8 +172,7 @@ Public datasets can be used later for usability testing, not as a source of know
 
 ## Possible later work
 
-- FIF and EEGLAB metadata readers;
-- EGI MFF support;
+- support for additional EEGLAB MATLAB layouts without loading signal arrays;
 - optional metaprivBIDS hand-off for participant-table analysis;
 - configurable institutional policies;
 - HTML report;
@@ -151,4 +185,4 @@ Current working title: **NeuroData Release Security Audit**.
 
 Possible repository name: `neurodata-release-security-audit`.
 
-No exact GitHub repository or PyPI project with this name was found on 22 July 2026. The name remains provisional until implementation and packaging begin.
+A private GitHub repository now uses this name. No public release or PyPI project exists yet.
