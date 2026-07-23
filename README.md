@@ -157,6 +157,8 @@ on a copy and use a tool that understands the flagged format. Run the audit agai
 before replacing a release candidate. JSON and TSV fields can usually be edited
 directly. FIF and EDF/BDF headers need format-aware tools, followed by a check
 that the signal, channels, sampling, annotations and duration were preserved.
+The [format remediation guide](docs/remediation_guide.md) gives a short checklist
+for FIF, EEGLAB, EDF/BDF, MFF, DICOM, NIfTI, JSON and TSV.
 
 ## Limits
 
@@ -185,6 +187,11 @@ The [labelled leak benchmark](docs/privacy_benchmark.md) keeps failed first runs
 alongside corrected regression results instead of replacing them. Its separate
 public-format layer checks hash-pinned EEGLAB, KIT and EGI MFF fixtures, with no
 claim of privacy ground truth.
+
+The separate [report usability pilot](usability/README.md) tests whether an
+independent curator can understand the release decision, locate the file and
+field, choose a safe next step, notice a coverage gap and treat an integrity
+failure correctly. It does not repeat the leak-detection benchmark.
 
 ## Status
 

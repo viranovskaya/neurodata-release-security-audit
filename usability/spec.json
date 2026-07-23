@@ -1,0 +1,232 @@
+{
+  "schema_version": "1",
+  "suite_name": "report-usability-v1",
+  "thresholds": {
+    "minimum_participants": 5,
+    "overall_accuracy": 0.8,
+    "capability_accuracy": 0.75,
+    "critical_accuracy": 1.0
+  },
+  "tasks": [
+    {
+      "task_id": "clean_release_decision",
+      "report": "reports/clean.html",
+      "capability": "release_decision",
+      "prompt": "What does this report support?",
+      "choices": [
+        {
+          "value": "checked_areas_clear",
+          "label": "No high or review findings were found in the checked areas, but coverage and format limits still need review."
+        },
+        {
+          "value": "anonymous",
+          "label": "The dataset is anonymous and ready to publish."
+        },
+        {
+          "value": "blocked",
+          "label": "The dataset must not be released because the integrity check failed."
+        }
+      ],
+      "expected": "checked_areas_clear",
+      "critical": true
+    },
+    {
+      "task_id": "high_release_decision",
+      "report": "reports/high.html",
+      "capability": "release_decision",
+      "prompt": "Can this copy be released now?",
+      "choices": [
+        {
+          "value": "do_not_release",
+          "label": "No. Resolve the high-priority finding first."
+        },
+        {
+          "value": "release_with_note",
+          "label": "Yes, if the README mentions the finding."
+        },
+        {
+          "value": "report_invalid",
+          "label": "No decision is possible because the integrity check failed."
+        }
+      ],
+      "expected": "do_not_release",
+      "critical": true
+    },
+    {
+      "task_id": "high_file",
+      "report": "reports/high.html",
+      "capability": "finding_file",
+      "prompt": "Which file needs correction?",
+      "choices": [
+        {
+          "value": "fif",
+          "label": "sub-01/eeg/sub-01_task-rest_eeg.fif"
+        },
+        {
+          "value": "participants",
+          "label": "participants.tsv"
+        },
+        {
+          "value": "description",
+          "label": "dataset_description.json"
+        }
+      ],
+      "expected": "fif",
+      "critical": false
+    },
+    {
+      "task_id": "high_location",
+      "report": "reports/high.html",
+      "capability": "finding_location",
+      "prompt": "Which field is named in the report?",
+      "choices": [
+        {
+          "value": "birthday",
+          "label": "subject_info.birthday"
+        },
+        {
+          "value": "name",
+          "label": "subject_info.name"
+        },
+        {
+          "value": "meas_date",
+          "label": "measurement_date"
+        }
+      ],
+      "expected": "birthday",
+      "critical": false
+    },
+    {
+      "task_id": "high_remediation",
+      "report": "reports/high.html",
+      "capability": "remediation",
+      "prompt": "What is the safest next step?",
+      "choices": [
+        {
+          "value": "private_format_aware",
+          "label": "Edit a private working copy with a format-aware FIF tool, rerun the audit, then verify the scientific properties."
+        },
+        {
+          "value": "delete_original",
+          "label": "Delete the original file and rebuild it from the report."
+        },
+        {
+          "value": "open_text_editor",
+          "label": "Open the FIF file in a text editor and remove the matched bytes."
+        }
+      ],
+      "expected": "private_format_aware",
+      "critical": true
+    },
+    {
+      "task_id": "coverage_gap",
+      "report": "reports/coverage_gap.html",
+      "capability": "coverage_gap",
+      "prompt": "What still needs manual review?",
+      "choices": [
+        {
+          "value": "xyz",
+          "label": "sub-01/eeg/sub-01_task-rest_eeg.xyz because its payload was not parsed."
+        },
+        {
+          "value": "nothing",
+          "label": "Nothing; zero findings means complete coverage."
+        },
+        {
+          "value": "manifest",
+          "label": "The SHA-256 manifest because hashes were not generated."
+        }
+      ],
+      "expected": "xyz",
+      "critical": true
+    },
+    {
+      "task_id": "integrity_reliability",
+      "report": "reports/integrity_failure.html",
+      "capability": "integrity_failure",
+      "prompt": "Can the individual findings be relied on yet?",
+      "choices": [
+        {
+          "value": "provisional",
+          "label": "No. The finding list is provisional until a new scan passes both integrity checks."
+        },
+        {
+          "value": "yes",
+          "label": "Yes. The high-priority email finding is enough to continue remediation."
+        },
+        {
+          "value": "ignore_manifest",
+          "label": "Yes. Only the release-tree recheck matters."
+        }
+      ],
+      "expected": "provisional",
+      "critical": true
+    },
+    {
+      "task_id": "integrity_next_step",
+      "report": "reports/integrity_failure.html",
+      "capability": "remediation",
+      "prompt": "What should happen first?",
+      "choices": [
+        {
+          "value": "stabilize_rerun",
+          "label": "Stop writes, restore or stabilize the candidate, and rerun the audit."
+        },
+        {
+          "value": "remove_email",
+          "label": "Remove the email from participants.tsv before doing anything else."
+        },
+        {
+          "value": "publish_report",
+          "label": "Publish the report so another person can inspect the email finding."
+        }
+      ],
+      "expected": "stabilize_rerun",
+      "critical": true
+    },
+    {
+      "task_id": "large_review_count",
+      "report": "reports/large_review.html",
+      "capability": "large_report",
+      "prompt": "How many review items need a curator decision?",
+      "choices": [
+        {
+          "value": "121",
+          "label": "121"
+        },
+        {
+          "value": "120",
+          "label": "120"
+        },
+        {
+          "value": "30",
+          "label": "30"
+        }
+      ],
+      "expected": "121",
+      "critical": false
+    },
+    {
+      "task_id": "large_review_target",
+      "report": "reports/large_review.html",
+      "capability": "large_report",
+      "prompt": "Where is the unique technician-contact item?",
+      "choices": [
+        {
+          "value": "sub17",
+          "label": "sub-17/eeg/sub-17_task-rest_eeg.vhdr — Recording.TechnicianContact"
+        },
+        {
+          "value": "sub07",
+          "label": "sub-07/eeg/sub-07_task-rest_eeg.vhdr — experimenter_comment"
+        },
+        {
+          "value": "sub30",
+          "label": "sub-30/eeg/sub-30_task-rest_eeg.vhdr — device.serial_number"
+        }
+      ],
+      "expected": "sub17",
+      "critical": false
+    }
+  ]
+}
