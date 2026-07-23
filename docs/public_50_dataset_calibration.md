@@ -96,5 +96,6 @@ mostly reflect the calibration design. Signal samples, image voxels, DICOM
 pixels, archive member payloads and external link targets were not loaded.
 
 The redacted aggregate files and browser report are generated outside the
-audited dataset trees. The exact candidate still requires a new independent
-engineering review before any push, merge, release or public claim.
+audited dataset trees. Exact payload provenance and report hashes are retained
+in the private review handoff. Any code or report change requires a fresh
+independent check before merge, release or a public claim.

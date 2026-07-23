@@ -184,13 +184,12 @@ EEG, MEG, iEEG, MRI and fMRI.
 
 The private v0.1 snapshot was independently reviewed before it was merged.
 
-The frozen v0.2 engineering candidate at `0275f36` also passed a separate
-independent review after the complete inventory, NIfTI, DICOM, archive, reference
-and integrity work was implemented. The visual HTML report was added later and is
-not covered by that review. The first 50-dataset calibration candidate was
-rejected during its separate review; its successor is still under local QA and
-has no independent PASS. The project remains private. There is no public release
-or PyPI package.
+The v0.2 work adds complete release inventory, NIfTI and DICOM metadata checks,
+archive and cross-file reference checks, stronger integrity checks, an offline
+HTML report and calibration on 50 public OpenNeuro datasets. Each frozen
+candidate is independently checked before it can be merged.
+
+The project remains private. There is no public release or PyPI package.
 
 ## License
 
