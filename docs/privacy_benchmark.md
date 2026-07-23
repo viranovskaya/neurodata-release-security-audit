@@ -17,29 +17,40 @@ Each case is a small synthetic release with:
 
 A finding is correct only when the code, severity, file and location match. A
 masked value in the wrong field does not count as a true positive. Findings that
-are not in the case label count as unexpected.
+are not in the case label count as unexpected. Multiple rows with the same code,
+severity, file and location count as one detected target plus a separate
+duplicate alert; they do not create extra ground-truth leaks.
 
 ## Metrics
 
-The first pilot reports:
+The development suite reports:
 
 - target recall;
 - labelled precision;
 - specificity across clean controls;
+- duplicate alerts for the same code, severity, file and location;
+- results split by file format and finding class;
+- cross-file reference, archive-member and coverage-state checks;
 - masking failures across JSON, Markdown and HTML;
 - release-integrity failures.
 
-Later format-level reports will stratify results by leak class and file format.
 Coverage errors will be reported separately from missed findings: a format that
 the scanner explicitly leaves for manual review is not the same as a format it
 claims to inspect but misses.
+
+The current development set includes 36 cases and 50 labelled findings. It
+builds small EDF, BDF, BrainVision, FIF, NIfTI and DICOM files and opens them
+through the same metadata readers as a normal audit. It also covers structured
+text, release paths, archives and cross-file references. These cases were used
+while building the evaluator, so their scores are a development check rather
+than an independent validation result.
 
 ## Splits
 
 The initial cases are a development pilot. They are used to check the evaluator
 and refine the labels.
 
-Before detector tuning, a separate locked split will be versioned and hashed. A
+A separate locked split will be versioned and hashed before it is first run. A
 later independent review should add a small hidden set; a repository-visible
 split is locked, but it is not genuinely blind to the developer.
 
@@ -59,11 +70,12 @@ It will not use real participant information. Strong benchmark results still do
 not prove that an arbitrary dataset is anonymous, ethically shareable or legally
 compliant.
 
-## Run the pilot
+## Run the development suite
 
-Install the current package, then run:
+Install the current package with both reader extras, then run:
 
 ```bash
+python -m pip install -e '.[formats,imaging]'
 python -m benchmark.run_benchmark \
   --json reports/benchmark.json \
   --markdown reports/benchmark.md

@@ -40,6 +40,12 @@ def main() -> int:
     return int(
         summary["matched_findings"] != summary["expected_findings"]
         or summary["unexpected_findings"] != 0
+        or summary["matched_references"] != summary["expected_references"]
+        or summary["unexpected_references"] != 0
+        or summary["matched_container_members"]
+        != summary["expected_container_members"]
+        or summary["unexpected_container_members"] != 0
+        or summary["matched_coverage"] != summary["expected_coverage"]
         or summary["masking_failures"] != 0
         or summary["integrity_failures"] != 0
     )
