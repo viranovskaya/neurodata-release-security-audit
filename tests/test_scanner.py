@@ -175,6 +175,35 @@ class ScannerTests(unittest.TestCase):
             sorted((item.path, item.severity) for item in findings),
         )
 
+    def test_public_readme_participant_email_labels_remain_high(self) -> None:
+        values = (
+            "participant@example.org",
+            "subject01@example.org",
+            "patient@example.org",
+            "donor@example.org",
+            "volunteer@example.org",
+            "participant.field@example.org",
+        )
+        (self.root / "README").write_text(
+            f"Participant: {values[0]}\n"
+            f"Subject 01: {values[1]}\n"
+            f"Patient-email = {values[2]}\n"
+            f"Donor: {values[3]}\n"
+            f"Volunteer address: {values[4]}\n"
+            f"participant_email: {values[5]}\n",
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+        findings = [
+            item for item in report.findings if item.code == "DIRECT_EMAIL"
+        ]
+
+        self.assertEqual(["high"] * 6, [item.severity for item in findings])
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
     def test_json_arrays_and_keys_are_scanned(self) -> None:
         values = (
             "participant@example.org",

@@ -7,14 +7,9 @@ import re
 from .models import Finding, Severity
 
 _EMAIL = re.compile(r"(?<![\w.+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![\w.-])", re.I)
-_PARTICIPANT_CONTACT_CONTEXT = re.compile(
-    r"(?:"
-    r"\b(?:participant|subject|patient|donor|volunteer)\b.{0,40}"
-    r"\b(?:contact|email|e-mail)\b"
-    r"|"
-    r"\b(?:contact|email|e-mail)\b.{0,40}"
-    r"\b(?:participant|subject|patient|donor|volunteer)\b"
-    r")",
+_PARTICIPANT_EMAIL_LABEL = re.compile(
+    r"(?:^|[^a-z0-9])(?:participant|subject|patient|donor|volunteer)"
+    r"(?:[\s_-]*(?:contact|email|e-mail|address|id|\d+))*\s*[:=]\s*$",
     re.I,
 )
 _LABELLED_PHONE = re.compile(
@@ -321,7 +316,7 @@ def scan_text(
             severity = email_severity
             if (
                 public_contact_context
-                and not _PARTICIPANT_CONTACT_CONTEXT.search(line)
+                and not _PARTICIPANT_EMAIL_LABEL.search(line[: match.start()])
             ):
                 severity = "review"
             findings.append(
