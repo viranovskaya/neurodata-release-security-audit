@@ -1,7 +1,7 @@
 # External review guide
 
-This guide belongs to the frozen v0.1 review. v0.2 needs a separate handoff and
-independent gate.
+This guide is for the private v0.2 candidate. Each frozen successor needs its own
+handoff and independent gate.
 
 This review is about whether the tool is understandable and useful before an EEG dataset is shared. It is not a legal, privacy or security certification.
 
@@ -23,27 +23,28 @@ python3 -m pip install .
 neurodata-security-audit scan examples/reviewer_demo \
   --sensitive-terms examples/demo_sensitive_terms.txt \
   --json reports/reviewer_demo.json \
-  --markdown reports/reviewer_demo.md
+  --markdown reports/reviewer_demo.md \
+  --html reports/reviewer_demo.html
 ```
 
 The demo contains only invented values. The expected terminal summary is:
 
 ```text
-inspected=5 skipped=2 high=6 review=4 info=0
+entries=9 manifest=7 references=1/2 inspected=5 skipped=2 high=5 review=6 info=0 integrity=ok
 ```
 
 Exit status `1` is expected because the demo deliberately contains high-severity findings.
 
-Open `reports/reviewer_demo.md`. The report should identify:
+Open `reports/reviewer_demo.html`. The high-priority section should point to:
 
-- a contact email;
-- a local computer path;
-- two values from the private term list;
 - an unexpected participant-key spreadsheet;
-- a BrainVision source filename;
-- a BrainVision recording timestamp.
+- the known name and source ID from the private term list;
+- the source ID in a filename and a BrainVision data reference.
 
-Each row should include a plain-language note under `What to check`. The invented email, name, subject code, local path and timestamp should not be reproduced in full.
+The full report should also show the contact email, local path, missing
+BrainVision reference and recording timestamp as review items. Each row should
+include a plain-language next step. The invented email, name, subject code, local
+path and timestamp should not be reproduced in full.
 
 ## 3. Optional check on another dataset
 

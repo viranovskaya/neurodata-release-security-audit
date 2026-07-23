@@ -59,7 +59,7 @@ Status: implemented.
 
 ### M5 — integrated local candidate
 
-Status: in progress.
+Status: implemented for the current v0.2 candidate.
 
 - update CLI, schema, documentation and version;
 - run the full suite in base, EEG-format and imaging environments;
@@ -72,7 +72,7 @@ Status: in progress.
 
 ### M6 — independent review
 
-Status: blocked by design until M5 is complete.
+Status: required for every frozen candidate before merge.
 
 The reviewer receives one exact commit and package with hashes, test evidence,
 claim boundaries and known limitations. A previous PASS is not reused.
