@@ -87,6 +87,13 @@ p { margin: 0; }
   font-weight: 650;
   text-decoration: none;
 }
+.privacy-warning {
+  margin: 0 0 22px;
+  padding: 12px 14px;
+  border-left: 4px solid var(--review);
+  background: var(--review-soft);
+  color: var(--text);
+}
 .status {
   display: inline-flex;
   align-items: center;
@@ -470,6 +477,10 @@ def render_html(report: ScanReport) -> str:
     </div>
     <span class="status {status_class}">{status_text}</span>
   </header>
+
+  <p class="privacy-warning" role="note"><strong>Keep this report private.</strong>
+  Detected values are masked, but unrecognized identifying text may remain in
+  relative paths or locations. Review the report before sharing or publishing it.</p>
 
   <div class="grid" aria-label="Audit summary">
     <div class="card">

@@ -100,6 +100,10 @@ metadata-reading path. When high-priority findings are present, the first link
 jumps straight to a short table with the exact file, field location and a
 plain-language next step.
 
+Treat every report as private working material. Detected values are masked, but
+an identifier that no rule recognized may still appear in a relative filename or
+field location. Review the report before sharing or publishing it.
+
 The terminal exits with:
 
 - `0` when no high-severity finding is present;

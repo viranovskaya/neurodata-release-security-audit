@@ -2704,6 +2704,20 @@ class ScannerTests(unittest.TestCase):
             rendered,
         )
 
+    def test_html_report_warns_that_unrecognized_filename_text_can_remain(self) -> None:
+        filename = "family-reference-green-owl.txt"
+        (self.root / filename).write_text("release note\n", encoding="utf-8")
+
+        rendered = render_html(scan_dataset(self.root))
+
+        self.assertIn(filename, rendered)
+        self.assertIn("Keep this report private.", rendered)
+        self.assertIn(
+            "unrecognized identifying text may remain in\n  relative paths or locations",
+            rendered,
+        )
+        self.assertIn("before sharing or publishing it", rendered)
+
     def test_html_report_puts_high_findings_first_with_safe_fix_steps(self) -> None:
         (self.root / "notes.txt").write_text(
             "Participant: private.person@example.org\n",
