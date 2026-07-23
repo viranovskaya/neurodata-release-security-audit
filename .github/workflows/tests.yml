@@ -52,7 +52,9 @@ jobs:
           python -m pip install \
             dist-a/neurodata_release_security_audit-0.2.0.dev0-py3-none-any.whl
           neurodata-security-audit scan tests/fixtures/clean_bids \
-            --json "${RUNNER_TEMP}/audit.json"
+            --json "${RUNNER_TEMP}/audit.json" \
+            --html "${RUNNER_TEMP}/audit.html"
+          test -s "${RUNNER_TEMP}/audit.html"
           python - "${RUNNER_TEMP}/audit.json" <<'PY'
           import json
           from pathlib import Path

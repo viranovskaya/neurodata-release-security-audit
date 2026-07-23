@@ -20,13 +20,14 @@ import zipfile
 
 from neurodata_security_audit.cli import main
 from neurodata_security_audit.containers import inspect_archive
-from neurodata_security_audit.reporting import render_json, render_markdown
+from neurodata_security_audit.html_report import render_html
 from neurodata_security_audit.models import ManifestEntry, ScanReport
 from neurodata_security_audit.readers import (
     FormatReaderUnavailable,
     inspect_eeglab_metadata,
     inspect_mne_info,
 )
+from neurodata_security_audit.reporting import render_json, render_markdown
 from neurodata_security_audit.scanner import (
     ScanPolicy,
     _release_collision_findings,
@@ -2460,6 +2461,39 @@ class ScannerTests(unittest.TestCase):
             rendered,
         )
 
+    def test_html_report_is_deterministic_and_self_contained(self) -> None:
+        (self.root / "notes.txt").write_text(
+            "Contact: alice@example.org\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+
+        first = render_html(report)
+        second = render_html(report)
+
+        self.assertEqual(first, second)
+        self.assertTrue(first.startswith("<!doctype html>"))
+        self.assertIn("<title>NeuroData release security audit</title>", first)
+        self.assertIn("DIRECT_EMAIL", first)
+        self.assertNotIn("alice@example.org", first)
+        self.assertNotIn("<script", first.lower())
+        self.assertNotIn("https://", first)
+
+    def test_html_report_escapes_untrusted_markup(self) -> None:
+        filename = 'notes"><img src=x onerror=alert(1)>.txt'
+        (self.root / filename).write_text(
+            "Contact: alice@example.org\n",
+            encoding="utf-8",
+        )
+
+        rendered = render_html(scan_dataset(self.root))
+
+        self.assertNotIn("<img src=x onerror=alert(1)>", rendered)
+        self.assertIn(
+            "notes&quot;&gt;&lt;img src=x onerror=alert(1)&gt;.txt",
+            rendered,
+        )
+
     def test_cli_writes_reports_and_returns_finding_status(self) -> None:
         (self.root / "notes.txt").write_text("Contact: alice@example.org\n", encoding="utf-8")
         output = Path(self.temp_dir.name) / "reports"
@@ -2472,11 +2506,16 @@ class ScannerTests(unittest.TestCase):
                     str(output / "audit.json"),
                     "--markdown",
                     str(output / "audit.md"),
+                    "--html",
+                    str(output / "audit.html"),
                 ]
             )
         self.assertEqual(1, code)
         self.assertTrue((output / "audit.json").is_file())
         self.assertTrue((output / "audit.md").is_file())
+        html = (output / "audit.html").read_text(encoding="utf-8")
+        self.assertIn("<!doctype html>", html)
+        self.assertNotIn("alice@example.org", html)
 
     def test_cli_handles_report_write_error(self) -> None:
         (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
@@ -2513,6 +2552,15 @@ class ScannerTests(unittest.TestCase):
         stderr = io.StringIO()
         with redirect_stderr(stderr):
             code = main(["scan", str(self.root), "--json", str(report_path)])
+        self.assertEqual(2, code)
+        self.assertFalse(report_path.exists())
+        self.assertIn("Report paths must be outside", stderr.getvalue())
+
+    def test_cli_rejects_html_report_inside_dataset(self) -> None:
+        report_path = self.root / "audit.html"
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            code = main(["scan", str(self.root), "--html", str(report_path)])
         self.assertEqual(2, code)
         self.assertFalse(report_path.exists())
         self.assertIn("Report paths must be outside", stderr.getvalue())

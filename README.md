@@ -79,16 +79,22 @@ Optional readers fail visibly when they are missing or cannot read a file safely
 neurodata-security-audit scan /path/to/dataset
 ```
 
-Save deterministic JSON and Markdown reports:
+Save deterministic JSON, Markdown and visual HTML reports:
 
 ```bash
 neurodata-security-audit scan /path/to/dataset \
   --json reports/audit.json \
-  --markdown reports/audit.md
+  --markdown reports/audit.md \
+  --html reports/audit.html
 ```
 
 Keep reports outside the dataset. The command rejects report paths inside the
 selected release so the source tree is not changed by the audit.
+
+The HTML file is self-contained and works offline. It shows the finding severity,
+coverage, integrity result, cross-file references and full SHA-256 manifest. It
+uses the same masked report data as JSON and Markdown; it does not add another
+metadata-reading path.
 
 The terminal exits with:
 
@@ -160,13 +166,13 @@ recorded in [docs/v0.2_calibration.md](docs/v0.2_calibration.md).
 
 ## Status
 
-The private v0.1 snapshot was independently reviewed before it was merged. That
-review does not apply to v0.2.
+The private v0.1 snapshot was independently reviewed before it was merged.
 
-v0.2 is under local development. Inventory, NIfTI, DICOM, archive and reference
-work is implemented, but the integrated candidate still needs the full
-multi-environment gate and a new independent review. There is no public release or
-PyPI package.
+The frozen v0.2 engineering candidate at `0275f36` also passed a separate
+independent review after the complete inventory, NIfTI, DICOM, archive, reference
+and integrity work was implemented. The visual HTML report was added later and is
+not covered by that review. The project remains private. There is no public
+release or PyPI package.
 
 ## License
 

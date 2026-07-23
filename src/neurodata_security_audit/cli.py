@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .html_report import render_html
 from .reporting import render_json, render_markdown
 from .scanner import ScanPolicy, scan_dataset
 
@@ -21,6 +22,12 @@ def _parser() -> argparse.ArgumentParser:
     scan.add_argument("dataset", type=Path)
     scan.add_argument("--json", type=Path, dest="json_path")
     scan.add_argument("--markdown", type=Path, dest="markdown_path")
+    scan.add_argument(
+        "--html",
+        type=Path,
+        dest="html_path",
+        help="write a self-contained visual report",
+    )
     scan.add_argument(
         "--sensitive-terms",
         type=Path,
@@ -54,7 +61,7 @@ def _is_inside_dataset(path: Path, dataset: Path) -> bool:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        output_paths = (args.json_path, args.markdown_path)
+        output_paths = (args.json_path, args.markdown_path, args.html_path)
         if any(
             path is not None and _is_inside_dataset(path, args.dataset)
             for path in output_paths
@@ -98,6 +105,8 @@ def main(argv: list[str] | None = None) -> int:
             _write_report(args.json_path, render_json(report))
         if args.markdown_path:
             _write_report(args.markdown_path, render_markdown(report))
+        if args.html_path:
+            _write_report(args.html_path, render_html(report))
     except OSError as error:
         print(f"error: could not write report ({type(error).__name__})", file=sys.stderr)
         return 2

@@ -3,6 +3,11 @@
 The JSON report is deterministic. It deliberately omits a generation timestamp and
 the absolute dataset path.
 
+Markdown and HTML are deterministic views of the same normalized report. The HTML
+view is a self-contained offline document: it does not load scripts, fonts, styles
+or data from the network. All report-controlled text is escaped before it is added
+to the page.
+
 Schema version 2 keeps the original findings and inspected/skipped lists, and adds
 four release-wide records:
 
