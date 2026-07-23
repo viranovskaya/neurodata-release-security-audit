@@ -191,6 +191,91 @@ class BenchmarkTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "hash does not match"):
                 run_benchmark(cases_path)
 
+    def test_finding_labels_require_all_exact_identity_fields(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "cases": [
+                {
+                    "case_id": "missing_path",
+                    "split": "development",
+                    "format": "text",
+                    "files": {"notes.txt": "Contact: person@example.invalid\n"},
+                    "sensitive_terms": [],
+                    "seeded_values": ["person@example.invalid"],
+                    "expected_findings": [
+                        {
+                            "code": "DIRECT_EMAIL",
+                            "severity": "high",
+                            "location": "line 1",
+                        }
+                    ],
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            cases_path = Path(directory) / "cases.json"
+            cases_path.write_text(json.dumps(specification), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "must contain exactly"):
+                run_benchmark(cases_path)
+
+    def test_wrong_file_does_not_match_a_finding_label(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "cases": [
+                {
+                    "case_id": "wrong_file",
+                    "split": "development",
+                    "format": "text",
+                    "files": {"notes.txt": "Contact: person@example.invalid\n"},
+                    "sensitive_terms": [],
+                    "seeded_values": ["person@example.invalid"],
+                    "expected_findings": [
+                        {
+                            "code": "DIRECT_EMAIL",
+                            "severity": "high",
+                            "path": "other.txt",
+                            "location": "line 1",
+                        }
+                    ],
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            cases_path = Path(directory) / "cases.json"
+            cases_path.write_text(json.dumps(specification), encoding="utf-8")
+            summary = run_benchmark(cases_path)["summary"]
+        self.assertEqual(summary["matched_findings"], 0)
+        self.assertEqual(summary["unexpected_findings"], 1)
+
+    def test_partial_location_does_not_match_a_finding_label(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "cases": [
+                {
+                    "case_id": "partial_location",
+                    "split": "development",
+                    "format": "text",
+                    "files": {"notes.txt": "Contact: person@example.invalid\n"},
+                    "sensitive_terms": [],
+                    "seeded_values": ["person@example.invalid"],
+                    "expected_findings": [
+                        {
+                            "code": "DIRECT_EMAIL",
+                            "severity": "high",
+                            "path": "notes.txt",
+                            "location": "line",
+                        }
+                    ],
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            cases_path = Path(directory) / "cases.json"
+            cases_path.write_text(json.dumps(specification), encoding="utf-8")
+            summary = run_benchmark(cases_path)["summary"]
+        self.assertEqual(summary["matched_findings"], 0)
+        self.assertEqual(summary["unexpected_findings"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

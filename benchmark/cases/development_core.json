@@ -15,7 +15,7 @@
           "code": "SUBJECT_NAME_FIELD",
           "severity": "high",
           "path": "sub-01_task-rest_eeg.json",
-          "location_contains": "participant_name"
+          "location": "JSON field participant_name"
         }
       ]
     },
@@ -33,7 +33,7 @@
           "code": "BIRTH_DATE_FIELD",
           "severity": "high",
           "path": "sub-01_task-rest_eeg.json",
-          "location_contains": "date_of_birth"
+          "location": "JSON field date_of_birth"
         }
       ]
     },
@@ -105,7 +105,7 @@
           "code": "KNOWN_IDENTIFIER",
           "severity": "high",
           "path": "notes.txt",
-          "location_contains": "line 1"
+          "location": "line 1"
         }
       ]
     },
@@ -122,6 +122,7 @@
         {
           "code": "DIRECT_EMAIL",
           "severity": "high",
+          "path": "<redacted:email-001>",
           "location": "filename"
         }
       ]

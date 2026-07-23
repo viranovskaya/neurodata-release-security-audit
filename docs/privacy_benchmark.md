@@ -45,23 +45,27 @@ text, release paths, archives and cross-file references. These cases were used
 while building the evaluator, so their scores are a development check rather
 than an independent validation result.
 
-The reproducible reports are stored in `benchmark/results/`. The current
-development run matches 50 of 50 labels across 36 cases. The first locked run
-matches 21 of 21 labels across 10 cases. Both have zero unexpected findings,
-masking failures and integrity failures. The locked result is a useful holdout
-check, but it is repository-visible and is not an independent or blind
-validation.
+Reproducible reports are stored in `benchmark/results/`. The development result
+is regenerated whenever the evaluator or development labels change.
+
+The first locked result is retained only as a historical artifact. Independent
+review found that its matcher allowed partial locations and labels without a
+file path, even though the method required exact identities. It is not a valid
+holdout score and must not be quoted. `locked-v2` uses strict labels with exactly
+`code`, `severity`, `path` and `location`.
 
 ## Splits
 
 The initial cases are a development pilot. They are used to check the evaluator
 and refine the labels.
 
-The first locked split is stored in `benchmark/cases/locked_v1.json`. Its
-SHA-256 is pinned in `benchmark/locked.json`, and the runner stops if the file
-changes. It must not be edited after its first committed version. A later
-independent review should add a small hidden set; a repository-visible split is
-locked, but it is not genuinely blind to the developer.
+The rejected first split remains unchanged in
+`benchmark/cases/locked_v1.json`. Its successor is stored in
+`benchmark/cases/locked_v2.json`, with its SHA-256 pinned in
+`benchmark/locked_v2.json`. The runner stops if the file changes. A locked split
+must not be edited after its first committed version. A later independent
+review should add a small hidden set; a repository-visible split is locked, but
+it is not genuinely blind to the developer.
 
 ## Scope
 
@@ -94,7 +98,7 @@ Run the locked split separately:
 
 ```bash
 python -m benchmark.run_benchmark \
-  --cases benchmark/locked.json \
-  --json reports/benchmark-locked-v1.json \
-  --markdown reports/benchmark-locked-v1.md
+  --cases benchmark/locked_v2.json \
+  --json reports/benchmark-locked-v2.json \
+  --markdown reports/benchmark-locked-v2.md
 ```

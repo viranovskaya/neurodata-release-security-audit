@@ -247,7 +247,7 @@
   "case_files": [
     {
       "path": "cases/development_core.json",
-      "sha256": "65eae37525eb2ade53374812d03c1db58761d4181fb1e3be622064e34e09f0ee"
+      "sha256": "bc0cdcfaee53a54ab185df3a18332022cc1426f83aeed5e4adfa9b5448a85685"
     },
     {
       "path": "cases/development_archives.json",
@@ -274,7 +274,7 @@
         {
           "expected": {
             "code": "SUBJECT_NAME_FIELD",
-            "location_contains": "participant_name",
+            "location": "JSON field participant_name",
             "path": "sub-01_task-rest_eeg.json",
             "severity": "high"
           },
@@ -299,7 +299,7 @@
         {
           "expected": {
             "code": "BIRTH_DATE_FIELD",
-            "location_contains": "date_of_birth",
+            "location": "JSON field date_of_birth",
             "path": "sub-01_task-rest_eeg.json",
             "severity": "high"
           },
@@ -399,7 +399,7 @@
         {
           "expected": {
             "code": "KNOWN_IDENTIFIER",
-            "location_contains": "line 1",
+            "location": "line 1",
             "path": "notes.txt",
             "severity": "high"
           },
@@ -425,6 +425,7 @@
           "expected": {
             "code": "DIRECT_EMAIL",
             "location": "filename",
+            "path": "<redacted:email-001>",
             "severity": "high"
           },
           "matched": true

@@ -128,14 +128,18 @@ def _relative_path(value: str) -> Path:
 
 
 def _matches(expected: dict[str, str], actual: dict[str, str]) -> bool:
-    for field, value in expected.items():
-        if field.endswith("_contains"):
-            actual_field = field.removesuffix("_contains")
-            if value not in actual[actual_field]:
-                return False
-        elif actual.get(field) != value:
-            return False
-    return True
+    return all(actual.get(field) == value for field, value in expected.items())
+
+
+def _validate_finding_labels(case: dict[str, object]) -> None:
+    required = {"code", "severity", "path", "location"}
+    for index, expected in enumerate(case["expected_findings"], start=1):
+        fields = set(expected)
+        if fields != required:
+            raise ValueError(
+                f"Finding label {index} in {case['case_id']} must contain exactly "
+                "code, severity, path and location"
+            )
 
 
 def _finding_identity(finding: dict[str, str]) -> tuple[str, str, str, str]:
@@ -148,6 +152,7 @@ def _finding_identity(finding: dict[str, str]) -> tuple[str, str, str, str]:
 
 
 def _score_case(case: dict[str, object], root: Path) -> dict[str, object]:
+    _validate_finding_labels(case)
     for relative_path, content in case["files"].items():
         path = root / _relative_path(relative_path)
         path.parent.mkdir(parents=True, exist_ok=True)
