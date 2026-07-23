@@ -4,6 +4,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import csv
 from datetime import date, datetime, timezone
 import hashlib
+from html.parser import HTMLParser
 from importlib import metadata
 import io
 import json
@@ -46,6 +47,18 @@ def _write_edf(path: Path, patient: str, recording: str, start_date: str) -> Non
     header[176:184] = b"12000000"
     header[184:192] = b"256     "
     path.write_bytes(header)
+
+
+class _VisibleTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+    def text(self) -> str:
+        return "".join(self.parts)
 
 
 class ScannerTests(unittest.TestCase):
@@ -2914,6 +2927,55 @@ class ScannerTests(unittest.TestCase):
                     self.assertIn("only after both integrity checks pass", rendered)
                     self.assertNotIn("No immediate remediation tasks", rendered)
                 self.assertIn("Resolve integrity failure", html)
+
+    def test_html_decision_sentences_have_visible_spaces(self) -> None:
+        high = Finding(
+            code="DIRECT_EMAIL",
+            severity="high",
+            path="notes.txt",
+            location="line 1",
+            evidence="<redacted:email,length=18>",
+            message="Remove this email.",
+        )
+        review = Finding(
+            code="FREE_TEXT_METADATA",
+            severity="review",
+            path="recording.set",
+            location="EEGLAB field comments",
+            evidence="<redacted:free-text,length=12>",
+            message="Review this field.",
+        )
+        cases = (
+            (
+                "integrity",
+                ScanReport(
+                    scanner_version="test",
+                    manifest_recheck_passed=False,
+                ),
+                "report yet. The release",
+            ),
+            (
+                "high",
+                ScanReport(scanner_version="test", findings=[high]),
+                "copy yet. Resolve",
+            ),
+            (
+                "review",
+                ScanReport(scanner_version="test", findings=[review]),
+                "release. The scanner",
+            ),
+            (
+                "clean",
+                ScanReport(scanner_version="test"),
+                "areas checked. This is",
+            ),
+        )
+
+        for name, report, expected in cases:
+            with self.subTest(name=name):
+                parser = _VisibleTextParser()
+                parser.feed(render_html(report))
+                self.assertIn(expected, parser.text())
 
     def test_cli_writes_reports_and_returns_finding_status(self) -> None:
         (self.root / "notes.txt").write_text("Contact: alice@example.org\n", encoding="utf-8")

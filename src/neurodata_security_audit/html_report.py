@@ -317,7 +317,7 @@ def _remediation_content(
         tree_status = "passed" if release_tree_recheck_passed else "failed"
         decision = (
             '<div class="decision high"><strong>Do not release or rely on this '
-            "report yet.</strong>The release changed during the scan or could not "
+            "report yet.</strong> The release changed during the scan or could not "
             "be rechecked consistently. Restore or stabilize the working copy and "
             "rerun the audit before using the individual findings. "
             f"Manifest recheck: {_text(manifest_status)}. "
@@ -341,7 +341,7 @@ def _remediation_content(
     elif high_count:
         selected = [row for row in findings if row[0] == "high"]
         decision = (
-            '<div class="decision high"><strong>Do not release this copy yet.</strong>'
+            '<div class="decision high"><strong>Do not release this copy yet.</strong> '
             f"Resolve the {high_count} high-priority "
             f'finding{"s" if high_count != 1 else ""} below first.</div>'
         )
@@ -368,7 +368,7 @@ def _remediation_content(
     elif review_count:
         selected = [row for row in findings if row[0] == "review"]
         decision = (
-            '<div class="decision review"><strong>Review before release.</strong>'
+            '<div class="decision review"><strong>Review before release.</strong> '
             f"The scanner found {review_count} "
             f'item{"s" if review_count != 1 else ""} that need a curator decision.'
             "</div>"
@@ -391,7 +391,7 @@ def _remediation_content(
         selected = []
         decision = (
             '<div class="decision ok"><strong>No high or review findings in the '
-            "areas checked.</strong>This is not proof of anonymity. Check the "
+            "areas checked.</strong> This is not proof of anonymity. Check the "
             "coverage gaps and the stated format limits before release.</div>"
         )
         queue_note = "No immediate remediation tasks were generated."
