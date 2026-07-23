@@ -72,12 +72,19 @@ misses were structured JSON credentials: `clientSecret` and `refreshToken`.
 The result remains a no-pass artifact. The labels and case hash are not changed
 when the detector is corrected.
 
-The successor adds an exact allowlist of credential field names and keeps the
-minimum value-length and placeholder checks used by the text detector. It
+The first successor adds an exact allowlist of credential field names. It
 matches the same 25 of 25 labels while all 6 hard-negative controls remain
-clean. The original 23/25 result is retained unchanged. The successor is useful
-regression evidence, but it is not a new blind evaluation because the detector
-was changed after seeing the first result.
+clean, but independent review found that the inherited eight-character
+threshold still missed short credential values. That result remains a no-pass
+artifact.
+
+Successor v2 flags every non-placeholder scalar under an exact credential key,
+including values one to seven characters long. Lookalike keys and declared
+placeholders remain clean. Its report is generated through the locked manifest,
+so the JSON records the suite name and pinned case hash. The original 23/25
+result and both successor stages are retained unchanged. Neither successor is a
+new blind evaluation because the detector was changed after seeing the first
+result.
 
 An independently authored hidden-v1 set later matched 30 of 31 exact labels. The
 only mismatch had the correct code, severity and file but used a raw XML field
