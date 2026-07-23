@@ -24,6 +24,7 @@ from .models import (
     Finding,
     ManifestEntry,
     ScanReport,
+    Severity,
     SkippedFile,
 )
 from .readers import (
@@ -42,6 +43,8 @@ from .structured import inspect_delimited, inspect_json, inspect_xml
 
 _TEXT_SUFFIXES = {
     ".bash",
+    ".bval",
+    ".bvec",
     ".cfg",
     ".code-workspace",
     ".conf",
@@ -78,7 +81,9 @@ _TEXT_SUFFIXES = {
     ".zsh",
 }
 _TEXT_NAMES = {
+    ".bidsignore",
     ".env",
+    ".gitattributes",
     ".git-credentials",
     ".htpasswd",
     ".my.cnf",
@@ -98,11 +103,26 @@ _TEXT_NAMES = {
     "readme",
     "authorized_keys",
 }
+_PUBLIC_CONTACT_NAMES = {
+    "authors",
+    "authors.txt",
+    "changes",
+    "citation.cff",
+    "dataset_description.json",
+    "readme",
+    "readme.md",
+    "readme.txt",
+}
 _SIGNAL_PAYLOAD_SUFFIXES = {".eeg", ".fdt"}
 _IMAGE_PAYLOAD_SUFFIXES = {".img"}
 _EDF_SUFFIXES = {".edf", ".bdf"}
 _DICOM_SUFFIXES = {".dcm", ".dicom", ".ima"}
-_MNE_FILE_FORMATS = {".fif": "fif", ".set": "eeglab"}
+_MNE_FILE_FORMATS = {
+    ".con": "kit",
+    ".fif": "fif",
+    ".set": "eeglab",
+    ".sqd": "kit",
+}
 _UNEXPECTED_SUFFIXES = {
     ".7z",
     ".bak",
@@ -354,6 +374,14 @@ def _is_sensitive_config_name(lower_name: str) -> bool:
         or lower_name.startswith(".env.")
         or lower_name.endswith(".env")
         or lower_name.startswith(("credentials.", "secret.", "secrets."))
+    )
+
+
+def _email_severity_for_path(relative_path: str) -> Severity:
+    return (
+        "review"
+        if Path(relative_path).name.lower() in _PUBLIC_CONTACT_NAMES
+        else "high"
     )
 
 
@@ -1063,9 +1091,15 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     "fully_inspected_metadata",
                     "The complete text or structured metadata file was inspected",
                 )
-                report.findings.extend(scan_text(text, relative_path, known_terms))
                 if suffix == ".json":
-                    report.findings.extend(inspect_json(text, relative_path))
+                    report.findings.extend(
+                        inspect_json(
+                            text,
+                            relative_path,
+                            known_terms,
+                            email_severity=_email_severity_for_path(relative_path),
+                        )
+                    )
                     references = inspect_bids_json_references(
                         text,
                         path,
@@ -1074,7 +1108,16 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     )
                     report.references.extend(references.entries)
                     report.findings.extend(references.findings)
-                elif suffix == ".tsv":
+                else:
+                    report.findings.extend(
+                        scan_text(
+                            text,
+                            relative_path,
+                            known_terms,
+                            email_severity=_email_severity_for_path(relative_path),
+                        )
+                    )
+                if suffix == ".tsv":
                     report.findings.extend(inspect_delimited(text, relative_path, "\t"))
                 elif suffix == ".csv":
                     report.findings.extend(inspect_delimited(text, relative_path, ","))

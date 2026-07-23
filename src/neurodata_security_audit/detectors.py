@@ -287,6 +287,8 @@ def scan_text(
     text: str,
     relative_path: str,
     known_terms: KnownTermMatcher | None = None,
+    *,
+    email_severity: Severity = "high",
 ) -> list[Finding]:
     known_terms = known_terms or KnownTermMatcher()
     findings: list[Finding] = []
@@ -308,7 +310,7 @@ def scan_text(
             findings.append(
                 Finding(
                     code="DIRECT_EMAIL",
-                    severity="high",
+                    severity=email_severity,
                     path=relative_path,
                     location=location,
                     evidence=redacted("email", match.group(0)),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from dataclasses import replace
 import io
 import json
 import re
@@ -10,8 +11,8 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from .detectors import redacted
-from .models import Finding
+from .detectors import KnownTermMatcher, redacted, scan_text
+from .models import Finding, Severity
 
 _DOB_KEYS = {"date_of_birth", "birth_date", "birthdate", "birthday", "dob"}
 _PHONE_KEYS = {"phone", "phone_number", "telephone", "tel", "mobile"}
@@ -343,11 +344,22 @@ def _is_person_context(path: tuple[object, ...]) -> bool:
     return False
 
 
-def inspect_json(text: str, relative_path: str) -> list[Finding]:
+def inspect_json(
+    text: str,
+    relative_path: str,
+    known_terms: KnownTermMatcher | None = None,
+    *,
+    email_severity: Severity = "high",
+) -> list[Finding]:
     try:
         document = json.loads(text)
     except (json.JSONDecodeError, RecursionError, UnicodeError):
-        return [
+        return scan_text(
+            text,
+            relative_path,
+            known_terms,
+            email_severity=email_severity,
+        ) + [
             Finding(
                 code="MALFORMED_JSON",
                 severity="review",
@@ -361,6 +373,17 @@ def inspect_json(text: str, relative_path: str) -> list[Finding]:
     findings: list[Finding] = []
     try:
         for path, key, value in _json_fields(document):
+            if isinstance(value, str):
+                location = f"JSON value {_safe_location_path(path)}"
+                findings.extend(
+                    replace(item, location=location)
+                    for item in scan_text(
+                        value,
+                        relative_path,
+                        known_terms,
+                        email_severity=email_severity,
+                    )
+                )
             finding = _finding_for_field(
                 key,
                 value,

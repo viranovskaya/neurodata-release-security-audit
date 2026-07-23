@@ -110,8 +110,8 @@ class ScannerTests(unittest.TestCase):
                 "payload_not_opened": 1,
                 "unsupported_manual_review": 1,
                 "not_traversed": 0,
-                "findings_high": 6,
-                "findings_review": 5,
+                "findings_high": 5,
+                "findings_review": 6,
                 "findings_info": 0,
             },
             report.to_dict()["summary"],
@@ -146,6 +146,48 @@ class ScannerTests(unittest.TestCase):
         rendered = render_json(report) + render_markdown(report)
         for secret in (email, phone, local_path, token):
             self.assertNotIn(secret, rendered)
+
+    def test_public_contact_email_requires_review_but_is_not_high(self) -> None:
+        email = "study.contact@example.org"
+        (self.root / "README").write_text(
+            f"Contact: {email}\n",
+            encoding="utf-8",
+        )
+        (self.root / "notes.txt").write_text(
+            f"Participant contact: {email}\n",
+            encoding="utf-8",
+        )
+
+        findings = [
+            item
+            for item in scan_dataset(self.root).findings
+            if item.code == "DIRECT_EMAIL"
+        ]
+
+        self.assertEqual(
+            [("notes.txt", "high"), ("README", "review")],
+            [(item.path, item.severity) for item in findings],
+        )
+
+    def test_json_string_values_are_scanned_after_decoding(self) -> None:
+        (self.root / "scan.json").write_text(
+            json.dumps(
+                {
+                    "SequenceVariant": r"SK\SP\MP",
+                    "Source": r"\\server\share\file.edf",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        findings = [
+            item
+            for item in scan_dataset(self.root).findings
+            if item.code == "NETWORK_PATH"
+        ]
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("JSON value <field>", findings[0].location)
 
     def test_network_and_machine_values_are_detected_and_masked(self) -> None:
         values = (
@@ -1772,6 +1814,59 @@ class ScannerTests(unittest.TestCase):
             report = scan_dataset(self.root)
         self.assertIn(
             "FORMAT_PRELOADED_SIGNAL",
+            {finding.code for finding in report.findings},
+        )
+
+    def test_small_bids_text_metadata_is_fully_inspected(self) -> None:
+        files = {
+            ".bidsignore": "private/source/**\n",
+            ".gitattributes": "*.edf annex.largefiles=anything\n",
+            "sub-01_dwi.bval": "0 1000 1000\n",
+            "sub-01_dwi.bvec": "1 0 0\n0 1 0\n0 0 1\n",
+        }
+        for name, content in files.items():
+            (self.root / name).write_text(content, encoding="utf-8")
+
+        report = scan_dataset(self.root)
+
+        inspected = set(report.files_inspected)
+        self.assertTrue(set(files) <= inspected)
+        coverage = {item.path: item.status for item in report.coverage}
+        self.assertTrue(
+            all(coverage[name] == "fully_inspected_metadata" for name in files)
+        )
+
+    def test_kit_reader_uses_preload_false(self) -> None:
+        kit = self.root / "sub-01_task-rest_meg.con"
+        kit.write_bytes(b"synthetic-format-placeholder")
+        calls: list[bool] = []
+
+        class FakeRaw:
+            preload = False
+            info = {"subject_info": {"his_id": "HOSP-0042"}}
+
+            def close(self) -> None:
+                pass
+
+        def read_raw_kit(path, preload, verbose):
+            calls.append(preload)
+            return FakeRaw()
+
+        io_module = SimpleNamespace(read_raw_kit=read_raw_kit)
+        with patch(
+            "neurodata_security_audit.readers._load_mne",
+            return_value=SimpleNamespace(io=io_module),
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertEqual([False], calls)
+        self.assertIn(kit.name, report.files_inspected)
+        self.assertIn(
+            "LINKED_SOURCE_ID",
+            {finding.code for finding in report.findings},
+        )
+        self.assertNotIn(
+            "FORMAT_READER_UNAVAILABLE",
             {finding.code for finding in report.findings},
         )
 

@@ -623,6 +623,9 @@ def _read_mne_info(path: Path, format_name: str):
             verbose="ERROR",
         )
         return raw.info, raw
+    if format_name == "kit":
+        raw = mne.io.read_raw_kit(path, preload=False, verbose="ERROR")
+        return raw.info, raw
     raise ValueError(f"Unknown format reader: {format_name}")
 
 

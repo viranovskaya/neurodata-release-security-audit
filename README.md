@@ -31,11 +31,13 @@ signal or image payload.
 - BIDS JSON, TSV and CSV metadata;
 - BrainVision `.vhdr` and `.vmrk`;
 - the common EDF and BDF header;
-- FIF, continuous EEGLAB `.set` and EGI MFF metadata with the optional EEG readers;
+- FIF, KIT `.con`/`.sqd`, continuous EEGLAB `.set` and EGI MFF metadata with
+  the optional EEG readers;
 - bounded XML metadata inside MFF directories;
 - NIfTI headers without requesting voxel data;
 - DICOM metadata before Pixel Data;
-- small text, source, configuration and notebook files.
+- small text, source, configuration and notebook files, including BIDS
+  `.bval`, `.bvec`, `.bidsignore` and `.gitattributes`.
 
 ### Checks containers and links
 
@@ -162,7 +164,9 @@ The current version does not:
 The full v0.2 boundary is in
 [docs/v0.2_scope.md](docs/v0.2_scope.md). The report contract is in
 [docs/report_schema.md](docs/report_schema.md). Public and real-reader checks are
-recorded in [docs/v0.2_calibration.md](docs/v0.2_calibration.md).
+recorded in [docs/v0.2_calibration.md](docs/v0.2_calibration.md). A separate
+[50-dataset OpenNeuro calibration](docs/public_50_dataset_calibration.md) covers
+EEG, MEG, iEEG, MRI and fMRI.
 
 ## Status
 
@@ -171,8 +175,9 @@ The private v0.1 snapshot was independently reviewed before it was merged.
 The frozen v0.2 engineering candidate at `0275f36` also passed a separate
 independent review after the complete inventory, NIfTI, DICOM, archive, reference
 and integrity work was implemented. The visual HTML report was added later and is
-not covered by that review. The project remains private. There is no public
-release or PyPI package.
+not covered by that review. The later 50-dataset calibration and its small
+reader-coverage corrections are also awaiting a new independent review. The
+project remains private. There is no public release or PyPI package.
 
 ## License
 
