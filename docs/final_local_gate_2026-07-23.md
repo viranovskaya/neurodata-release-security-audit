@@ -12,9 +12,9 @@ The local gate passed.
 
 | Check | Result |
 |---|---|
-| Unit tests | 90 passed on Python 3.10 and 3.13 after installing the wheel in clean environments |
-| Wheel reproducibility | two clean builds were byte-identical |
-| Wheel SHA-256 | `7638781dc23a0cdb2adae52263550ca9f7c27c2e822dd3ed2ba5c39af16029c0` |
+| Unit tests | 90 passed from clean base and `formats` wheel installations; the `formats` run used MNE 1.12.1 |
+| Wheel reproducibility | two clean builds with `SOURCE_DATE_EPOCH=315532800` were byte-identical |
+| Controlled wheel SHA-256 | `fed54537a75c750c875a0345a81d641532fce4164a50d29148d5a8117e8c2b1f` |
 | Reviewer demo | repeated installed runs produced `5 inspected / 2 skipped / 6 high / 4 review / 0 info` |
 | Report reproducibility | JSON and Markdown reports were identical across repeated runs and both Python versions |
 | Real format integration | FIF and two continuous EEGLAB layouts passed with MNE 1.12.1 |
@@ -59,3 +59,9 @@ the four Sleep-EDF header results stayed unchanged after these rules were added.
 ## Next gate
 
 Prepare a fresh private review package and ask one independent EEG researcher or data manager to run the documented synthetic demo. Do not make the repository public or publish a release before that feedback is reviewed.
+
+The preliminary independent check found that one XML test depended on whether MNE
+was installed. The unavailable-reader branch is now patched explicitly in that test,
+while the reader-present test separately checks MFF metadata and confirms that no
+unavailable-reader finding is emitted. This correction still needs an independent
+verdict on the successor candidate.

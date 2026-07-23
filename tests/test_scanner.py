@@ -819,7 +819,11 @@ class ScannerTests(unittest.TestCase):
             "<device><serialNumber>EGI-300-928374</serialNumber></device></recording>",
             encoding="utf-8",
         )
-        report = scan_dataset(self.root)
+        with patch(
+            "neurodata_security_audit.scanner.inspect_mne_format",
+            side_effect=FormatReaderUnavailable("synthetic"),
+        ):
+            report = scan_dataset(self.root)
         codes = {finding.code for finding in report.findings}
         self.assertTrue(
             {
@@ -1029,7 +1033,6 @@ class ScannerTests(unittest.TestCase):
             {"LINKED_SOURCE_ID", "EXACT_RECORDING_DATE"}
             <= {finding.code for finding in report.findings}
         )
-
     def test_empty_mne_identifiers_are_not_reported(self) -> None:
         findings = inspect_mne_info(
             {
@@ -1292,6 +1295,10 @@ class ScannerTests(unittest.TestCase):
         self.assertTrue(
             {"LINKED_SOURCE_ID", "EXACT_RECORDING_DATE"}
             <= {finding.code for finding in report.findings}
+        )
+        self.assertNotIn(
+            "FORMAT_READER_UNAVAILABLE",
+            {finding.code for finding in report.findings},
         )
 
     def test_empty_and_lfs_optional_formats_are_visible_without_reader(self) -> None:
