@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -14,7 +15,15 @@ from .detectors import (
     redacted,
     scan_text,
 )
-from .models import Finding, ScanReport, SkippedFile
+from .models import (
+    CoverageEntry,
+    CoverageStatus,
+    EntryType,
+    Finding,
+    ManifestEntry,
+    ScanReport,
+    SkippedFile,
+)
 from .readers import (
     FormatReaderUnavailable,
     decode_small_text,
@@ -344,6 +353,8 @@ def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> S
     paths = (
         report.files_inspected
         + [item.path for item in report.skipped_files]
+        + [item.path for item in report.coverage]
+        + [item.path for item in report.manifest]
         + [item.path for item in report.findings]
     )
     path_emails = tuple(
@@ -388,40 +399,67 @@ def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> S
             replace(item, path=redact_path(item.path))
             for item in report.skipped_files
         ],
+        coverage=[
+            replace(item, path=redact_path(item.path))
+            for item in report.coverage
+        ],
+        manifest=[
+            replace(item, path=redact_path(item.path))
+            for item in report.manifest
+        ],
         findings=[
             replace(item, path=redact_path(item.path))
             for item in report.findings
         ],
+        manifest_recheck_passed=report.manifest_recheck_passed,
     )
 
 
 def _walk(root: Path):
-    pending = [root]
+    pending = [(root, False)]
     while pending:
-        directory = pending.pop()
+        directory, inside_ignored = pending.pop()
         try:
             entries = sorted(directory.iterdir(), key=lambda item: item.name)
         except OSError:
             relative_path = directory.relative_to(root).as_posix() or "."
             yield "directory_error", directory, relative_path
             continue
-        subdirectories: list[Path] = []
+        subdirectories: list[tuple[Path, bool]] = []
         for entry in entries:
             relative_path = entry.relative_to(root).as_posix()
             try:
                 if entry.is_symlink():
-                    yield "symlink", entry, relative_path
+                    yield (
+                        "ignored_symlink" if inside_ignored else "symlink",
+                        entry,
+                        relative_path,
+                    )
                 elif entry.is_dir():
-                    if entry.name.lower() in _IGNORED_DIRECTORIES:
+                    entry_is_ignored = (
+                        inside_ignored
+                        or entry.name.lower() in _IGNORED_DIRECTORIES
+                    )
+                    if entry_is_ignored:
                         yield "ignored_directory", entry, relative_path
                     else:
                         if entry.suffix.lower() == ".mff":
                             yield "format_directory", entry, relative_path
                         else:
                             yield "directory", entry, relative_path
-                        subdirectories.append(entry)
+                    subdirectories.append((entry, entry_is_ignored))
                 elif entry.is_file():
-                    yield "file", entry, relative_path
+                    yield (
+                        "ignored_file" if inside_ignored else "file",
+                        entry,
+                        relative_path,
+                    )
+                else:
+                    yield (
+                        "ignored_other" if inside_ignored else "other",
+                        entry,
+                        relative_path,
+                    )
             except OSError:
                 yield "entry_error", entry, relative_path
         pending.extend(reversed(subdirectories))
@@ -431,6 +469,14 @@ def _mne_format_for_path(path: Path) -> str | None:
     if path.name.lower().endswith(".fif.gz"):
         return "fif"
     return _MNE_FILE_FORMATS.get(path.suffix.lower())
+
+
+def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(chunk_size):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> ScanReport:
@@ -443,6 +489,53 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
     root = root.resolve()
     report = ScanReport(scanner_version=__version__)
     known_terms = KnownTermMatcher(policy.sensitive_terms)
+    coverage_by_path: dict[str, CoverageEntry] = {}
+    manifest_by_path: dict[str, ManifestEntry] = {}
+
+    def record_coverage(
+        relative_path: str,
+        entry_type: EntryType,
+        status: CoverageStatus,
+        reason: str,
+    ) -> None:
+        coverage_by_path[relative_path] = CoverageEntry(
+            path=relative_path,
+            entry_type=entry_type,
+            status=status,
+            reason=reason,
+        )
+
+    def inventory_file(path: Path, relative_path: str) -> bool:
+        try:
+            size = path.stat().st_size
+            manifest_by_path[relative_path] = ManifestEntry(
+                path=relative_path,
+                size_bytes=size,
+                sha256=_sha256_file(path),
+            )
+            return True
+        except OSError as error:
+            report.manifest_recheck_passed = False
+            report.findings.append(
+                Finding(
+                    code="MANIFEST_UNREADABLE",
+                    severity="review",
+                    path=relative_path,
+                    location="release manifest",
+                    evidence=f"<error:{type(error).__name__}>",
+                    message="Fix access to this file before relying on the release manifest.",
+                )
+            )
+            report.skipped_files.append(
+                SkippedFile(relative_path, "File checksum could not be calculated")
+            )
+            record_coverage(
+                relative_path,
+                "unreadable",
+                "unsupported_manual_review",
+                "The file could not be added to the integrity manifest",
+            )
+            return False
 
     for kind, path, relative_path in _walk(root):
         if kind in {"directory_error", "entry_error"}:
@@ -470,6 +563,12 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
             report.skipped_files.append(
                 SkippedFile(relative_path, "Filesystem entry could not be inspected")
             )
+            record_coverage(
+                relative_path,
+                "unreadable",
+                "unsupported_manual_review",
+                "The filesystem entry could not be classified safely",
+            )
             continue
 
         if kind == "ignored_directory":
@@ -496,6 +595,62 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
             report.skipped_files.append(
                 SkippedFile(relative_path, "Development directory is not inspected")
             )
+            record_coverage(
+                relative_path,
+                "directory",
+                "not_traversed",
+                "Development-directory contents are inventoried but not parsed",
+            )
+            continue
+
+        if kind == "ignored_file":
+            report.findings.extend(
+                _unexpected_file_findings(relative_path, known_terms)
+            )
+            if inventory_file(path, relative_path):
+                record_coverage(
+                    relative_path,
+                    "file",
+                    "not_traversed",
+                    "The file is inside a development directory and was not parsed",
+                )
+            continue
+
+        if kind == "ignored_symlink":
+            report.findings.extend(
+                _sensitive_path_findings(
+                    relative_path,
+                    known_terms,
+                    "symlink name",
+                )
+            )
+            report.skipped_files.append(
+                SkippedFile(
+                    relative_path,
+                    "Symlink inside a development directory is not followed",
+                )
+            )
+            record_coverage(
+                relative_path,
+                "symlink",
+                "not_traversed",
+                "The symlink is inside a development directory and was not followed",
+            )
+            continue
+
+        if kind == "ignored_other":
+            report.skipped_files.append(
+                SkippedFile(
+                    relative_path,
+                    "Special filesystem entry inside a development directory is not opened",
+                )
+            )
+            record_coverage(
+                relative_path,
+                "other",
+                "not_traversed",
+                "The special entry is inside a development directory and was not opened",
+            )
             continue
 
         if kind == "format_directory":
@@ -507,6 +662,12 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     inspect_mne_format(path, relative_path, "mff", known_terms)
                 )
                 report.files_inspected.append(relative_path)
+                record_coverage(
+                    relative_path,
+                    "format_directory",
+                    "fully_inspected_metadata",
+                    "Recording metadata was inspected without loading the signal",
+                )
             except FormatReaderUnavailable:
                 report.findings.append(
                     Finding(
@@ -526,6 +687,13 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                         relative_path,
                         "MFF recording reader is unavailable; XML files are still inspected",
                     )
+                )
+                record_coverage(
+                    relative_path,
+                    "format_directory",
+                    "header_or_structure_only",
+                    "Directory structure and bounded XML are covered; "
+                    "the format reader is unavailable",
                 )
             except Exception as error:
                 report.findings.append(
@@ -547,11 +715,23 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                         f"Could not inspect MFF recording metadata: {type(error).__name__}",
                     )
                 )
+                record_coverage(
+                    relative_path,
+                    "format_directory",
+                    "unsupported_manual_review",
+                    "The recording metadata reader failed",
+                )
             continue
 
         if kind == "directory":
             report.findings.extend(
                 _unexpected_directory_findings(relative_path, known_terms)
+            )
+            record_coverage(
+                relative_path,
+                "directory",
+                "header_or_structure_only",
+                "Directory name and release-tree position were inspected",
             )
             continue
 
@@ -600,9 +780,46 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
             report.skipped_files.append(
                 SkippedFile(relative_path, "Symlinks are not followed")
             )
+            record_coverage(
+                relative_path,
+                "symlink",
+                "header_or_structure_only",
+                "The link was classified without following its target",
+            )
+            continue
+
+        if kind == "other":
+            report.findings.extend(
+                _sensitive_path_findings(
+                    relative_path,
+                    known_terms,
+                    "filesystem entry",
+                )
+            )
+            report.findings.append(
+                Finding(
+                    code="SPECIAL_FILESYSTEM_ENTRY",
+                    severity="review",
+                    path=relative_path,
+                    location="filesystem entry",
+                    evidence="<special-filesystem-entry>",
+                    message="Remove this entry or review it manually before release.",
+                )
+            )
+            report.skipped_files.append(
+                SkippedFile(relative_path, "Special filesystem entries are not opened")
+            )
+            record_coverage(
+                relative_path,
+                "other",
+                "unsupported_manual_review",
+                "The entry is not a regular file, directory or symlink",
+            )
             continue
 
         report.findings.extend(_unexpected_file_findings(relative_path, known_terms))
+        if not inventory_file(path, relative_path):
+            continue
         suffix = path.suffix.lower()
         mne_format = _mne_format_for_path(path)
         try:
@@ -629,10 +846,22 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     report.skipped_files.append(
                         SkippedFile(relative_path, "Text file exceeds configured scan limit")
                     )
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "unsupported_manual_review",
+                        "Text file exceeds the configured parsing limit",
+                    )
                     continue
                 data = path.read_bytes()
                 text = decode_small_text(data)
                 report.files_inspected.append(relative_path)
+                record_coverage(
+                    relative_path,
+                    "file",
+                    "fully_inspected_metadata",
+                    "The complete text or structured metadata file was inspected",
+                )
                 report.findings.extend(scan_text(text, relative_path, known_terms))
                 if suffix == ".json":
                     report.findings.extend(inspect_json(text, relative_path))
@@ -648,6 +877,12 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 with path.open("rb") as stream:
                     header = stream.read(256)
                 report.files_inspected.append(relative_path)
+                record_coverage(
+                    relative_path,
+                    "file",
+                    "header_or_structure_only",
+                    "The EDF or BDF header was inspected; signal samples were not loaded",
+                )
                 report.findings.extend(
                     inspect_edf_header(header, relative_path, known_terms)
                 )
@@ -656,6 +891,12 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     prefix = stream.read(128)
                 if not prefix:
                     report.files_inspected.append(relative_path)
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "fully_inspected_metadata",
+                        "The file is empty and contains no metadata or signal payload",
+                    )
                     report.findings.append(
                         Finding(
                             code="EMPTY_PLACEHOLDER",
@@ -672,6 +913,12 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     continue
                 if prefix.startswith(b"version https://git-lfs.github.com/spec/v1"):
                     report.files_inspected.append(relative_path)
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "fully_inspected_metadata",
+                        "The complete Git LFS pointer was inspected; the payload is absent",
+                    )
                     report.findings.append(
                         Finding(
                             code="GIT_LFS_POINTER",
@@ -727,6 +974,12 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                             "the MNE reader was not called",
                         )
                     )
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "header_or_structure_only",
+                        "Safe EEGLAB metadata was inspected; signal loading was refused",
+                    )
                     continue
                 try:
                     report.findings.extend(
@@ -738,6 +991,12 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                         )
                     )
                     report.files_inspected.append(relative_path)
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "header_or_structure_only",
+                        "Format metadata was inspected without loading the signal",
+                    )
                     if eeglab_metadata_reader_unavailable:
                         report.findings.append(
                             Finding(
@@ -766,6 +1025,12 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     report.skipped_files.append(
                         SkippedFile(relative_path, "Optional format reader is unavailable")
                     )
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "unsupported_manual_review",
+                        "The optional metadata reader is unavailable",
+                    )
                 except Exception as error:
                     report.findings.append(
                         Finding(
@@ -783,13 +1048,31 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                             f"Could not inspect format metadata: {type(error).__name__}",
                         )
                     )
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "unsupported_manual_review",
+                        "The format metadata reader failed",
+                    )
             elif suffix in _SIGNAL_PAYLOAD_SUFFIXES:
                 report.skipped_files.append(
                     SkippedFile(relative_path, "EEG signal payload is outside the MVP scope")
                 )
+                record_coverage(
+                    relative_path,
+                    "file",
+                    "payload_not_opened",
+                    "Signal payload was hashed but not parsed or loaded",
+                )
             else:
                 report.skipped_files.append(
                     SkippedFile(relative_path, "File format is not inspected by the MVP")
+                )
+                record_coverage(
+                    relative_path,
+                    "file",
+                    "unsupported_manual_review",
+                    "No safe metadata reader is available for this file type",
                 )
         except (OSError, UnicodeError) as error:
             report.skipped_files.append(
@@ -805,4 +1088,58 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     message="Review this file manually and fix its access before release.",
                 )
             )
+            record_coverage(
+                relative_path,
+                "file",
+                "unsupported_manual_review",
+                "The file could not be parsed safely",
+            )
+    for relative_path, initial in sorted(manifest_by_path.items()):
+        try:
+            current_path = root / relative_path
+            current_size = current_path.stat().st_size
+            current_hash = _sha256_file(current_path)
+        except OSError as error:
+            report.manifest_recheck_passed = False
+            report.findings.append(
+                Finding(
+                    code="MANIFEST_RECHECK_FAILED",
+                    severity="review",
+                    path=relative_path,
+                    location="release manifest",
+                    evidence=f"<error:{type(error).__name__}>",
+                    message=(
+                        "The file could not be rechecked after scanning; "
+                        "rerun on a stable release tree."
+                    ),
+                )
+            )
+            record_coverage(
+                relative_path,
+                "unreadable",
+                "unsupported_manual_review",
+                "The file could not be rechecked after scanning",
+            )
+            continue
+        if current_size != initial.size_bytes or current_hash != initial.sha256:
+            report.manifest_recheck_passed = False
+            report.findings.append(
+                Finding(
+                    code="FILE_CHANGED_DURING_SCAN",
+                    severity="review",
+                    path=relative_path,
+                    location="release manifest",
+                    evidence="<file-changed>",
+                    message="Rerun the audit after the release tree stops changing.",
+                )
+            )
+            record_coverage(
+                relative_path,
+                "file",
+                "unsupported_manual_review",
+                "The file changed while the audit was running",
+            )
+
+    report.coverage = list(coverage_by_path.values())
+    report.manifest = list(manifest_by_path.values())
     return _redact_report_paths(report, known_terms).normalized()

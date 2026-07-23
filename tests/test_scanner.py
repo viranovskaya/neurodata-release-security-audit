@@ -88,6 +88,14 @@ class ScannerTests(unittest.TestCase):
             {
                 "files_inspected": 5,
                 "files_skipped": 2,
+                "entries_total": 9,
+                "manifest_files": 7,
+                "manifest_recheck_passed": True,
+                "fully_inspected_metadata": 5,
+                "header_or_structure_only": 2,
+                "payload_not_opened": 1,
+                "unsupported_manual_review": 1,
+                "not_traversed": 0,
                 "findings_high": 6,
                 "findings_review": 4,
                 "findings_info": 0,
@@ -1515,7 +1523,111 @@ class ScannerTests(unittest.TestCase):
         after = hashlib.sha256(source.read_bytes()).hexdigest()
         self.assertEqual(first, second)
         self.assertEqual(before, after)
-        self.assertEqual("1", json.loads(first)["schema_version"])
+        self.assertEqual("2", json.loads(first)["schema_version"])
+
+    def test_every_release_entry_has_one_coverage_record(self) -> None:
+        data_dir = self.root / "sub-01" / "eeg"
+        data_dir.mkdir(parents=True)
+        (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+        (data_dir / "recording.eeg").write_bytes(b"synthetic signal")
+        (data_dir / "notes.unknown").write_bytes(b"opaque")
+
+        report = scan_dataset(self.root)
+        expected = {
+            path.relative_to(self.root).as_posix()
+            for path in self.root.rglob("*")
+        }
+        coverage_paths = [item.path for item in report.coverage]
+        self.assertEqual(expected, set(coverage_paths))
+        self.assertEqual(len(expected), len(coverage_paths))
+
+        status = {item.path: item.status for item in report.coverage}
+        self.assertEqual("fully_inspected_metadata", status["README"])
+        self.assertEqual("header_or_structure_only", status["sub-01"])
+        self.assertEqual("payload_not_opened", status["sub-01/eeg/recording.eeg"])
+        self.assertEqual(
+            "unsupported_manual_review",
+            status["sub-01/eeg/notes.unknown"],
+        )
+
+    def test_manifest_hashes_every_regular_file_without_changing_it(self) -> None:
+        text = self.root / "README"
+        signal = self.root / "recording.eeg"
+        text.write_text("Synthetic dataset\n", encoding="utf-8")
+        signal.write_bytes(b"\x00\x01synthetic signal")
+        before = {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (text, signal)
+        }
+
+        report = scan_dataset(self.root)
+
+        manifest = {item.path: item for item in report.manifest}
+        self.assertEqual({"README", "recording.eeg"}, set(manifest))
+        self.assertEqual(before["README"], manifest["README"].sha256)
+        self.assertEqual(before["recording.eeg"], manifest["recording.eeg"].sha256)
+        self.assertEqual(text.stat().st_size, manifest["README"].size_bytes)
+        self.assertEqual(signal.stat().st_size, manifest["recording.eeg"].size_bytes)
+        after = {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (text, signal)
+        }
+        self.assertEqual(before, after)
+
+    def test_file_change_between_manifest_passes_is_visible(self) -> None:
+        source = self.root / "README"
+        source.write_text("Synthetic dataset\n", encoding="utf-8")
+
+        with patch(
+            "neurodata_security_audit.scanner._sha256_file",
+            side_effect=["0" * 64, "1" * 64],
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertFalse(report.manifest_recheck_passed)
+        self.assertIn(
+            "FILE_CHANGED_DURING_SCAN",
+            {item.code for item in report.findings},
+        )
+        entry = next(item for item in report.coverage if item.path == "README")
+        self.assertEqual("unsupported_manual_review", entry.status)
+
+    def test_ignored_directory_descendants_are_inventoried_but_not_parsed(self) -> None:
+        ignored = self.root / ".git"
+        nested = ignored / "objects"
+        nested.mkdir(parents=True)
+        secret = "ghp_" + "A" * 32
+        payload = nested / "private.txt"
+        payload.write_text(secret, encoding="utf-8")
+
+        report = scan_dataset(self.root)
+
+        coverage = {item.path: item.status for item in report.coverage}
+        self.assertEqual("not_traversed", coverage[".git"])
+        self.assertEqual("not_traversed", coverage[".git/objects"])
+        self.assertEqual("not_traversed", coverage[".git/objects/private.txt"])
+        self.assertIn(
+            ".git/objects/private.txt",
+            {item.path for item in report.manifest},
+        )
+        self.assertNotIn("POSSIBLE_CREDENTIAL", {item.code for item in report.findings})
+        self.assertNotIn(secret, render_json(report) + render_markdown(report))
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFO fixture requires os.mkfifo")
+    def test_special_filesystem_entry_is_accounted_for_without_opening_it(self) -> None:
+        fifo = self.root / "acquisition.pipe"
+        os.mkfifo(fifo)
+
+        report = scan_dataset(self.root)
+
+        entry = next(item for item in report.coverage if item.path == fifo.name)
+        self.assertEqual("other", entry.entry_type)
+        self.assertEqual("unsupported_manual_review", entry.status)
+        self.assertIn(
+            "SPECIAL_FILESYSTEM_ENTRY",
+            {item.code for item in report.findings},
+        )
+        self.assertNotIn(fifo.name, {item.path for item in report.manifest})
 
     def test_scan_does_not_open_network_connections(self) -> None:
         (self.root / "dataset_description.json").write_text(

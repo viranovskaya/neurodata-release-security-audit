@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:neurodata-release-security-audit:report:1",
+  "$id": "urn:neurodata-release-security-audit:report:2",
   "title": "NeuroData Release Security Audit report",
   "type": "object",
   "additionalProperties": false,
@@ -10,10 +10,12 @@
     "summary",
     "files_inspected",
     "skipped_files",
+    "coverage",
+    "manifest",
     "findings"
   ],
   "properties": {
-    "schema_version": {"const": "1"},
+    "schema_version": {"const": "2"},
     "scanner_version": {"type": "string"},
     "summary": {
       "type": "object",
@@ -21,6 +23,14 @@
       "required": [
         "files_inspected",
         "files_skipped",
+        "entries_total",
+        "manifest_files",
+        "manifest_recheck_passed",
+        "fully_inspected_metadata",
+        "header_or_structure_only",
+        "payload_not_opened",
+        "unsupported_manual_review",
+        "not_traversed",
         "findings_high",
         "findings_review",
         "findings_info"
@@ -28,6 +38,14 @@
       "properties": {
         "files_inspected": {"type": "integer", "minimum": 0},
         "files_skipped": {"type": "integer", "minimum": 0},
+        "entries_total": {"type": "integer", "minimum": 0},
+        "manifest_files": {"type": "integer", "minimum": 0},
+        "manifest_recheck_passed": {"type": "boolean"},
+        "fully_inspected_metadata": {"type": "integer", "minimum": 0},
+        "header_or_structure_only": {"type": "integer", "minimum": 0},
+        "payload_not_opened": {"type": "integer", "minimum": 0},
+        "unsupported_manual_review": {"type": "integer", "minimum": 0},
+        "not_traversed": {"type": "integer", "minimum": 0},
         "findings_high": {"type": "integer", "minimum": 0},
         "findings_review": {"type": "integer", "minimum": 0},
         "findings_info": {"type": "integer", "minimum": 0}
@@ -46,6 +64,53 @@
         "properties": {
           "path": {"type": "string"},
           "reason": {"type": "string"}
+        }
+      }
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "entry_type", "status", "reason"],
+        "properties": {
+          "path": {"type": "string"},
+          "entry_type": {
+            "enum": [
+              "file",
+              "directory",
+              "format_directory",
+              "symlink",
+              "other",
+              "unreadable"
+            ]
+          },
+          "status": {
+            "enum": [
+              "fully_inspected_metadata",
+              "header_or_structure_only",
+              "payload_not_opened",
+              "unsupported_manual_review",
+              "not_traversed"
+            ]
+          },
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "manifest": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "size_bytes", "sha256"],
+        "properties": {
+          "path": {"type": "string"},
+          "size_bytes": {"type": "integer", "minimum": 0},
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
         }
       }
     },

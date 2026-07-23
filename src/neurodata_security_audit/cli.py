@@ -80,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     data = report.to_dict()
     summary = data["summary"]
     print(
+        "entries={entries_total} manifest={manifest_files} "
         "inspected={files_inspected} skipped={files_skipped} "
         "high={findings_high} review={findings_review} info={findings_info}".format(
             **summary
