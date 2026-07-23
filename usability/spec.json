@@ -1,0 +1,290 @@
+{
+  "schema_version": "1",
+  "suite_name": "report-usability-v1",
+  "thresholds": {
+    "minimum_participants": 5,
+    "overall_accuracy": 0.8,
+    "capability_accuracy": 0.75,
+    "critical_accuracy": 1.0
+  },
+  "tasks": [
+    {
+      "task_id": "task_01",
+      "report": "reports/report-c.html",
+      "capability": "release_decision",
+      "prompt": "What should happen next?",
+      "choices": [
+        {
+          "value": "continue_scope_review",
+          "label": "Continue to the remaining coverage and format checks."
+        },
+        {
+          "value": "hold_high",
+          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+        },
+        {
+          "value": "hold_coverage",
+          "label": "Hold the release decision and manually review an unsupported entry."
+        },
+        {
+          "value": "invalidate_integrity",
+          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+        }
+      ],
+      "expected": "hold_coverage",
+      "critical": true,
+      "choice_group": "release_action"
+    },
+    {
+      "task_id": "task_02",
+      "report": "reports/report-a.html",
+      "capability": "release_decision",
+      "prompt": "What should happen next?",
+      "choices": [
+        {
+          "value": "continue_scope_review",
+          "label": "Continue to the remaining coverage and format checks."
+        },
+        {
+          "value": "hold_high",
+          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+        },
+        {
+          "value": "hold_coverage",
+          "label": "Hold the release decision and manually review an unsupported entry."
+        },
+        {
+          "value": "invalidate_integrity",
+          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+        }
+      ],
+      "expected": "continue_scope_review",
+      "critical": true,
+      "choice_group": "release_action"
+    },
+    {
+      "task_id": "task_03",
+      "report": "reports/report-d.html",
+      "capability": "release_decision",
+      "prompt": "What should happen next?",
+      "choices": [
+        {
+          "value": "continue_scope_review",
+          "label": "Continue to the remaining coverage and format checks."
+        },
+        {
+          "value": "hold_high",
+          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+        },
+        {
+          "value": "hold_coverage",
+          "label": "Hold the release decision and manually review an unsupported entry."
+        },
+        {
+          "value": "invalidate_integrity",
+          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+        }
+      ],
+      "expected": "invalidate_integrity",
+      "critical": true,
+      "choice_group": "release_action"
+    },
+    {
+      "task_id": "task_04",
+      "report": "reports/report-b.html",
+      "capability": "release_decision",
+      "prompt": "What should happen next?",
+      "choices": [
+        {
+          "value": "continue_scope_review",
+          "label": "Continue to the remaining coverage and format checks."
+        },
+        {
+          "value": "hold_high",
+          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+        },
+        {
+          "value": "hold_coverage",
+          "label": "Hold the release decision and manually review an unsupported entry."
+        },
+        {
+          "value": "invalidate_integrity",
+          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+        }
+      ],
+      "expected": "hold_high",
+      "critical": true,
+      "choice_group": "release_action"
+    },
+    {
+      "task_id": "task_05",
+      "report": "reports/report-e.html",
+      "capability": "finding_file",
+      "prompt": "Which file needs correction?",
+      "choices": [
+        {
+          "value": "fif",
+          "label": "sub-01/eeg/sub-01_task-rest_eeg.fif"
+        },
+        {
+          "value": "participants",
+          "label": "participants.tsv"
+        },
+        {
+          "value": "description",
+          "label": "dataset_description.json"
+        }
+      ],
+      "expected": "fif",
+      "critical": false
+    },
+    {
+      "task_id": "task_06",
+      "report": "reports/report-e.html",
+      "capability": "finding_location",
+      "prompt": "Which field is named in the finding?",
+      "choices": [
+        {
+          "value": "birthday",
+          "label": "subject_info.birthday"
+        },
+        {
+          "value": "contact",
+          "label": "row 3, column contact"
+        },
+        {
+          "value": "technician",
+          "label": "Recording.TechnicianContact"
+        }
+      ],
+      "expected": "birthday",
+      "critical": false
+    },
+    {
+      "task_id": "task_07",
+      "report": "reports/report-e.html",
+      "capability": "remediation",
+      "prompt": "Which correction matches the finding?",
+      "choices": [
+        {
+          "value": "fif_copy",
+          "label": "Use a format-aware FIF tool on a private copy, then rerun and verify the scientific content."
+        },
+        {
+          "value": "tsv_copy",
+          "label": "Edit the contact cell in a private TSV copy, then rerun and validate the table."
+        },
+        {
+          "value": "mff_copy",
+          "label": "Re-export a private MFF copy with a tested format-aware workflow, then rerun and validate it."
+        }
+      ],
+      "expected": "fif_copy",
+      "critical": false
+    },
+    {
+      "task_id": "task_08",
+      "report": "reports/report-f.html",
+      "capability": "coverage_gap",
+      "prompt": "Which entry still needs manual review?",
+      "choices": [
+        {
+          "value": "xyz",
+          "label": "sub-01/eeg/sub-01_task-rest_eeg.xyz"
+        },
+        {
+          "value": "fif",
+          "label": "sub-01/eeg/sub-01_task-rest_eeg.fif"
+        },
+        {
+          "value": "participants",
+          "label": "participants.tsv"
+        }
+      ],
+      "expected": "xyz",
+      "critical": false
+    },
+    {
+      "task_id": "task_09",
+      "report": "reports/report-h.html",
+      "capability": "integrity_reliability",
+      "prompt": "Can the finding list be used for the next review step?",
+      "choices": [
+        {
+          "value": "usable_with_limits",
+          "label": "Yes, with the stated coverage and format limits."
+        },
+        {
+          "value": "provisional",
+          "label": "No, it is provisional until a new scan passes both integrity checks."
+        }
+      ],
+      "expected": "provisional",
+      "critical": true,
+      "choice_group": "integrity_reliability"
+    },
+    {
+      "task_id": "task_10",
+      "report": "reports/report-g.html",
+      "capability": "integrity_reliability",
+      "prompt": "Can the finding list be used for the next review step?",
+      "choices": [
+        {
+          "value": "usable_with_limits",
+          "label": "Yes, with the stated coverage and format limits."
+        },
+        {
+          "value": "provisional",
+          "label": "No, it is provisional until a new scan passes both integrity checks."
+        }
+      ],
+      "expected": "usable_with_limits",
+      "critical": true,
+      "choice_group": "integrity_reliability"
+    },
+    {
+      "task_id": "task_11",
+      "report": "reports/report-i.html",
+      "capability": "large_report",
+      "prompt": "How many review items need a curator decision?",
+      "choices": [
+        {
+          "value": "121",
+          "label": "121"
+        },
+        {
+          "value": "120",
+          "label": "120"
+        },
+        {
+          "value": "30",
+          "label": "30"
+        }
+      ],
+      "expected": "121",
+      "critical": false
+    },
+    {
+      "task_id": "task_12",
+      "report": "reports/report-i.html",
+      "capability": "large_report",
+      "prompt": "Where is the unique technician-contact item?",
+      "choices": [
+        {
+          "value": "sub17",
+          "label": "sub-17/eeg/sub-17_task-rest_eeg.vhdr — Recording.TechnicianContact"
+        },
+        {
+          "value": "sub07",
+          "label": "sub-07/eeg/sub-07_task-rest_eeg.vhdr — experimenter_comment"
+        },
+        {
+          "value": "sub30",
+          "label": "sub-30/eeg/sub-30_task-rest_eeg.vhdr — device.serial_number"
+        }
+      ],
+      "expected": "sub17",
+      "critical": false
+    }
+  ]
+}

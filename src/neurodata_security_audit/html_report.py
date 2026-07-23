@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Sequence
 from html import escape
-from typing import Callable, Iterable, Sequence
 
 from .models import ScanReport
 
@@ -209,6 +209,55 @@ code {
   font-size: .84rem;
   text-decoration: none;
 }
+.finding-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.finding-filters input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.finding-filters label {
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: .84rem;
+}
+.finding-filters input:focus-visible + label {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+#findings-all:checked + label,
+#findings-high:checked + label,
+#findings-review:checked + label,
+#findings-info:checked + label {
+  color: var(--surface);
+  background: var(--info);
+  border-color: var(--info);
+}
+.finding-filter-shell:has(#findings-high:checked)
+  .finding-row:not(.finding-high),
+.finding-filter-shell:has(#findings-review:checked)
+  .finding-row:not(.finding-review),
+.finding-filter-shell:has(#findings-info:checked)
+  .finding-row:not(.finding-info) {
+  display: none;
+}
+details.review-queue {
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+details.review-queue summary {
+  cursor: pointer;
+  font-weight: 650;
+  margin-bottom: 12px;
+}
 footer {
   color: var(--muted);
   font-size: .82rem;
@@ -302,6 +351,107 @@ def _severity(value: object) -> str:
     return f'<span class="severity {css_class}">{_text(severity)}</span>'
 
 
+def _action_groups_table(
+    findings: list[tuple[str, str, str, str, str, str]],
+) -> tuple[str, int]:
+    grouped: dict[tuple[str, str, str, str], set[str]] = {}
+    for severity, code, path, location, _, message in findings:
+        key = (severity, code, location, message)
+        grouped.setdefault(key, set()).add(path)
+
+    rows = []
+    for (severity, code, location, message), paths in sorted(grouped.items()):
+        ordered_paths = sorted(paths)
+        examples = "; ".join(ordered_paths[:3])
+        if len(ordered_paths) > 3:
+            examples += f"; +{len(ordered_paths) - 3} more"
+        rows.append(
+            (
+                severity,
+                code,
+                location,
+                message,
+                len(ordered_paths),
+                examples,
+            )
+        )
+    return (
+        _table(
+            (
+                "Priority",
+                "Code",
+                "Field or location",
+                "What to do",
+                "Affected files",
+                "Example files",
+            ),
+            rows,
+            empty="No immediate remediation tasks.",
+            numeric_columns=frozenset({4}),
+            code_columns=frozenset({1, 5}),
+            renderers={0: _severity},
+        ),
+        len(rows),
+    )
+
+
+def _filterable_findings_table(
+    findings: list[tuple[str, str, str, str, str, str]],
+) -> str:
+    if not findings:
+        return '<p class="empty">No findings.</p>'
+
+    counts = {
+        severity: sum(row[0] == severity for row in findings)
+        for severity in ("high", "review", "info")
+    }
+    body = []
+    for severity, code, path, location, evidence, message in findings:
+        cells = (
+            f"<td>{_severity(severity)}</td>",
+            f"<td><code>{_text(code)}</code></td>",
+            f"<td>{_text(path)}</td>",
+            f"<td>{_text(location)}</td>",
+            f"<td>{_text(evidence)}</td>",
+            f"<td>{_text(message)}</td>",
+        )
+        body.append(
+            f'<tr class="finding-row finding-{severity}">'
+            + "".join(cells)
+            + "</tr>"
+        )
+    head = "".join(
+        f"<th>{heading}</th>"
+        for heading in (
+            "Severity",
+            "Code",
+            "File",
+            "Location",
+            "Evidence",
+            "What to check",
+        )
+    )
+    return f"""
+    <div class="finding-filter-shell">
+      <div class="finding-filters" role="group" aria-label="Filter findings">
+        <span class="label">Show</span>
+        <input type="radio" name="finding-filter" id="findings-all" checked>
+        <label for="findings-all">All {len(findings)}</label>
+        <input type="radio" name="finding-filter" id="findings-high">
+        <label for="findings-high">High {counts["high"]}</label>
+        <input type="radio" name="finding-filter" id="findings-review">
+        <label for="findings-review">Review {counts["review"]}</label>
+        <input type="radio" name="finding-filter" id="findings-info">
+        <label for="findings-info">Info {counts["info"]}</label>
+      </div>
+      <p class="note">Use the browser Find command to jump to a file, field or
+      finding code.</p>
+      <div class="table-wrap"><table><thead><tr>{head}</tr></thead>
+      <tbody>{"".join(body)}</tbody></table></div>
+    </div>
+"""
+
+
 def _remediation_content(
     findings: list[tuple[str, str, str, str, str, str]],
     *,
@@ -313,6 +463,7 @@ def _remediation_content(
     integrity_ok = manifest_recheck_passed and release_tree_recheck_passed
     if not integrity_ok:
         selected = []
+        secondary = []
         manifest_status = "passed" if manifest_recheck_passed else "failed"
         tree_status = "passed" if release_tree_recheck_passed else "failed"
         decision = (
@@ -340,6 +491,7 @@ def _remediation_content(
 """
     elif high_count:
         selected = [row for row in findings if row[0] == "high"]
+        secondary = [row for row in findings if row[0] == "review"]
         decision = (
             '<div class="decision high"><strong>Do not release this copy yet.</strong> '
             f"Resolve the {high_count} high-priority "
@@ -347,8 +499,7 @@ def _remediation_content(
         )
         queue_note = (
             f"{review_count} additional review "
-            f'item{"s" if review_count != 1 else ""} remain in the full findings '
-            "table."
+            f'item{"s" if review_count != 1 else ""} are grouped below.'
             if review_count
             else "No additional review findings remain."
         )
@@ -367,6 +518,7 @@ def _remediation_content(
 """
     elif review_count:
         selected = [row for row in findings if row[0] == "review"]
+        secondary = []
         decision = (
             '<div class="decision review"><strong>Review before release.</strong> '
             f"The scanner found {review_count} "
@@ -389,6 +541,7 @@ def _remediation_content(
 """
     else:
         selected = []
+        secondary = []
         decision = (
             '<div class="decision ok"><strong>No high or review findings in the '
             "areas checked.</strong> This is not proof of anonymity. Check the "
@@ -405,20 +558,38 @@ def _remediation_content(
     </ol>
 """
 
-    rows = (
-        (severity, path, location, message)
-        for severity, _, path, location, _, message in selected
-    )
-    table = _table(
-        ("Priority", "File", "Field or location", "What to do"),
-        rows,
-        empty=empty_message,
-        renderers={0: _severity},
-    )
+    if selected:
+        table, group_count = _action_groups_table(selected)
+        grouping_note = (
+            f"{len(selected)} individual item"
+            f"{'s' if len(selected) != 1 else ''} are summarized in "
+            f"{group_count} action group"
+            f"{'s' if group_count != 1 else ''}. Grouping uses the finding "
+            "code, field or location, and recommended action."
+        )
+    else:
+        table = f'<p class="empty">{_text(empty_message)}</p>'
+        grouping_note = ""
+    if secondary:
+        secondary_table, secondary_group_count = _action_groups_table(secondary)
+        secondary_content = f"""
+    <details class="review-queue" open>
+      <summary>{review_count} review items in {secondary_group_count} action
+      groups</summary>
+      {secondary_table}
+      <p class="note">Finish the high-priority corrections first. Then document
+      a curator decision for each review group and use the full table for
+      individual files.</p>
+    </details>
+"""
+    else:
+        secondary_content = ""
     content = f"""
     {decision}
     {table}
+    {f'<p class="note">{_text(grouping_note)}</p>' if grouping_note else ''}
     <p class="note">{_text(queue_note)}</p>
+    {secondary_content}
     {correction_steps}
     <p class="note">The audit never deletes or rewrites research data
     automatically.</p>
@@ -456,13 +627,7 @@ def render_html(report: ScanReport) -> str:
                 item["message"],
             )
         )
-    findings_table = _table(
-        ("Severity", "Code", "File", "Location", "Evidence", "What to check"),
-        findings,
-        empty="No findings.",
-        code_columns=frozenset({1}),
-        renderers={0: _severity},
-    )
+    findings_table = _filterable_findings_table(findings)
     remediation_content, remediation_title = _remediation_content(
         findings,
         high_count=summary["findings_high"],
