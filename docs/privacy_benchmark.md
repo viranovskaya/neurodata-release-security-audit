@@ -72,6 +72,13 @@ misses were structured JSON credentials: `clientSecret` and `refreshToken`.
 The result remains a no-pass artifact. The labels and case hash are not changed
 when the detector is corrected.
 
+The successor adds an exact allowlist of credential field names and keeps the
+minimum value-length and placeholder checks used by the text detector. It
+matches the same 25 of 25 labels while all 6 hard-negative controls remain
+clean. The original 23/25 result is retained unchanged. The successor is useful
+regression evidence, but it is not a new blind evaluation because the detector
+was changed after seeing the first result.
+
 An independently authored hidden-v1 set later matched 30 of 31 exact labels. The
 only mismatch had the correct code, severity and file but used a raw XML field
 path where the report intentionally emitted a masked location. The frozen hidden

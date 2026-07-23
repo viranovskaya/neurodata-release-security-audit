@@ -11,6 +11,10 @@
 - `challenge_v1.*` is the immutable first run of a precommitted robustness
   challenge. It matched 23/25 findings and remains a no-pass result because
   structured JSON secret aliases were missed.
+- `challenge_v1_successor.*` reruns the unchanged challenge after adding
+  exact-key checks for structured credentials. It matches 25/25 findings and
+  keeps 6/6 hard-negative controls clean. This is regression evidence, not a
+  second blind run.
 - `public_formats.*` records reader and integrity checks on two hash-pinned
   OpenNeuro files. It is format evidence, not a labelled privacy score. The
   source files are not stored in this repository.
