@@ -57,8 +57,15 @@ class Finding:
     evidence: str
     message: str
 
-    def sort_key(self) -> tuple[int, str, str, str]:
-        return (_SEVERITY_ORDER[self.severity], self.path, self.location, self.code)
+    def sort_key(self) -> tuple[int, str, str, str, str, str]:
+        return (
+            _SEVERITY_ORDER[self.severity],
+            self.path,
+            self.location,
+            self.code,
+            self.evidence,
+            self.message,
+        )
 
     def to_dict(self) -> dict[str, str]:
         return {

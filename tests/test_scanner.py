@@ -21,7 +21,7 @@ import zipfile
 from neurodata_security_audit.cli import main
 from neurodata_security_audit.containers import inspect_archive
 from neurodata_security_audit.html_report import render_html
-from neurodata_security_audit.models import ManifestEntry, ScanReport
+from neurodata_security_audit.models import Finding, ManifestEntry, ScanReport
 from neurodata_security_audit.readers import (
     FormatReaderUnavailable,
     inspect_eeglab_metadata,
@@ -2666,6 +2666,28 @@ class ScannerTests(unittest.TestCase):
         self.assertNotIn("alice@example.org", first)
         self.assertNotIn("<script", first.lower())
         self.assertNotIn("https://", first)
+
+    def test_findings_with_the_same_location_have_a_total_order(self) -> None:
+        common = {
+            "code": "MISSING_DATA_REFERENCE",
+            "severity": "review",
+            "path": "sub-01/fmap/image.json",
+            "location": "JSON field IntendedFor",
+            "message": "Check the reference.",
+        }
+        shorter = Finding(evidence="<redacted:file-reference,length=8>", **common)
+        longer = Finding(evidence="<redacted:file-reference,length=12>", **common)
+
+        forward = ScanReport(
+            scanner_version="test",
+            findings=[shorter, longer],
+        ).to_dict()["findings"]
+        reverse = ScanReport(
+            scanner_version="test",
+            findings=[longer, shorter],
+        ).to_dict()["findings"]
+
+        self.assertEqual(forward, reverse)
 
     def test_html_report_escapes_untrusted_markup(self) -> None:
         filename = 'notes"><img src=x onerror=alert(1)>.txt'
