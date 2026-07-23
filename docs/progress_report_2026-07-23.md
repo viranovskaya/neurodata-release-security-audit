@@ -52,4 +52,20 @@ The public calibration found useful new review items: BIDS acquisition times, tw
 - The installed package read the official MNE `test_egi.mff` fixture with `preload=False`; adding `defusedxml` to the `formats` extra fixed the dependency found by this run.
 - The source tree was checked for private local values and automated-writing markers.
 
-The exact results are in `final_local_gate_2026-07-23.md`. External review has not started yet.
+The exact v0.2 results are in `final_local_gate_2026-07-23.md`.
+
+## Benchmark extension
+
+The later benchmark branch adds:
+
+- an exact labelled development suite with 40 cases and 71 findings;
+- 10 clean controls, 10 cross-file references and 22 coverage targets;
+- complete synthetic sleep, imaging and clean BrainVision release folders;
+- a regression fix for phone columns such as `emergency_contact_phone`;
+- a strict 21-finding locked split;
+- hash-pinned reader checks on public EEGLAB and KIT files.
+
+The public reader checks passed independent engineering review. They confirm
+reader execution, `preload=False`, source hashes and integrity checks, but they
+are not privacy ground truth. EGI MFF remains unscored in the public-fixture
+layer.

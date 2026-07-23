@@ -15,7 +15,18 @@ from .detectors import KnownTermMatcher, redacted, scan_text
 from .models import Finding, Severity
 
 _DOB_KEYS = {"date_of_birth", "birth_date", "birthdate", "birthday", "dob"}
-_PHONE_KEYS = {"phone", "phone_number", "telephone", "tel", "mobile"}
+_PHONE_KEYS = {
+    "phone",
+    "phone_number",
+    "telephone",
+    "tel",
+    "mobile",
+    "contact_phone",
+    "emergency_phone",
+    "participant_phone",
+    "patient_phone",
+    "subject_phone",
+}
 _NAME_KEYS = {
     "family_name",
     "first_name",
@@ -166,9 +177,19 @@ def _normalise_key(key: object) -> str:
     return text.strip("_")
 
 
+def _is_phone_key(key: str) -> bool:
+    return key in _PHONE_KEYS or key.endswith(
+        ("_phone", "_phone_number", "_telephone", "_mobile")
+    )
+
+
 def _safe_location_key(key: object) -> str:
     normalised = _normalise_key(key)
-    return normalised if normalised in _SAFE_LOCATION_KEYS else "<field>"
+    return (
+        normalised
+        if normalised in _SAFE_LOCATION_KEYS or _is_phone_key(normalised)
+        else "<field>"
+    )
 
 
 def _safe_location_path(path: tuple[object, ...]) -> str:
@@ -208,7 +229,7 @@ def _finding_for_field(
             evidence=redacted("birth-date", text),
             message="Remove this date of birth or replace it according to the release policy.",
         )
-    if normalised in _PHONE_KEYS:
+    if _is_phone_key(normalised):
         return Finding(
             code="DIRECT_PHONE",
             severity="high",

@@ -1205,6 +1205,23 @@ class ScannerTests(unittest.TestCase):
         for value in values:
             self.assertNotIn(value, rendered)
 
+    def test_common_phone_column_aliases_are_detected(self) -> None:
+        value = "+34 600 111 222"
+        (self.root / "participants.tsv").write_text(
+            "participant_id\temergency_contact_phone\n"
+            f"sub-01\t{value}\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        finding = next(
+            item for item in report.findings if item.code == "DIRECT_PHONE"
+        )
+        self.assertEqual(
+            "row 2, column emergency_contact_phone",
+            finding.location,
+        )
+        self.assertNotIn(value, render_json(report) + render_markdown(report))
+
     def test_dataset_name_is_not_treated_as_participant_name(self) -> None:
         (self.root / "dataset_description.json").write_text(
             '{"Name": "Synthetic EEG", "BIDSVersion": "1.10.1", '

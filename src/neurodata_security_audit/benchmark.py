@@ -157,8 +157,16 @@ def _score_case(case: dict[str, object], root: Path) -> dict[str, object]:
         path = root / _relative_path(relative_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-    if case.get("builder") is not None:
-        build_case_data(root, case["builder"])
+    builder = case.get("builder")
+    builders = case.get("builders", [])
+    if builder is not None and builders:
+        raise ValueError("Benchmark cases cannot use both builder and builders")
+    if not isinstance(builders, list):
+        raise ValueError("Benchmark builders must be a list")
+    if builder is not None:
+        build_case_data(root, builder)
+    for builder in builders:
+        build_case_data(root, builder)
 
     policy = ScanPolicy(sensitive_terms=tuple(case["sensitive_terms"]))
     report = scan_dataset(root, policy)

@@ -4,18 +4,18 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 
 ## Summary
 
-- Cases: 37
-- Expected findings matched: 51 / 51
+- Cases: 40
+- Expected findings matched: 71 / 71
 - Unexpected findings: 0
 - Duplicate findings: 1
 - Target recall: 1.000
 - Labelled precision: 1.000
-- Clean controls: 9 / 9
-- Expected references matched: 7 / 7
+- Clean controls: 10 / 10
+- Expected references matched: 10 / 10
 - Unexpected references: 0
 - Expected archive members matched: 4 / 4
 - Unexpected archive members: 0
-- Expected coverage states matched: 16 / 16
+- Expected coverage states matched: 22 / 22
 - Masking failures: 0
 - Integrity failures: 0
 
@@ -60,13 +60,19 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 | dev_brainvision_valid_references_control | development | brainvision_control | 0/0 | 0 | 0 | 3/3 | 0/0 | 3/3 | 0 |
 | dev_brainvision_marker_timestamp | development | brainvision | 1/1 | 0 | 0 | 0/0 | 0/0 | 1/1 | 0 |
 | dev_bdf_placeholder_control | development | bdf_control | 0/0 | 0 | 0 | 0/0 | 0/0 | 1/1 | 0 |
+| dev_realistic_sleep_release | development | bids_sleep_release | 8/8 | 0 | 0 | 0/0 | 0/0 | 1/1 | 0 |
+| dev_realistic_imaging_release | development | bids_imaging_release | 12/12 | 0 | 0 | 0/0 | 0/0 | 2/2 | 0 |
+| dev_realistic_clean_brainvision_release | development | bids_eeg_release_control | 0/0 | 0 | 0 | 3/3 | 0/0 | 3/3 | 0 |
 
 ## By format
 
 | Format | Cases | Matched | Unexpected | Recall | Precision |
 |---|---:|---:|---:|---:|---:|
 | bdf | 1 | 0/0 | 0 | — | — |
+| bids_eeg_release | 1 | 0/0 | 0 | — | — |
+| bids_imaging_release | 1 | 12/12 | 0 | 1.000 | 1.000 |
 | bids_reference | 4 | 3/3 | 0 | 1.000 | 1.000 |
+| bids_sleep_release | 1 | 8/8 | 0 | 1.000 | 1.000 |
 | brainvision | 2 | 1/1 | 0 | 1.000 | 1.000 |
 | config | 1 | 2/2 | 0 | 1.000 | 1.000 |
 | csv | 1 | 1/1 | 0 | 1.000 | 1.000 |
@@ -86,10 +92,10 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 
 | Class | Matched | Unexpected | Recall | Precision |
 |---|---:|---:|---:|---:|
-| dates_and_demographics | 3/3 | 0 | 1.000 | 1.000 |
-| free_text_and_sources | 1/1 | 0 | 1.000 | 1.000 |
-| linked_identity | 4/4 | 0 | 1.000 | 1.000 |
-| personal_identity | 19/19 | 0 | 1.000 | 1.000 |
+| dates_and_demographics | 5/5 | 0 | 1.000 | 1.000 |
+| free_text_and_sources | 2/2 | 0 | 1.000 | 1.000 |
+| linked_identity | 5/5 | 0 | 1.000 | 1.000 |
+| personal_identity | 27/27 | 0 | 1.000 | 1.000 |
 | release_structure | 10/10 | 0 | 1.000 | 1.000 |
-| secrets_and_paths | 4/4 | 0 | 1.000 | 1.000 |
-| site_device_and_staff | 10/10 | 0 | 1.000 | 1.000 |
+| secrets_and_paths | 5/5 | 0 | 1.000 | 1.000 |
+| site_device_and_staff | 17/17 | 0 | 1.000 | 1.000 |

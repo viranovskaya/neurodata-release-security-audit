@@ -40,22 +40,22 @@ class BenchmarkTests(unittest.TestCase):
 
         self.assertEqual(result["suite_name"], "development")
         self.assertFalse(result["locked"])
-        self.assertEqual(len(result["case_files"]), 5)
-        self.assertEqual(summary["cases"], 37)
-        self.assertEqual(summary["matched_findings"], 51)
-        self.assertEqual(summary["expected_findings"], 51)
+        self.assertEqual(len(result["case_files"]), 6)
+        self.assertEqual(summary["cases"], 40)
+        self.assertEqual(summary["matched_findings"], 71)
+        self.assertEqual(summary["expected_findings"], 71)
         self.assertEqual(summary["unexpected_findings"], 0)
         self.assertEqual(summary["duplicate_findings"], 1)
-        self.assertEqual(summary["clean_controls"], 9)
-        self.assertEqual(summary["control_cases"], 9)
-        self.assertEqual(summary["matched_references"], 7)
-        self.assertEqual(summary["expected_references"], 7)
+        self.assertEqual(summary["clean_controls"], 10)
+        self.assertEqual(summary["control_cases"], 10)
+        self.assertEqual(summary["matched_references"], 10)
+        self.assertEqual(summary["expected_references"], 10)
         self.assertEqual(summary["unexpected_references"], 0)
         self.assertEqual(summary["matched_container_members"], 4)
         self.assertEqual(summary["expected_container_members"], 4)
         self.assertEqual(summary["unexpected_container_members"], 0)
-        self.assertEqual(summary["matched_coverage"], 16)
-        self.assertEqual(summary["expected_coverage"], 16)
+        self.assertEqual(summary["matched_coverage"], 22)
+        self.assertEqual(summary["expected_coverage"], 22)
         self.assertEqual(summary["masking_failures"], 0)
         self.assertEqual(summary["integrity_failures"], 0)
         self.assertEqual(
@@ -158,6 +158,72 @@ class BenchmarkTests(unittest.TestCase):
             cases_path = Path(directory) / "cases.json"
             cases_path.write_text(json.dumps(specification), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "must stay inside"):
+                run_benchmark(cases_path)
+
+    def test_multiple_builder_output_cannot_escape_release(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "cases": [
+                {
+                    "case_id": "bad_builder_list_path",
+                    "split": "development",
+                    "format": "zip",
+                    "files": {},
+                    "builders": [
+                        {
+                            "name": "zip",
+                            "path": "inside.zip",
+                            "members": [],
+                        },
+                        {
+                            "name": "zip",
+                            "path": "../outside.zip",
+                            "members": [],
+                        },
+                    ],
+                    "sensitive_terms": [],
+                    "seeded_values": [],
+                    "expected_findings": [],
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            cases_path = Path(directory) / "cases.json"
+            cases_path.write_text(json.dumps(specification), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "must stay inside"):
+                run_benchmark(cases_path)
+
+    def test_builder_forms_cannot_be_mixed(self) -> None:
+        specification = {
+            "schema_version": "1",
+            "cases": [
+                {
+                    "case_id": "mixed_builder_forms",
+                    "split": "development",
+                    "format": "zip",
+                    "files": {},
+                    "builder": {
+                        "name": "zip",
+                        "path": "one.zip",
+                        "members": [],
+                    },
+                    "builders": [
+                        {
+                            "name": "zip",
+                            "path": "two.zip",
+                            "members": [],
+                        }
+                    ],
+                    "sensitive_terms": [],
+                    "seeded_values": [],
+                    "expected_findings": [],
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            cases_path = Path(directory) / "cases.json"
+            cases_path.write_text(json.dumps(specification), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "cannot use both"):
                 run_benchmark(cases_path)
 
     def test_duplicate_case_ids_are_rejected(self) -> None:

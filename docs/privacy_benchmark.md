@@ -41,12 +41,15 @@ Coverage errors will be reported separately from missed findings: a format that
 the scanner explicitly leaves for manual review is not the same as a format it
 claims to inspect but misses.
 
-The current development set includes 37 cases and 51 labelled findings. It
+The current development set includes 40 cases and 71 labelled findings. It
 builds small EDF, BDF, BrainVision, FIF, NIfTI and DICOM files and opens them
 through the same metadata readers as a normal audit. It also covers structured
-text, release paths, archives and cross-file references. These cases were used
-while building the evaluator, so their scores are a development check rather
-than an independent validation result.
+text, release paths, archives and cross-file references. Three cases assemble
+these pieces into complete synthetic sleep, imaging and clean BrainVision
+release folders. The first realistic sleep case exposed a missed
+`emergency_phone` column alias; that gap was fixed and kept as a regression
+test. These cases were used while building the evaluator, so their scores are a
+development check rather than an independent validation result.
 
 Reproducible reports are stored in `benchmark/results/`. The development result
 is regenerated whenever the evaluator or development labels change.

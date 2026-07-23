@@ -1,30 +1,30 @@
 {
   "by_finding_class": {
     "dates_and_demographics": {
-      "expected_findings": 3,
+      "expected_findings": 5,
       "labelled_precision": 1.0,
-      "matched_findings": 3,
+      "matched_findings": 5,
       "target_recall": 1.0,
       "unexpected_findings": 0
     },
     "free_text_and_sources": {
-      "expected_findings": 1,
+      "expected_findings": 2,
       "labelled_precision": 1.0,
-      "matched_findings": 1,
+      "matched_findings": 2,
       "target_recall": 1.0,
       "unexpected_findings": 0
     },
     "linked_identity": {
-      "expected_findings": 4,
+      "expected_findings": 5,
       "labelled_precision": 1.0,
-      "matched_findings": 4,
+      "matched_findings": 5,
       "target_recall": 1.0,
       "unexpected_findings": 0
     },
     "personal_identity": {
-      "expected_findings": 19,
+      "expected_findings": 27,
       "labelled_precision": 1.0,
-      "matched_findings": 19,
+      "matched_findings": 27,
       "target_recall": 1.0,
       "unexpected_findings": 0
     },
@@ -36,16 +36,16 @@
       "unexpected_findings": 0
     },
     "secrets_and_paths": {
-      "expected_findings": 4,
+      "expected_findings": 5,
       "labelled_precision": 1.0,
-      "matched_findings": 4,
+      "matched_findings": 5,
       "target_recall": 1.0,
       "unexpected_findings": 0
     },
     "site_device_and_staff": {
-      "expected_findings": 10,
+      "expected_findings": 17,
       "labelled_precision": 1.0,
-      "matched_findings": 10,
+      "matched_findings": 17,
       "target_recall": 1.0,
       "unexpected_findings": 0
     }
@@ -63,6 +63,30 @@
       "target_recall": null,
       "unexpected_findings": 0
     },
+    "bids_eeg_release": {
+      "cases": 1,
+      "clean_controls": 1,
+      "control_cases": 1,
+      "control_specificity": 1.0,
+      "duplicate_findings": 0,
+      "expected_findings": 0,
+      "labelled_precision": null,
+      "matched_findings": 0,
+      "target_recall": null,
+      "unexpected_findings": 0
+    },
+    "bids_imaging_release": {
+      "cases": 1,
+      "clean_controls": 0,
+      "control_cases": 0,
+      "control_specificity": null,
+      "duplicate_findings": 0,
+      "expected_findings": 12,
+      "labelled_precision": 1.0,
+      "matched_findings": 12,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
     "bids_reference": {
       "cases": 4,
       "clean_controls": 1,
@@ -72,6 +96,18 @@
       "expected_findings": 3,
       "labelled_precision": 1.0,
       "matched_findings": 3,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "bids_sleep_release": {
+      "cases": 1,
+      "clean_controls": 0,
+      "control_cases": 0,
+      "control_specificity": null,
+      "duplicate_findings": 0,
+      "expected_findings": 8,
+      "labelled_precision": 1.0,
+      "matched_findings": 8,
       "target_recall": 1.0,
       "unexpected_findings": 0
     },
@@ -264,6 +300,10 @@
     {
       "path": "cases/development_eeg_formats.json",
       "sha256": "277e89f44699ce1d605f1e26391bb85f65707fd03769777d7ab8596716eeb7c8"
+    },
+    {
+      "path": "cases/development_realistic.json",
+      "sha256": "7da1a51e5f85c18826166edba4ce487b5719734f9e8eb6d1a5776de73d529257"
     }
   ],
   "cases": [
@@ -1547,29 +1587,329 @@
       "unexpected_container_members": [],
       "unexpected_findings": [],
       "unexpected_references": []
+    },
+    {
+      "case_id": "dev_realistic_sleep_release",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "DIRECT_EMAIL",
+            "location": "line 2",
+            "path": "participants.tsv",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DIRECT_PHONE",
+            "location": "row 2, column emergency_phone",
+            "path": "participants.tsv",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "NETWORK_PATH",
+            "location": "JSON value <field>",
+            "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.json",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "SUBJECT_FIELD_POPULATED",
+            "location": "EDF patient field",
+            "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "BIRTH_DATE_FIELD",
+            "location": "EDF patient field",
+            "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "SUBJECT_NAME_FIELD",
+            "location": "EDF patient field",
+            "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "RECORDING_INFO_FIELD",
+            "location": "EDF recording field",
+            "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "EXACT_RECORDING_DATE",
+            "location": "EDF start-date field",
+            "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "bids_sleep_release",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_realistic_imaging_release",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "SUBJECT_NAME_FIELD",
+            "location": "DICOM PatientName",
+            "path": "sourcedata/sub-01/anat/image.dcm",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "BIRTH_DATE_FIELD",
+            "location": "DICOM PatientBirthDate",
+            "path": "sourcedata/sub-01/anat/image.dcm",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "LINKED_SOURCE_ID",
+            "location": "DICOM PatientID",
+            "path": "sourcedata/sub-01/anat/image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "SITE_IDENTIFIER",
+            "location": "DICOM InstitutionName",
+            "path": "sourcedata/sub-01/anat/image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DEVICE_IDENTIFIER",
+            "location": "DICOM DeviceSerialNumber",
+            "path": "sourcedata/sub-01/anat/image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "EXACT_RECORDING_DATE",
+            "location": "DICOM StudyDate",
+            "path": "sourcedata/sub-01/anat/image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DICOM_UID",
+            "location": "DICOM MediaStorageSOPInstanceUID",
+            "path": "sourcedata/sub-01/anat/image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DICOM_UID",
+            "location": "DICOM ImplementationClassUID",
+            "path": "sourcedata/sub-01/anat/image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DICOM_UID",
+            "location": "DICOM SOPInstanceUID",
+            "path": "sourcedata/sub-01/anat/image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DEVICE_IDENTIFIER",
+            "location": "DICOM ImplementationVersionName",
+            "path": "sourcedata/sub-01/anat/image.dcm",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "SUBJECT_NAME_FIELD",
+            "location": "NIfTI header descrip",
+            "path": "derivatives/sub-01/anat/sub-01_T1w.nii.gz",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "FREE_TEXT_METADATA",
+            "location": "NIfTI header descrip",
+            "path": "derivatives/sub-01/anat/sub-01_T1w.nii.gz",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "sourcedata/sub-01/anat/image.dcm",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "path": "derivatives/sub-01/anat/sub-01_T1w.nii.gz",
+            "status": "header_or_structure_only"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [],
+      "format": "bids_imaging_release",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "dev_realistic_clean_brainvision_release",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [
+        {
+          "expected": {
+            "path": "sub-01/eeg/sub-01_task-rest_eeg.vhdr",
+            "status": "fully_inspected_metadata"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "path": "sub-01/eeg/sub-01_task-rest_eeg.vmrk",
+            "status": "fully_inspected_metadata"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "path": "sub-01/eeg/sub-01_task-rest_eeg.eeg",
+            "status": "payload_not_opened"
+          },
+          "matched": true
+        }
+      ],
+      "expected_references": [
+        {
+          "expected": {
+            "location": "line 3, DataFile",
+            "source_path": "sub-01/eeg/sub-01_task-rest_eeg.vhdr",
+            "status": "valid_internal",
+            "target": "sub-01/eeg/sub-01_task-rest_eeg.eeg"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "location": "line 4, MarkerFile",
+            "source_path": "sub-01/eeg/sub-01_task-rest_eeg.vhdr",
+            "status": "valid_internal",
+            "target": "sub-01/eeg/sub-01_task-rest_eeg.vmrk"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "location": "line 3, DataFile",
+            "source_path": "sub-01/eeg/sub-01_task-rest_eeg.vmrk",
+            "status": "valid_internal",
+            "target": "sub-01/eeg/sub-01_task-rest_eeg.eeg"
+          },
+          "matched": true
+        }
+      ],
+      "format": "bids_eeg_release_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "development",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
     }
   ],
   "locked": false,
   "schema_version": "1",
   "suite_name": "development",
   "summary": {
-    "cases": 37,
+    "cases": 40,
     "cases_with_duplicates": 1,
-    "clean_controls": 9,
-    "control_cases": 9,
+    "clean_controls": 10,
+    "control_cases": 10,
     "control_specificity": 1.0,
     "duplicate_findings": 1,
     "expected_container_members": 4,
-    "expected_coverage": 16,
-    "expected_findings": 51,
-    "expected_references": 7,
+    "expected_coverage": 22,
+    "expected_findings": 71,
+    "expected_references": 10,
     "integrity_failures": 0,
     "labelled_precision": 1.0,
     "masking_failures": 0,
     "matched_container_members": 4,
-    "matched_coverage": 16,
-    "matched_findings": 51,
-    "matched_references": 7,
+    "matched_coverage": 22,
+    "matched_findings": 71,
+    "matched_references": 10,
     "target_recall": 1.0,
     "unexpected_container_members": 0,
     "unexpected_findings": 0,
