@@ -99,20 +99,23 @@ second blind test and should not be reported as one.
 
 ## Public format smoke checks
 
-Two hash-pinned OpenNeuro files provide a separate reader check:
+Three hash-pinned public fixtures provide a separate reader check:
 
 - an EEGLAB `.set` file from `ds004745`;
 - a KIT/Yokogawa `.con` file from `ds004738`.
+- an EGI `.mff` directory from MNE's public testing-data repository.
 
-The runner verifies each source hash, copies the file into a temporary release,
-runs the normal scanner, checks the copy and original again, and requires
-header-or-structure-only coverage with both integrity rechecks passing. The
-result records finding codes, not values or evidence.
+The runner verifies each source hash, copies the file or directory into a
+temporary release, runs the normal scanner, checks the copy and original again,
+and requires the declared coverage with both integrity rechecks passing. The
+directory hash binds every relative path, entry type, file size and file hash.
+The result records finding codes, not values or evidence.
 
-This is not part of the labelled privacy score. It shows that the installed
-readers can inspect these two real files without preloading signal data. It does
-not establish whether every finding is a true privacy leak. EGI MFF remains
-unscored because no independent hash-pinned public fixture is included.
+The v2 result passes all three fixtures and leaves no listed format unscored.
+The MFF run reaches its recording reader and bounded metadata files, finding
+recording dates, a linked subject ID and a local log path without preloading the
+signal. This is not part of the labelled privacy score and does not establish
+whether every finding is a true privacy leak.
 
 ## Splits
 
@@ -167,11 +170,13 @@ Run the public format smoke checks against a local copy of the pinned files:
 
 ```bash
 python -m benchmark.run_public_formats \
+  --manifest benchmark/public_format_fixtures_v2.json \
   --fixtures-root /path/to/public/files \
   --json reports/public-formats.json \
   --markdown reports/public-formats.md
 ```
 
 The expected paths, hashes and provenance are listed in
-`benchmark/public_format_fixtures.json`. The public files are not distributed
-with this repository.
+`benchmark/public_format_fixtures_v2.json`. The original v1 manifest and result
+are retained as historical evidence. The public files are not distributed with
+this repository.

@@ -12,7 +12,8 @@ question.
 | Challenge v1 successor v2 | unchanged locked manifest and labels | 25/25 findings; 6/6 clean controls | regression after removing the length boundary | not a second blind run |
 | Hidden v1 | 13 independently written synthetic cases; 31 findings | 30/31; no pass | independent interpretation of the label contract | one raw-versus-masked XML location disagreement |
 | Hidden v2 | the same hidden cases after one authorised location adjudication | 31/31 | the clarified report-safe location rule | adjudicated, not a second blind test |
-| Public formats | one EEGLAB SET and one KIT/Yokogawa CON file | 2/2 reader checks | real reader execution, `preload=False`, source hashes and integrity gates | no privacy ground truth; MFF unscored |
+| Public formats v1 | one EEGLAB SET and one KIT/Yokogawa CON file | 2/2 reader checks | real reader execution, `preload=False`, source hashes and integrity gates | no privacy ground truth; MFF unscored |
+| Public formats v2 | the same files plus one EGI MFF directory | 3/3 reader checks | file and directory provenance, real readers, `preload=False` and integrity gates | no privacy ground truth |
 
 ## Current development result
 
@@ -47,6 +48,8 @@ the case remains in the suite as a regression test.
 | Successor-v2 wheel | `dc5b4a8b230047c9de1c96bd9d8db154a940d8b9726ecbe6dd0e1e68e3871daf` |
 | Public-format manifest | `28c6335ab4ef0420161c2a499bd6e9e2a731a2f344394c186d9799a59d72f08c` |
 | Public-format JSON result | `4570dc9fa6eb7444e6f9ba701db1a19ee57f736ebb43d309242ffdc88d14aa9c` |
+| Public-format-v2 manifest | `61e2c513ae366215f32c8937fc07e655548e12646f65d98501e238169068f9d5` |
+| Public-format-v2 JSON result | `7672ffe4a913573b0a6c0ed1b782a54230635584ce156787ee508e06921e541a` |
 
 ## Interpretation
 

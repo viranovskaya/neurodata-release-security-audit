@@ -1,0 +1,81 @@
+{
+  "fixtures": [
+    {
+      "coverage": "header_or_structure_only",
+      "dataset_id": "ds004745",
+      "doi": "10.18112/openneuro.ds004745.v1.0.1",
+      "failure": null,
+      "finding_codes": {
+        "FREE_TEXT_METADATA": 1,
+        "LINKED_SOURCE_ID": 1
+      },
+      "fixture_id": "openneuro-ds004745-eeglab",
+      "forbidden_codes": [],
+      "format": "EEGLAB SET",
+      "integrity_passed": true,
+      "passed": true,
+      "source_commit": "b760b2be2637b679ba82fa68e5d2fad14a6d5048",
+      "source_hash_matched": true,
+      "source_kind": "file",
+      "source_path": "ds004745/sub-001/eeg/sub-001_task-unnamed_eeg.set",
+      "source_sha256": "80624c685e5a0dec7c1cf913113a39ebf1b91a93082e657d245c558097d5c409",
+      "source_unchanged": true,
+      "source_url": "https://openneuro.org/datasets/ds004745"
+    },
+    {
+      "coverage": "header_or_structure_only",
+      "dataset_id": "ds004738",
+      "doi": "10.18112/openneuro.ds004738.v1.0.1",
+      "failure": null,
+      "finding_codes": {
+        "EXACT_RECORDING_DATE": 1,
+        "FREE_TEXT_METADATA": 1
+      },
+      "fixture_id": "openneuro-ds004738-kit",
+      "forbidden_codes": [],
+      "format": "KIT/Yokogawa CON",
+      "integrity_passed": true,
+      "passed": true,
+      "source_commit": "3ce2d4cb0565de82e6e116ca2d0d42d217854207",
+      "source_hash_matched": true,
+      "source_kind": "file",
+      "source_path": "ds004738/sub-mdtpc/ses-220426/meg/sub-mdtpc_ses-220426_task-dip13_acq-StimOn_meg.con",
+      "source_sha256": "34863eb7d2494a35e3ea30bd6d9a596f52e5a6121b0dd45274849e56a808e779",
+      "source_unchanged": true,
+      "source_url": "https://openneuro.org/datasets/ds004738"
+    },
+    {
+      "coverage": "fully_inspected_metadata",
+      "dataset_id": "mne-testing-data",
+      "doi": "not-applicable",
+      "failure": null,
+      "finding_codes": {
+        "EXACT_RECORDING_DATE": 3,
+        "LINKED_SOURCE_ID": 1,
+        "LOCAL_PATH": 1,
+        "MALFORMED_XML": 1
+      },
+      "fixture_id": "mne-testing-data-egi-mff",
+      "forbidden_codes": [],
+      "format": "EGI MFF",
+      "integrity_passed": true,
+      "passed": true,
+      "source_commit": "33ef2a6f6345a1adf8764f8f63725f0ed9e4bb92",
+      "source_hash_matched": true,
+      "source_kind": "directory",
+      "source_path": "EGI/test_egi.mff",
+      "source_sha256": "3010213f89829b03e811be8e24fda3177fd1abedf59743887b3169fad833d666",
+      "source_unchanged": true,
+      "source_url": "https://github.com/mne-tools/mne-testing-data/tree/33ef2a6f6345a1adf8764f8f63725f0ed9e4bb92/EGI/test_egi.mff"
+    }
+  ],
+  "schema_version": "1",
+  "suite_name": "public-format-smoke-v2",
+  "summary": {
+    "failed": 0,
+    "fixtures": 3,
+    "passed": 3,
+    "unscored_formats": 0
+  },
+  "unscored_formats": []
+}

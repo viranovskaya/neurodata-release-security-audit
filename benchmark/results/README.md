@@ -18,8 +18,11 @@
   length boundary. It matches 25/25 findings, keeps 6/6 hard-negative controls
   clean and records the pinned case hash in the JSON. This is regression
   evidence, not a second blind run.
-- `public_formats.*` records reader and integrity checks on two hash-pinned
-  OpenNeuro files. It is format evidence, not a labelled privacy score. The
+- `public_formats.*` preserves the first reader check on two hash-pinned
+  OpenNeuro files. MFF was still unscored in that version.
+- `public_formats_v2.*` adds a hash-pinned EGI MFF directory from MNE's public
+  testing-data repository. All three fixtures pass their reader, coverage and
+  integrity checks. This is format evidence, not a labelled privacy score. The
   source files are not stored in this repository.
 
 None of these reports proves that a dataset is anonymous or legally compliant.
