@@ -14,16 +14,28 @@ The sample contains 50 OpenNeuro datasets:
 - 2 MRI;
 - 1 combined EEG and fMRI dataset.
 
+The registry was frozen on 23 July 2026. It was selected to exercise several
+modalities and supported file readers; it is not a random or representative
+sample of OpenNeuro. All 50 snapshots declare the CC0 licence in
+`dataset_description.json`.
+
 Every input is tied to an exact public repository commit. The bounded release
 slices contain all regular tracked metadata files. Thirty-nine slices also
 contain one real signal or image payload downloaded from the public OpenNeuro
 object store and checked against its git-annex digest. Two external EEGLAB
 `.fdt` companions were included where the selected `.set` file required them.
-The fixed dataset IDs, titles, DOIs, commits and redacted run totals are in
-[`openneuro_50_results.tsv`](openneuro_50_results.tsv).
+The fixed dataset IDs, titles, DOIs, commits and payload status are in
+[`openneuro_50_registry.tsv`](openneuro_50_registry.tsv).
 
-Derivatives, sourcedata and stimuli were excluded. Broken git-annex symlinks
-were not treated as data files.
+Derivatives, sourcedata and stimuli were excluded. The payload ceiling was
+80 MiB, with up to 120 MiB allowed for an EEGLAB `.fdt` companion. Broken
+git-annex symlinks were not treated as data files.
+
+The final run used Python 3.13.7, MNE 1.12.1, nibabel 5.4.2 and pydicom 3.0.2.
+Each slice was scanned with `neurodata-security-audit 0.2.0.dev0`, writing JSON,
+Markdown and HTML outside the source tree. The exact payload digests, slice
+inventory hashes, commands and redacted per-dataset report hashes are retained
+in the private independent-review handoff rather than the repository.
 
 ## Result
 
@@ -40,19 +52,12 @@ were not treated as data files.
 | Datasets without a high-severity finding | 46 |
 | Datasets with a high-severity finding | 4 |
 
-The nine high-severity findings were limited to populated participant-name and
-birth-date fields:
-
-| Dataset | Modality | Field types |
-|---|---|---|
-| `ds005356` | MEG | two subject-name fields and one birth-date field |
-| `ds005398` | iEEG | one subject-name field and one birth-date field |
-| `ds005588` | fMRI | two subject-name fields |
-| `ds006107` | iEEG | one subject-name field and one birth-date field |
-
-The report masks the field values. These results show that the relevant readers
-and detectors were reached; they are not a claim that a complete public dataset
-is unsafe.
+The nine high-severity findings were six populated participant-name fields and
+three birth-date fields. The report masks the values. Dataset-level mappings are
+intentionally withheld: any credible source-specific privacy concern must be
+handled privately with the dataset maintainers before it is discussed publicly.
+The aggregate results show that the relevant readers and detectors were reached;
+they are not a claim that a complete public dataset is unsafe.
 
 ## Corrections prompted by the run
 
@@ -67,8 +72,9 @@ The first pass exposed two false-positive patterns and one coverage gap:
 
 The corrected pass:
 
-- keeps public contact emails as review findings rather than high findings;
-- scans decoded JSON string values instead of their escaped representation;
+- distinguishes author/public contact emails from participant-contact context;
+- scans decoded JSON string values, array items and object keys without
+  reproducing sensitive keys in report locations;
 - fully inspects the small BIDS text files;
 - reads KIT metadata through MNE with `preload=False`.
 

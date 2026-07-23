@@ -7,6 +7,16 @@ import re
 from .models import Finding, Severity
 
 _EMAIL = re.compile(r"(?<![\w.+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![\w.-])", re.I)
+_PARTICIPANT_CONTACT_CONTEXT = re.compile(
+    r"(?:"
+    r"\b(?:participant|subject|patient|donor|volunteer)\b.{0,40}"
+    r"\b(?:contact|email|e-mail)\b"
+    r"|"
+    r"\b(?:contact|email|e-mail)\b.{0,40}"
+    r"\b(?:participant|subject|patient|donor|volunteer)\b"
+    r")",
+    re.I,
+)
 _LABELLED_PHONE = re.compile(
     r"\b(?:phone|telephone|tel|mobile)\s*[:=]\s*(\+?[0-9][0-9 ()-]{7,}[0-9])",
     re.I,
@@ -289,6 +299,7 @@ def scan_text(
     known_terms: KnownTermMatcher | None = None,
     *,
     email_severity: Severity = "high",
+    public_contact_context: bool = False,
 ) -> list[Finding]:
     known_terms = known_terms or KnownTermMatcher()
     findings: list[Finding] = []
@@ -307,10 +318,16 @@ def scan_text(
                 )
             )
         for match in _EMAIL.finditer(line):
+            severity = email_severity
+            if (
+                public_contact_context
+                and not _PARTICIPANT_CONTACT_CONTEXT.search(line)
+            ):
+                severity = "review"
             findings.append(
                 Finding(
                     code="DIRECT_EMAIL",
-                    severity=email_severity,
+                    severity=severity,
                     path=relative_path,
                     location=location,
                     evidence=redacted("email", match.group(0)),

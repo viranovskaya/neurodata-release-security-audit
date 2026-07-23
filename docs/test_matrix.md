@@ -22,7 +22,8 @@ integration rows are listed after them.
 | Multiple known IDs in paths | two different private IDs | distinct masked report paths |
 | Repeated known term | same value with different letter case | one private-list entry |
 | Direct email | email in a text sidecar | `DIRECT_EMAIL`; full email absent from reports |
-| Public contact email | email in README, citation or dataset description | review finding rather than high finding |
+| Public contact email | author contact in README or dataset description | review finding |
+| Participant contact email | participant-labelled email in README or JSON | high finding even in a public-contact file |
 | Email in filename | filename is an email address | `DIRECT_EMAIL`; report path masked |
 | Labelled phone | `Phone: +1 202 555 0199` | `DIRECT_PHONE`; number masked |
 | Direct personal ID | medical record or national identifier field | `DIRECT_PERSONAL_ID`; value masked |
@@ -66,6 +67,7 @@ integration rows are listed after them.
 | Malformed EDF | shorter than the common 256-byte header | `MALFORMED_HEADER`; scan continues |
 | Malformed JSON | invalid JSON sidecar | `MALFORMED_JSON`; scan continues |
 | Escaped JSON string | MRI sequence text contains escaped backslashes | decoded value inspected without a false network-path finding |
+| JSON arrays and keys | nested arrays and an email-shaped object key | values and key scanned; raw key absent from report |
 | Small BIDS text metadata | `.bval`, `.bvec`, `.bidsignore` and `.gitattributes` | complete file inspected as bounded text |
 | Malformed table | delimited-table reader fails | `MALFORMED_TABLE`; private error text is not reported |
 | EDF/BDF Git LFS pointer | repository contains a pointer instead of the payload | informational finding, not `MALFORMED_HEADER` |

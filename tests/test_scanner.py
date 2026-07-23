@@ -148,13 +148,15 @@ class ScannerTests(unittest.TestCase):
             self.assertNotIn(secret, rendered)
 
     def test_public_contact_email_requires_review_but_is_not_high(self) -> None:
-        email = "study.contact@example.org"
+        public_email = "study.contact@example.org"
+        participant_email = "participant.contact@example.org"
         (self.root / "README").write_text(
-            f"Contact: {email}\n",
+            f"Contact: {public_email}\n"
+            f"Participant contact: {participant_email}\n",
             encoding="utf-8",
         )
         (self.root / "notes.txt").write_text(
-            f"Participant contact: {email}\n",
+            f"Contact: {public_email}\n",
             encoding="utf-8",
         )
 
@@ -165,8 +167,70 @@ class ScannerTests(unittest.TestCase):
         ]
 
         self.assertEqual(
-            [("notes.txt", "high"), ("README", "review")],
-            [(item.path, item.severity) for item in findings],
+            [
+                ("README", "high"),
+                ("README", "review"),
+                ("notes.txt", "high"),
+            ],
+            sorted((item.path, item.severity) for item in findings),
+        )
+
+    def test_json_arrays_and_keys_are_scanned(self) -> None:
+        values = (
+            "participant@example.org",
+            "/Users/alice/private/participants.csv",
+            "ghp_" + "A" * 32,
+        )
+        key_email = "second.participant@example.org"
+        (self.root / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "values": list(values),
+                    "nested": [["safe", values[0]]],
+                    "keyed": {key_email: "x"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        (self.root / "top_level_array.json").write_text(
+            json.dumps(list(values)),
+            encoding="utf-8",
+        )
+        (self.root / "top_level_scalar.json").write_text(
+            json.dumps(values[0]),
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+        codes = {item.code for item in report.findings}
+
+        self.assertTrue(
+            {"DIRECT_EMAIL", "LOCAL_PATH", "POTENTIAL_SECRET"} <= codes
+        )
+        rendered = render_json(report) + render_markdown(report)
+        for value in values + (key_email,):
+            self.assertNotIn(value, rendered)
+
+    def test_json_public_and_participant_contacts_use_different_severity(self) -> None:
+        (self.root / "dataset_description.json").write_text(
+            json.dumps(
+                {
+                    "Authors": [{"Email": "author@example.org"}],
+                    "Participant": {"Email": "participant@example.org"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        findings = [
+            item
+            for item in scan_dataset(self.root).findings
+            if item.code == "DIRECT_EMAIL"
+        ]
+
+        self.assertEqual(
+            ["high", "review"],
+            sorted(item.severity for item in findings),
         )
 
     def test_json_string_values_are_scanned_after_decoding(self) -> None:

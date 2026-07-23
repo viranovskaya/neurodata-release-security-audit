@@ -108,6 +108,21 @@ _PERSON_CONTEXT_PARTS = {
     "subject",
     "subjects",
 }
+_PUBLIC_CONTACT_PARTS = {
+    "acknowledgement",
+    "acknowledgements",
+    "acknowledgment",
+    "acknowledgments",
+    "author",
+    "authors",
+    "contact",
+    "contacts",
+    "corresponding",
+    "creator",
+    "creators",
+    "maintainer",
+    "maintainers",
+}
 _SAFE_LOCATION_KEYS = (
     _DOB_KEYS
     | _PHONE_KEYS
@@ -333,13 +348,22 @@ def _json_fields(
             yield path, key, child
             yield from _json_fields(child, path)
     elif isinstance(value, list):
-        for child in value:
-            yield from _json_fields(child, parents)
+        for index, child in enumerate(value):
+            path = (*parents, index)
+            yield path, index, child
+            yield from _json_fields(child, path)
 
 
 def _is_person_context(path: tuple[object, ...]) -> bool:
     for key in path:
         if set(_normalise_key(key).split("_")) & _PERSON_CONTEXT_PARTS:
+            return True
+    return False
+
+
+def _is_public_contact_context(path: tuple[object, ...]) -> bool:
+    for key in path:
+        if set(_normalise_key(key).split("_")) & _PUBLIC_CONTACT_PARTS:
             return True
     return False
 
@@ -350,6 +374,7 @@ def inspect_json(
     known_terms: KnownTermMatcher | None = None,
     *,
     email_severity: Severity = "high",
+    public_contact_context: bool = False,
 ) -> list[Finding]:
     try:
         document = json.loads(text)
@@ -359,6 +384,7 @@ def inspect_json(
             relative_path,
             known_terms,
             email_severity=email_severity,
+            public_contact_context=public_contact_context,
         ) + [
             Finding(
                 code="MALFORMED_JSON",
@@ -372,7 +398,35 @@ def inspect_json(
 
     findings: list[Finding] = []
     try:
+        if isinstance(document, str):
+            findings.extend(
+                replace(item, location="JSON value <root>")
+                for item in scan_text(
+                    document,
+                    relative_path,
+                    known_terms,
+                    email_severity=email_severity,
+                )
+            )
         for path, key, value in _json_fields(document):
+            value_email_severity = email_severity
+            if (
+                public_contact_context
+                and _is_public_contact_context(path)
+                and not _is_person_context(path)
+            ):
+                value_email_severity = "review"
+            if isinstance(key, str):
+                location = f"JSON key {_safe_location_path(path)}"
+                findings.extend(
+                    replace(item, location=location)
+                    for item in scan_text(
+                        key,
+                        relative_path,
+                        known_terms,
+                        email_severity=value_email_severity,
+                    )
+                )
             if isinstance(value, str):
                 location = f"JSON value {_safe_location_path(path)}"
                 findings.extend(
@@ -381,7 +435,7 @@ def inspect_json(
                         value,
                         relative_path,
                         known_terms,
-                        email_severity=email_severity,
+                        email_severity=value_email_severity,
                     )
                 )
             finding = _finding_for_field(

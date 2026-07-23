@@ -24,7 +24,6 @@ from .models import (
     Finding,
     ManifestEntry,
     ScanReport,
-    Severity,
     SkippedFile,
 )
 from .readers import (
@@ -377,12 +376,8 @@ def _is_sensitive_config_name(lower_name: str) -> bool:
     )
 
 
-def _email_severity_for_path(relative_path: str) -> Severity:
-    return (
-        "review"
-        if Path(relative_path).name.lower() in _PUBLIC_CONTACT_NAMES
-        else "high"
-    )
+def _is_public_contact_path(relative_path: str) -> bool:
+    return Path(relative_path).name.lower() in _PUBLIC_CONTACT_NAMES
 
 
 def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> ScanReport:
@@ -1097,7 +1092,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                             text,
                             relative_path,
                             known_terms,
-                            email_severity=_email_severity_for_path(relative_path),
+                            public_contact_context=_is_public_contact_path(relative_path),
                         )
                     )
                     references = inspect_bids_json_references(
@@ -1114,7 +1109,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                             text,
                             relative_path,
                             known_terms,
-                            email_severity=_email_severity_for_path(relative_path),
+                            public_contact_context=_is_public_contact_path(relative_path),
                         )
                     )
                 if suffix == ".tsv":
