@@ -85,7 +85,6 @@ def _build_nifti(root: Path, builder: dict[str, object]) -> None:
 
 
 def _build_dicom(root: Path, builder: dict[str, object]) -> None:
-    import pydicom
     from pydicom.dataset import FileDataset, FileMetaDataset
     from pydicom.uid import ExplicitVRLittleEndian
 
