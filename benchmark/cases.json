@@ -1,0 +1,170 @@
+{
+  "schema_version": "1",
+  "cases": [
+    {
+      "case_id": "dev_json_subject_name",
+      "split": "development",
+      "format": "json",
+      "files": {
+        "sub-01_task-rest_eeg.json": "{\"participant_name\": \"Jane Benchmark\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["Jane Benchmark"],
+      "expected_findings": [
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "sub-01_task-rest_eeg.json",
+          "location_contains": "participant_name"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_json_birth_date",
+      "split": "development",
+      "format": "json",
+      "files": {
+        "sub-01_task-rest_eeg.json": "{\"date_of_birth\": \"1990-01-02\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["1990-01-02"],
+      "expected_findings": [
+        {
+          "code": "BIRTH_DATE_FIELD",
+          "severity": "high",
+          "path": "sub-01_task-rest_eeg.json",
+          "location_contains": "date_of_birth"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_json_participant_email",
+      "split": "development",
+      "format": "json",
+      "files": {
+        "sub-01_task-rest_eeg.json": "{\"participant_email\": \"person@example.invalid\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["person@example.invalid"],
+      "expected_findings": [
+        {
+          "code": "DIRECT_EMAIL",
+          "severity": "high",
+          "path": "sub-01_task-rest_eeg.json",
+          "location": "JSON value <field>"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_json_local_path",
+      "split": "development",
+      "format": "json",
+      "files": {
+        "sub-01_task-rest_eeg.json": "{\"notes\": \"/Users/example/private/sub-01\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["/Users/example/private/sub-01"],
+      "expected_findings": [
+        {
+          "code": "LOCAL_PATH",
+          "severity": "review",
+          "path": "sub-01_task-rest_eeg.json",
+          "location": "JSON value <field>"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_json_source_id",
+      "split": "development",
+      "format": "json",
+      "files": {
+        "sub-01_task-rest_eeg.json": "{\"source_subject_id\": \"HOSP-0042\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["HOSP-0042"],
+      "expected_findings": [
+        {
+          "code": "LINKED_SOURCE_ID",
+          "severity": "review",
+          "path": "sub-01_task-rest_eeg.json",
+          "location": "JSON field source_subject_id"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_known_source_id",
+      "split": "development",
+      "format": "text",
+      "files": {
+        "notes.txt": "Legacy code CASE-7788 must not be released.\n"
+      },
+      "sensitive_terms": ["CASE-7788"],
+      "seeded_values": ["CASE-7788"],
+      "expected_findings": [
+        {
+          "code": "KNOWN_IDENTIFIER",
+          "severity": "high",
+          "path": "notes.txt",
+          "location_contains": "line 1"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_filename_email",
+      "split": "development",
+      "format": "path",
+      "files": {
+        "person@example.org.txt": "Synthetic note.\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["person@example.org"],
+      "expected_findings": [
+        {
+          "code": "DIRECT_EMAIL",
+          "severity": "high",
+          "location": "filename"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_public_contact",
+      "split": "development",
+      "format": "json_control",
+      "files": {
+        "dataset_description.json": "{\"Name\": \"Synthetic control\", \"Authors\": [\"Researcher <author@example.invalid>\"]}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["author@example.invalid"],
+      "expected_findings": [
+        {
+          "code": "DIRECT_EMAIL",
+          "severity": "review",
+          "path": "dataset_description.json",
+          "location": "JSON value <field>.<field>"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_bids_subject_control",
+      "split": "development",
+      "format": "json_control",
+      "files": {
+        "sub-01_task-rest_eeg.json": "{\"participant_id\": \"sub-01\", \"TaskName\": \"rest\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": []
+    },
+    {
+      "case_id": "dev_public_url_control",
+      "split": "development",
+      "format": "text_control",
+      "files": {
+        "README.md": "Documentation: https://example.org/project\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": []
+    }
+  ]
+}
