@@ -13,19 +13,22 @@ four release-wide records:
 
 The scanner calculates the manifest again after metadata inspection. A changed or
 unreadable file makes `manifest_recheck_passed` false and produces a review finding.
+It also compares the complete release tree before and after the scan. Added, removed
+or type-changed entries make `release_tree_recheck_passed` false.
 Hashing is a streaming integrity check. It does not parse EEG samples, image voxels
 or DICOM pixels.
 
 ```json
 {
   "schema_version": "2",
-  "scanner_version": "0.1.0.dev0",
+  "scanner_version": "0.2.0.dev0",
   "summary": {
     "files_inspected": 1,
     "files_skipped": 1,
     "entries_total": 3,
     "manifest_files": 2,
     "manifest_recheck_passed": true,
+    "release_tree_recheck_passed": true,
     "container_members": 0,
     "references_checked": 0,
     "references_valid": 0,
@@ -42,7 +45,7 @@ or DICOM pixels.
   "skipped_files": [
     {
       "path": "sub-01/eeg/sub-01_task-rest_eeg.eeg",
-      "reason": "EEG signal payload is outside the MVP scope"
+      "reason": "Signal or image payload is not parsed or loaded"
     }
   ],
   "coverage": [

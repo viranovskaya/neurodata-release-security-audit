@@ -2,45 +2,76 @@
 
 [![tests](https://github.com/viranovskaya/neurodata-release-security-audit/actions/workflows/tests.yml/badge.svg)](https://github.com/viranovskaya/neurodata-release-security-audit/actions/workflows/tests.yml)
 
-I built this as a final local check before sharing an EEG dataset.
+I built this as a final local check before sharing an EEG or neuroimaging dataset.
 
-It looks for things that can easily survive preprocessing or BIDS conversion by mistake: names, contact details, dates of birth, exact recording dates, old source filenames, local computer paths, participant keys and obvious credentials.
+It looks for information that can survive preprocessing or BIDS conversion by
+mistake: participant names, contact details, dates of birth, exact recording dates,
+old source IDs, staff names, scanner identifiers, local paths, credentials and
+forgotten mapping files.
 
-The scanner is read-only. It does not upload anything, change the dataset or load the EEG signal.
+The scanner is read-only. It does not upload data, rewrite the release, extract
+archives, follow symlinks or load EEG samples, image voxels or DICOM pixels.
 
-## What it checks
+## What it does
+
+### Accounts for the whole release
+
+- records every file, directory, symlink and special filesystem entry;
+- calculates a deterministic size and SHA-256 manifest for every readable regular
+  file;
+- hashes files again after metadata inspection;
+- checks that no entry was added, removed or changed during the scan;
+- separates privacy findings from coverage limits.
+
+Hashing streams all file bytes. It verifies integrity but does not interpret the
+signal or image payload.
+
+### Reads supported metadata
 
 - BIDS JSON, TSV and CSV metadata;
-- BrainVision `.vhdr` and `.vmrk` files;
-- the common header of EDF and BDF files;
-- FIF, continuous EEGLAB `.set` and EGI MFF recording metadata with the optional format readers;
+- BrainVision `.vhdr` and `.vmrk`;
+- the common EDF and BDF header;
+- FIF, continuous EEGLAB `.set` and EGI MFF metadata with the optional EEG readers;
 - bounded XML metadata inside MFF directories;
-- small text files, filenames and the release directory tree;
-- backups, spreadsheets, archives, editor files, private configuration directories,
-  symlinks and files it could not read.
+- NIfTI headers without requesting voxel data;
+- DICOM metadata before Pixel Data;
+- small text, source, configuration and notebook files.
 
-Detected values are masked in the report. Known identifiers, contact details, dates,
-credentials and local or network paths are also masked when they appear in a release
-path. Other filenames remain visible, so the report itself should still be checked
-before sharing.
+### Checks containers and links
+
+- lists ZIP and TAR members without extraction;
+- reports encrypted, nested, path-traversing, colliding and special archive entries;
+- checks BrainVision, EEGLAB and supported BIDS cross-file references;
+- reports missing, external, symlinked and wrong-case targets;
+- keeps unsupported formats and payloads visible instead of treating them as clean.
 
 ## Install
 
-From the repository root:
+The base install uses the Python standard library:
 
 ```bash
 python3 -m pip install .
 ```
 
-This installs the `neurodata-security-audit` command and the standard-library checks.
-
-To inspect FIF, EEGLAB and MFF recording metadata too:
+Add EEG format readers:
 
 ```bash
 python3 -m pip install ".[formats]"
 ```
 
-These readers use MNE with signal preloading disabled. If the optional readers are missing or cannot inspect a format safely, the gap is shown in the report instead of treating the file as clean.
+Add NIfTI and DICOM readers:
+
+```bash
+python3 -m pip install ".[imaging]"
+```
+
+Install both groups:
+
+```bash
+python3 -m pip install ".[formats,imaging]"
+```
+
+Optional readers fail visibly when they are missing or cannot read a file safely.
 
 ## Run
 
@@ -48,7 +79,7 @@ These readers use MNE with signal preloading disabled. If the optional readers a
 neurodata-security-audit scan /path/to/dataset
 ```
 
-Save both report formats:
+Save deterministic JSON and Markdown reports:
 
 ```bash
 neurodata-security-audit scan /path/to/dataset \
@@ -56,25 +87,23 @@ neurodata-security-audit scan /path/to/dataset \
   --markdown reports/audit.md
 ```
 
-Keep report files outside the dataset being checked. The command rejects report paths inside the dataset so the release tree stays unchanged.
+Keep reports outside the dataset. The command rejects report paths inside the
+selected release so the source tree is not changed by the audit.
 
-The terminal prints a short summary. Exit status is:
+The terminal exits with:
 
-- `0`: no high-severity finding;
-- `1`: at least one high-severity finding;
-- `2`: the scan or report writing failed.
+- `0` when no high-severity finding is present;
+- `1` when at least one high-severity finding is present;
+- `2` when the scan fails, the release changes during the scan or report writing
+  fails.
 
-Review-level findings do not change the exit status. They still need to be read before release.
+Review-level findings still need a decision even when the exit status is `0`.
 
-For development without installation:
+## Add known names or source IDs
 
-```bash
-PYTHONPATH=src python3 -m neurodata_security_audit scan /path/to/dataset
-```
-
-## Check names or IDs you already know
-
-Generic name detection is unreliable. A project author or laboratory name can look exactly like a participant name. If you know the names, old subject codes or hospital IDs used in the source project, put them in a private text file with one value per line:
+Generic name detection creates too many false positives. If you know the names,
+hospital IDs or old subject codes used in the project, keep them in a private text
+file with one value per line:
 
 ```text
 Jane Doe
@@ -88,29 +117,56 @@ neurodata-security-audit scan /path/to/dataset \
   --sensitive-terms /private/path/known_identifiers.txt
 ```
 
-The matching values are masked in file contents and report paths. The command requires this list to stay outside the dataset. Do not commit it to Git.
+The list must stay outside the dataset and should not be committed to Git.
+
+## How to read the report
+
+`findings` says what may be sensitive or unsafe.
+
+`coverage` says how each release entry was handled:
+
+- `fully_inspected_metadata`;
+- `header_or_structure_only`;
+- `payload_not_opened`;
+- `unsupported_manual_review`;
+- `not_traversed`.
+
+`manifest` contains the file size and SHA-256 digest. `container_members` records
+ZIP and TAR directory entries. `references` shows which supported cross-file links
+are valid and which need repair.
+
+A clean findings list does not override a coverage gap.
 
 ## Limits
 
-This is an extra release check, not proof that a dataset is anonymous or legally compliant. It does not replace the BIDS Validator, format-specific anonymisation or human review. It also does not test whether the EEG signal itself could identify someone.
+This is a practical release check for an honest curator. It is not proof that a
+dataset is anonymous, secure or legally compliant.
 
-Legacy EEGLAB files that store the whole dataset inside one nested MATLAB structure receive a visible coverage warning. The scanner does not call MNE for that file because it may also load the signal array. MATLAB 7.3 files stay on a conservative text-only path. External data references that leave the selected release directory are reported and are not followed.
+The current version does not:
 
-The current version is designed for accidental release mistakes. It does not inspect encrypted archives, malware or files written to attack the parser.
+- test whether EEG signals or images can identify a person;
+- perform MRI defacing, OCR or visual inspection;
+- interpret NIfTI extension content;
+- open DICOM pixels or metadata stored after the first Pixel Data element;
+- scan archive member payloads or decrypt encrypted archives;
+- analyse malware or hostile parser inputs;
+- measure statistical re-identification risk in participant tables;
+- replace the BIDS Validator, format-specific anonymisation or human review.
+
+The full v0.2 boundary is in
+[docs/v0.2_scope.md](docs/v0.2_scope.md). The report contract is in
+[docs/report_schema.md](docs/report_schema.md). Public and real-reader checks are
+recorded in [docs/v0.2_calibration.md](docs/v0.2_calibration.md).
 
 ## Status
 
-Private v0.1 candidate. The synthetic test suite, real-format FIF, EEGLAB and official MNE MFF fixtures, six public BIDS EEG examples and four real Sleep-EDF files have been checked. Independent review has not happened yet.
+The private v0.1 snapshot was independently reviewed before it was merged. That
+review does not apply to v0.2.
 
-The exact scope is in [docs/mvp_spec.md](docs/mvp_spec.md). Test runs are documented in [docs/calibration.md](docs/calibration.md), [docs/real_dataset_check.md](docs/real_dataset_check.md) and [docs/mff_check.md](docs/mff_check.md).
-
-The implemented leak categories and explicit limits are tracked in [docs/leak_coverage.md](docs/leak_coverage.md).
-
-The latest implementation cross-check is in [docs/progress_report_2026-07-23.md](docs/progress_report_2026-07-23.md).
-
-The final local gate is recorded in [docs/final_local_gate_2026-07-23.md](docs/final_local_gate_2026-07-23.md).
-
-The short independent test is in [docs/external_review_guide.md](docs/external_review_guide.md).
+v0.2 is under local development. Inventory, NIfTI, DICOM, archive and reference
+work is implemented, but the integrated candidate still needs the full
+multi-environment gate and a new independent review. There is no public release or
+PyPI package.
 
 ## License
 

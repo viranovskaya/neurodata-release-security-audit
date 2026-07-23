@@ -21,7 +21,7 @@ import zipfile
 from neurodata_security_audit.cli import main
 from neurodata_security_audit.containers import inspect_archive
 from neurodata_security_audit.reporting import render_json, render_markdown
-from neurodata_security_audit.models import ManifestEntry
+from neurodata_security_audit.models import ManifestEntry, ScanReport
 from neurodata_security_audit.readers import (
     FormatReaderUnavailable,
     inspect_eeglab_metadata,
@@ -99,6 +99,7 @@ class ScannerTests(unittest.TestCase):
                 "entries_total": 9,
                 "manifest_files": 7,
                 "manifest_recheck_passed": True,
+                "release_tree_recheck_passed": True,
                 "container_members": 0,
                 "references_checked": 2,
                 "references_valid": 1,
@@ -1666,6 +1667,12 @@ class ScannerTests(unittest.TestCase):
             "DICOM_METADATA_LIMIT",
             {item.code for item in report.findings},
         )
+        coverage = next(item for item in report.coverage if item.path == dicom.name)
+        self.assertEqual("unsupported_manual_review", coverage.status)
+        self.assertIn(
+            dicom.name,
+            {item.path for item in report.skipped_files},
+        )
 
     def test_extensionless_dicom_preamble_is_detected(self) -> None:
         dicom = self.root / "scan0001"
@@ -2013,6 +2020,21 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("EMPTY_PLACEHOLDER", codes)
         self.assertIn("GIT_LFS_POINTER", codes)
         self.assertNotIn("FORMAT_READER_UNAVAILABLE", codes)
+        coverage = {item.path: item.status for item in report.coverage}
+        self.assertEqual("unsupported_manual_review", coverage["empty.set"])
+        self.assertEqual("unsupported_manual_review", coverage["pointer.fif"])
+
+    def test_empty_nifti_is_reported_as_a_placeholder(self) -> None:
+        path = self.root / "sub-01_T1w.nii.gz"
+        path.write_bytes(b"")
+
+        report = scan_dataset(self.root)
+
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("EMPTY_PLACEHOLDER", codes)
+        self.assertNotIn("FORMAT_METADATA_UNREADABLE", codes)
+        entry = next(item for item in report.coverage if item.path == path.name)
+        self.assertEqual("unsupported_manual_review", entry.status)
 
     def test_clean_and_leaky_edf_headers(self) -> None:
         _write_edf(self.root / "clean.edf", "X X X X", "Startdate X X X X", "01.01.85")
@@ -2077,6 +2099,9 @@ class ScannerTests(unittest.TestCase):
         codes = set(self._codes())
         self.assertIn("EMPTY_PLACEHOLDER", codes)
         self.assertNotIn("MALFORMED_HEADER", codes)
+        report = scan_dataset(self.root)
+        entry = next(item for item in report.coverage if item.path == "recording.edf")
+        self.assertEqual("unsupported_manual_review", entry.status)
 
     def test_participant_key_and_backup_are_visible(self) -> None:
         (self.root / "participant_name_key.xlsx").write_bytes(b"synthetic")
@@ -2283,6 +2308,26 @@ class ScannerTests(unittest.TestCase):
         entry = next(item for item in report.coverage if item.path == "README")
         self.assertEqual("unsupported_manual_review", entry.status)
 
+    def test_release_tree_change_during_scan_is_visible(self) -> None:
+        source = self.root / "README"
+        source.write_text("Synthetic dataset\n", encoding="utf-8")
+        with patch(
+            "neurodata_security_audit.scanner._tree_signature",
+            side_effect=[
+                {"README": "file"},
+                {"README": "file", "late-file.txt": "file"},
+            ],
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertFalse(report.release_tree_recheck_passed)
+        self.assertIn(
+            "RELEASE_TREE_CHANGED_DURING_SCAN",
+            {item.code for item in report.findings},
+        )
+        late = next(item for item in report.coverage if item.path == "late-file.txt")
+        self.assertEqual("unsupported_manual_review", late.status)
+
     def test_ignored_directory_descendants_are_inventoried_but_not_parsed(self) -> None:
         ignored = self.root / ".git"
         nested = ignored / "objects"
@@ -2401,6 +2446,24 @@ class ScannerTests(unittest.TestCase):
             code = main(["scan", str(self.root), "--json", "audit.json"])
         self.assertEqual(2, code)
         self.assertIn("could not write report (PermissionError)", stderr.getvalue())
+
+    def test_cli_returns_error_when_integrity_recheck_fails(self) -> None:
+        report = ScanReport(
+            scanner_version="test",
+            release_tree_recheck_passed=False,
+        )
+        stdout = io.StringIO()
+        with (
+            patch(
+                "neurodata_security_audit.cli.scan_dataset",
+                return_value=report,
+            ),
+            redirect_stdout(stdout),
+        ):
+            code = main(["scan", str(self.root)])
+
+        self.assertEqual(2, code)
+        self.assertIn("integrity=failed", stdout.getvalue())
 
     def test_cli_rejects_report_inside_dataset(self) -> None:
         report_path = self.root / "audit.json"

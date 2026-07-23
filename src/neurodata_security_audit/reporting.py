@@ -51,6 +51,10 @@ def render_markdown(report: ScanReport) -> str:
             "- Manifest recheck passed: "
             f"{'yes' if summary['manifest_recheck_passed'] else 'no'}"
         ),
+        (
+            "- Release-tree recheck passed: "
+            f"{'yes' if summary['release_tree_recheck_passed'] else 'no'}"
+        ),
         f"- High-severity findings: {summary['findings_high']}",
         f"- Review findings: {summary['findings_review']}",
         f"- Informational findings: {summary['findings_info']}",

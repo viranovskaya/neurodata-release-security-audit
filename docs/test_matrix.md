@@ -1,6 +1,7 @@
-# MVP test matrix
+# Test matrix
 
-All identifiers below are synthetic.
+All identifiers below are synthetic. The v0.1 rows are retained, and the v0.2
+integration rows are listed after them.
 
 | Area | Fixture | Expected result |
 |---|---|---|
@@ -82,7 +83,7 @@ All identifiers below are synthetic.
 | MFF dynamic patient field | `<name>` contains a field label and `<data>` its value | classify the paired value; do not report the label as a participant name |
 | MFF format dependency | optional `formats` installation | `defusedxml` is declared for MNE's MFF XML reader |
 | XML document type or entity | bounded XML contains a declaration that can expand content | `UNSAFE_XML_DECLARATION`; document not parsed |
-| Optional format placeholder | empty file or Git LFS pointer | informational coverage note without importing MNE |
+| Optional format placeholder | empty binary format or Git LFS pointer | explicit unsupported coverage without importing a format reader |
 | Unreadable directory | one nested directory raises a read error | visible review finding; other files still scanned |
 | Unreadable filesystem entry | entry type cannot be classified | visible `UNREADABLE_ENTRY`; other files still scanned |
 | Unreadable file | one text file raises a read error | `UNREADABLE_FILE`; other files still scanned |
@@ -92,3 +93,35 @@ All identifiers below are synthetic.
 | Report write failure | output path cannot be written | concise error and exit status `2`; no traceback |
 | Report inside dataset | output path is within the audited tree | rejected before scanning or writing |
 | Private term list inside dataset | identifier list is within the audited tree | rejected before scanning |
+
+## v0.2 integration rows
+
+| Area | Fixture | Expected result |
+|---|---|---|
+| Complete inventory | nested files, directories and signal payload | one coverage row per entry |
+| Integrity manifest | text and binary payload | size and SHA-256 for every regular file |
+| File changes | hash changes between manifest passes | visible review finding and failed recheck |
+| Tree changes | entry added between tree snapshots | visible review finding and failed recheck |
+| Integrity exit | failed file or tree recheck | exit status `2` and `integrity=failed` |
+| Ignored descendants | synthetic `.git` tree with secret-shaped payload | descendants inventoried and hashed, not parsed |
+| Special entry | FIFO | visible manual-review coverage without opening |
+| NIfTI metadata | real and fake `.nii`/`.nii.gz` headers | fields checked; no `dataobj` access |
+| NIfTI extension | header with one extension | explicit manual-review boundary |
+| NIfTI pair | `.hdr` plus `.img` | header path supported; image payload not opened |
+| Missing NIfTI reader | imaging extra absent | visible reader gap |
+| DICOM metadata | patient, staff, site, device, UID and free text | field-specific masked findings |
+| DICOM pixel safety | dataset exposes a failing `pixel_array` property | property is never accessed |
+| DICOM private binary | private tag value raises on access | tag reported; value not read |
+| DICOM document | encapsulated document value raises on access | high finding; value not read |
+| DICOM nesting limit | deeply nested sequence | bounded review finding and manual-review coverage |
+| Extensionless DICOM | valid `DICM` preamble | metadata reader selected |
+| ZIP inventory | safe, traversing and nested members | member table only; payload open fails test |
+| TAR link | parent-traversing symlink target | high path finding; no extraction |
+| Encrypted ZIP | encrypted member flag | high boundary and incomplete coverage |
+| Archive expansion | large declared size and high ratio | review finding without decompression |
+| Archive member limit | member count exceeds bound | incomplete coverage and review finding |
+| BrainVision references | valid, missing, external, symlinked and wrong case | separate reference statuses |
+| EEGLAB reference | internal `.fdt` path | valid internal status without following external paths |
+| BIDS reference | `IntendedFor` with `bids::` URI | resolved from dataset root |
+| Filename collisions | repeated and case-colliding paths | information or review finding |
+| Reference privacy | source name contains a participant-like string | raw invalid target absent from report |

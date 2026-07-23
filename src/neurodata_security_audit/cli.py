@@ -79,11 +79,18 @@ def main(argv: list[str] | None = None) -> int:
 
     data = report.to_dict()
     summary = data["summary"]
+    integrity_ok = (
+        summary["manifest_recheck_passed"]
+        and summary["release_tree_recheck_passed"]
+    )
     print(
         "entries={entries_total} manifest={manifest_files} "
+        "references={references_valid}/{references_checked} "
         "inspected={files_inspected} skipped={files_skipped} "
-        "high={findings_high} review={findings_review} info={findings_info}".format(
-            **summary
+        "high={findings_high} review={findings_review} info={findings_info} "
+        "integrity={integrity}".format(
+            integrity="ok" if integrity_ok else "failed",
+            **summary,
         )
     )
     try:
@@ -93,5 +100,7 @@ def main(argv: list[str] | None = None) -> int:
             _write_report(args.markdown_path, render_markdown(report))
     except OSError as error:
         print(f"error: could not write report ({type(error).__name__})", file=sys.stderr)
+        return 2
+    if not integrity_ok:
         return 2
     return 1 if summary["findings_high"] else 0

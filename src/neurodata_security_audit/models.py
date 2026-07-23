@@ -168,6 +168,7 @@ class ScanReport:
     references: list[ReferenceEntry] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
     manifest_recheck_passed: bool = True
+    release_tree_recheck_passed: bool = True
     schema_version: str = "2"
 
     def normalized(self) -> "ScanReport":
@@ -190,6 +191,7 @@ class ScanReport:
             references=references,
             findings=findings,
             manifest_recheck_passed=self.manifest_recheck_passed,
+            release_tree_recheck_passed=self.release_tree_recheck_passed,
             schema_version=self.schema_version,
         )
 
@@ -215,6 +217,9 @@ class ScanReport:
                     item.status == "valid_internal" for item in report.references
                 ),
                 "manifest_recheck_passed": report.manifest_recheck_passed,
+                "release_tree_recheck_passed": (
+                    report.release_tree_recheck_passed
+                ),
                 "fully_inspected_metadata": coverage_counts[
                     "fully_inspected_metadata"
                 ],

@@ -1,5 +1,8 @@
 # External review guide
 
+This guide belongs to the frozen v0.1 review. v0.2 needs a separate handoff and
+independent gate.
+
 This review is about whether the tool is understandable and useful before an EEG dataset is shared. It is not a legal, privacy or security certification.
 
 The first part uses synthetic files from the repository. The second part is optional and can use a public, synthetic or private local dataset. No data are uploaded.
