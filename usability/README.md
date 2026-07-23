@@ -46,6 +46,10 @@ collected. Task order is also deliberately different from answer order. These
 checks prevent the packet structure from revealing which critical answer is
 expected.
 
+Each critical task also has its own opaque report. Noncritical file, field and
+remediation questions use separate report copies, so later prompts cannot reveal
+the answer to an earlier critical task. The validator rejects any overlap.
+
 Score complete response files:
 
 ```bash

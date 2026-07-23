@@ -277,6 +277,25 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "opaque"):
                 score_usability(spec, [])
 
+    def test_critical_report_cannot_be_reused_by_auxiliary_task(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            spec = self._write_spec(root)
+            data = json.loads(spec.read_text(encoding="utf-8"))
+            auxiliary = dict(data["tasks"][0])
+            auxiliary.update(
+                {
+                    "task_id": "task_03",
+                    "critical": False,
+                    "choice_group": None,
+                }
+            )
+            data["tasks"].append(auxiliary)
+            spec.write_text(json.dumps(data), encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "cannot be reused"):
+                score_usability(spec, [])
+
     def test_response_template_matches_precommitted_tasks(self) -> None:
         spec = json.loads(
             (self.project_root / "usability" / "spec.json").read_text(encoding="utf-8")
@@ -358,7 +377,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
     def test_large_report_groups_actions_and_keeps_individual_rows(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             reports = build_reports(Path(directory))
-            rendered = reports["report-e"].read_text(encoding="utf-8")
+            rendered = reports["report-i"].read_text(encoding="utf-8")
 
         self.assertIn(
             "121 individual items are summarized in 5 action groups",
@@ -374,7 +393,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
         rendered = render_reviewer_packet(self.project_root / "usability" / "spec.json")
 
         self.assertIn("task_01", rendered)
-        self.assertIn("[Report A](reports/report-a.html)", rendered)
+        self.assertIn("[Report C](reports/report-c.html)", rendered)
         self.assertNotRegex(
             rendered,
             r"\[(clean|high|coverage|integrity)",

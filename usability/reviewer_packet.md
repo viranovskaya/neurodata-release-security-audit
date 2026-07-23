@@ -69,6 +69,8 @@ What should happen next?
 - Elapsed seconds:
 - Confidence (1-5):
 
+## Report: [Report E](reports/report-e.html)
+
 ### task_05
 
 Which file needs correction?
@@ -102,7 +104,7 @@ Which correction matches the finding?
 - Elapsed seconds:
 - Confidence (1-5):
 
-## Report: [Report C](reports/report-c.html)
+## Report: [Report F](reports/report-f.html)
 
 ### task_08
 
@@ -115,7 +117,7 @@ Which entry still needs manual review?
 - Elapsed seconds:
 - Confidence (1-5):
 
-## Report: [Report D](reports/report-d.html)
+## Report: [Report H](reports/report-h.html)
 
 ### task_09
 
@@ -127,7 +129,7 @@ Can the finding list be used for the next review step?
 - Elapsed seconds:
 - Confidence (1-5):
 
-## Report: [Report A](reports/report-a.html)
+## Report: [Report G](reports/report-g.html)
 
 ### task_10
 
@@ -139,7 +141,7 @@ Can the finding list be used for the next review step?
 - Elapsed seconds:
 - Confidence (1-5):
 
-## Report: [Report E](reports/report-e.html)
+## Report: [Report I](reports/report-i.html)
 
 ### task_11
 

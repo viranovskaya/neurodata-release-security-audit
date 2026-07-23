@@ -118,7 +118,7 @@
     },
     {
       "task_id": "task_05",
-      "report": "reports/report-b.html",
+      "report": "reports/report-e.html",
       "capability": "finding_file",
       "prompt": "Which file needs correction?",
       "choices": [
@@ -140,7 +140,7 @@
     },
     {
       "task_id": "task_06",
-      "report": "reports/report-b.html",
+      "report": "reports/report-e.html",
       "capability": "finding_location",
       "prompt": "Which field is named in the finding?",
       "choices": [
@@ -162,7 +162,7 @@
     },
     {
       "task_id": "task_07",
-      "report": "reports/report-b.html",
+      "report": "reports/report-e.html",
       "capability": "remediation",
       "prompt": "Which correction matches the finding?",
       "choices": [
@@ -184,7 +184,7 @@
     },
     {
       "task_id": "task_08",
-      "report": "reports/report-c.html",
+      "report": "reports/report-f.html",
       "capability": "coverage_gap",
       "prompt": "Which entry still needs manual review?",
       "choices": [
@@ -206,7 +206,7 @@
     },
     {
       "task_id": "task_09",
-      "report": "reports/report-d.html",
+      "report": "reports/report-h.html",
       "capability": "integrity_reliability",
       "prompt": "Can the finding list be used for the next review step?",
       "choices": [
@@ -225,7 +225,7 @@
     },
     {
       "task_id": "task_10",
-      "report": "reports/report-a.html",
+      "report": "reports/report-g.html",
       "capability": "integrity_reliability",
       "prompt": "Can the finding list be used for the next review step?",
       "choices": [
@@ -244,7 +244,7 @@
     },
     {
       "task_id": "task_11",
-      "report": "reports/report-e.html",
+      "report": "reports/report-i.html",
       "capability": "large_report",
       "prompt": "How many review items need a curator decision?",
       "choices": [
@@ -266,7 +266,7 @@
     },
     {
       "task_id": "task_12",
-      "report": "reports/report-e.html",
+      "report": "reports/report-i.html",
       "capability": "large_report",
       "prompt": "Where is the unique technician-contact item?",
       "choices": [

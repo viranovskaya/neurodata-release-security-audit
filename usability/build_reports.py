@@ -186,7 +186,11 @@ def build_reports(output_dir: Path = REPORTS) -> dict[str, Path]:
         "report-b": _high_report(),
         "report-c": _coverage_report(),
         "report-d": _integrity_report(),
-        "report-e": _large_report(),
+        "report-e": _high_report(),
+        "report-f": _coverage_report(),
+        "report-g": _clean_report(),
+        "report-h": _integrity_report(),
+        "report-i": _large_report(),
     }
     expected_names = {f"{name}.html" for name in reports}
     unexpected = sorted(

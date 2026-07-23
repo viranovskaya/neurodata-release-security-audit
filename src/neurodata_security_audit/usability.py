@@ -133,6 +133,21 @@ def _validate_spec(data: dict[str, object]) -> list[dict[str, object]]:
             raise ValueError(
                 f"{group_name} choice_group must use every choice as an expected answer"
             )
+
+    critical_reports = [
+        str(task["report"]) for task in validated if bool(task["critical"])
+    ]
+    if len(critical_reports) != len(set(critical_reports)):
+        raise ValueError("Each critical task needs its own opaque report")
+    noncritical_reports = {
+        str(task["report"]) for task in validated if not bool(task["critical"])
+    }
+    overlap = sorted(set(critical_reports) & noncritical_reports)
+    if overlap:
+        raise ValueError(
+            "Critical reports cannot be reused by noncritical tasks: "
+            + ", ".join(overlap)
+        )
     return validated
 
 
