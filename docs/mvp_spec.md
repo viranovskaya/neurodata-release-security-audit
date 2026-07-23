@@ -2,7 +2,8 @@
 
 Working title for a local pre-release privacy checker for EEG datasets organised with BIDS.
 
-**Status:** private v0.1 candidate, 23 July 2026. Implemented and tested; not publicly released or independently validated.
+**Status:** historical v0.1 specification. The exact v0.1 snapshot was
+independently reviewed before its private merge; this file does not describe v0.2.
 
 ## The problem
 

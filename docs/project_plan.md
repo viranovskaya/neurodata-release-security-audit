@@ -2,85 +2,89 @@
 
 ## Goal
 
-Build a small, explainable pre-release security check for EEG datasets. The scanner should catch clear privacy and metadata leaks without altering the source data or claiming legal compliance.
+Build a local, read-only pre-release check that makes accidental personal and
+technical leakage visible without claiming that a dataset is anonymous.
 
-## Phase 1 — Core contract
+## v0.1 — EEG release check
 
-- Define finding codes, severities and masking rules.
-- Define deterministic JSON and readable Markdown reports.
-- Implement safe directory traversal with no external symlink following.
-- Cover direct email, labelled phone, local path and obvious secret patterns.
+Completed privately:
 
-**Gate:** synthetic leaks are detected and never reproduced in full in a report.
+- deterministic findings and masked reports;
+- release-tree, text, BIDS, BrainVision and EDF/BDF checks;
+- optional FIF, EEGLAB and MFF metadata readers;
+- synthetic, public BIDS and real-format calibration;
+- clean wheel and deterministic report checks;
+- independent review of the exact frozen v0.1 snapshot.
 
-## Phase 2 — EEG formats
+The v0.1 review does not carry forward to later commits.
 
-- Inspect BrainVision `.vhdr` and `.vmrk` text metadata.
-- Inspect the fixed header section of EDF and BDF without loading samples.
-- Report dates of birth, populated patient-name fields and recording dates.
+## v0.2 — full release accounting
 
-**Gate:** clean and leaky synthetic fixtures behave as expected; malformed headers fail visibly and safely.
+### M1 — inventory and integrity
 
-## Phase 3 — Release-tree checks
+Status: implemented.
 
-- Flag likely participant-key spreadsheets and backup files.
-- Flag symlinks and files that the scanner cannot inspect.
-- Record every inspected, skipped and unreadable file.
+- one coverage status for every encountered entry;
+- SHA-256 manifest for every readable regular file;
+- file and release-tree rechecks after metadata inspection;
+- explicit signal, unsupported and unparsed states.
 
-**Gate:** the audit has no silent coverage gaps.
+### M2 — NIfTI
 
-## Phase 4 — Local v0.1 review
+Status: implemented.
 
-- Run the full test matrix.
-- Confirm deterministic output and unchanged source files.
-- Review false positives on BIDS examples and synthetic cases.
-- Perform a separate security review of traversal, decoding and report masking.
+- metadata-only nibabel reader;
+- text-bearing header checks;
+- no voxel access;
+- visible NIfTI extension boundary.
 
-**Gate:** implementation and documentation agree; no public claims exceed the evidence.
+### M3 — DICOM
 
-**Current checkpoint:** the local gate is complete. All 90 tests pass after clean
-installation on Python 3.10 and 3.13. Six public EEG BIDS examples, four real
-Sleep-EDF files, small real-format FIF and EEGLAB fixtures and the official MNE
-`test_egi.mff` fixture were checked. The final wheel and installed reports are
-deterministic.
+Status: implemented.
 
-## Phase 4b — Complete planned leak coverage
+- metadata before Pixel Data;
+- nested sequences and file metadata;
+- patient, date, site, device, UID and free-text checks;
+- private tags and encapsulated documents reported without opening their values;
+- no pixel access.
 
-- Add the missing structured BIDS acquisition-time and direct-identifier fields.
-- Cover labelled medical IDs, participant addresses and source-system links.
-- Scan network locations, host details and credential-shaped config values.
-- Inspect common source, config and notebook files as bounded text.
-- Flag secret-bearing, OS and editor files in the release tree.
-- Keep the full matrix and explicit non-goals in `leak_coverage.md`.
+### M4 — archives and links
 
-**Gate:** every planned rule has a positive test, a masking assertion and a clean counterexample. Public BIDS and real EEG calibration remains stable or each change is explained.
+Status: implemented.
 
-**Status:** passed locally. The final pass also masks supported leak patterns in
-release paths, prevents untrusted structured keys from entering report locations,
-checks empty directories and covers every finding code with an explicit test.
+- ZIP and TAR member inventory without extraction;
+- encryption, traversal, links, nested archives and collision checks;
+- BrainVision, EEGLAB and BIDS reference resolution;
+- release filename collision checks.
 
-## Phase 4c — Remaining EEG metadata formats
+### M5 — integrated local candidate
 
-- Read FIF `Info` without reading sample arrays.
-- Read continuous EEGLAB metadata with MNE `preload=False` and separately inspect safe MATLAB text fields.
-- Read EGI MFF recording metadata with MNE `preload=False` and inspect its bounded XML files.
-- Keep missing readers, malformed formats and nested EEGLAB structures visible.
+Status: implemented for the current v0.2 candidate.
 
-**Gate:** real small FIF and EEGLAB fixtures confirm metadata-only reading, seeded values are absent from reports, and no unsupported layout is labelled clean.
+- update CLI, schema, documentation and version;
+- run the full suite in base, EEG-format and imaging environments;
+- run Python 3.10 and the newest supported Python;
+- validate JSON against the published schema;
+- reproduce wheel and report bytes;
+- recalibrate on synthetic and public datasets;
+- scan public files for private values and local paths;
+- freeze one clean local commit and reviewer package.
 
-**Status:** passed locally. The full MFF path was checked with the official public MNE testing fixture after adding its required `defusedxml` dependency to the `formats` extra.
+### M6 — independent review
 
-## Phase 5 — External validation
+Status: required for every frozen candidate before merge.
 
-- Ask BIDS/MNE and neurodata privacy researchers whether the scope fills a real gap.
-- Add formats or policies only in response to concrete use cases.
-- Handle any credible public-dataset privacy finding through private responsible disclosure.
+The reviewer receives one exact commit and package with hashes, test evidence,
+claim boundaries and known limitations. A previous PASS is not reused.
 
-**Gate:** at least one independent reviewer can run and understand the tool.
+No push, pull request, merge, tag, release or public publication is part of this
+stage without separate approval.
 
-**Current checkpoint:** a synthetic reviewer demo, expected result and short feedback guide are ready. No external review has been requested or completed yet.
+## Later decisions
 
-## Phase 6 — Publication decision
+After independent review:
 
-- Decide whether the result is best maintained as a small utility, contributed upstream, or developed into a software paper.
-- Create a public repository, release metadata and citation files only after the local review.
+- decide whether the project should remain a small utility or be extended;
+- consider a public repository or software paper only if the validation supports it;
+- keep statistical disclosure analysis, MRI defacing and signal-based
+  re-identification as separate workflows.

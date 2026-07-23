@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from dataclasses import replace
 import io
 import json
 import re
@@ -10,8 +11,8 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from .detectors import redacted
-from .models import Finding
+from .detectors import KnownTermMatcher, redacted, scan_text
+from .models import Finding, Severity
 
 _DOB_KEYS = {"date_of_birth", "birth_date", "birthdate", "birthday", "dob"}
 _PHONE_KEYS = {"phone", "phone_number", "telephone", "tel", "mobile"}
@@ -106,6 +107,21 @@ _PERSON_CONTEXT_PARTS = {
     "patients",
     "subject",
     "subjects",
+}
+_PUBLIC_CONTACT_PARTS = {
+    "acknowledgement",
+    "acknowledgements",
+    "acknowledgment",
+    "acknowledgments",
+    "author",
+    "authors",
+    "contact",
+    "contacts",
+    "corresponding",
+    "creator",
+    "creators",
+    "maintainer",
+    "maintainers",
 }
 _SAFE_LOCATION_KEYS = (
     _DOB_KEYS
@@ -332,8 +348,10 @@ def _json_fields(
             yield path, key, child
             yield from _json_fields(child, path)
     elif isinstance(value, list):
-        for child in value:
-            yield from _json_fields(child, parents)
+        for index, child in enumerate(value):
+            path = (*parents, index)
+            yield path, index, child
+            yield from _json_fields(child, path)
 
 
 def _is_person_context(path: tuple[object, ...]) -> bool:
@@ -343,11 +361,31 @@ def _is_person_context(path: tuple[object, ...]) -> bool:
     return False
 
 
-def inspect_json(text: str, relative_path: str) -> list[Finding]:
+def _is_public_contact_context(path: tuple[object, ...]) -> bool:
+    for key in path:
+        if set(_normalise_key(key).split("_")) & _PUBLIC_CONTACT_PARTS:
+            return True
+    return False
+
+
+def inspect_json(
+    text: str,
+    relative_path: str,
+    known_terms: KnownTermMatcher | None = None,
+    *,
+    email_severity: Severity = "high",
+    public_contact_context: bool = False,
+) -> list[Finding]:
     try:
         document = json.loads(text)
     except (json.JSONDecodeError, RecursionError, UnicodeError):
-        return [
+        return scan_text(
+            text,
+            relative_path,
+            known_terms,
+            email_severity=email_severity,
+            public_contact_context=public_contact_context,
+        ) + [
             Finding(
                 code="MALFORMED_JSON",
                 severity="review",
@@ -360,7 +398,46 @@ def inspect_json(text: str, relative_path: str) -> list[Finding]:
 
     findings: list[Finding] = []
     try:
+        if isinstance(document, str):
+            findings.extend(
+                replace(item, location="JSON value <root>")
+                for item in scan_text(
+                    document,
+                    relative_path,
+                    known_terms,
+                    email_severity=email_severity,
+                )
+            )
         for path, key, value in _json_fields(document):
+            value_email_severity = email_severity
+            if (
+                public_contact_context
+                and _is_public_contact_context(path)
+                and not _is_person_context(path)
+            ):
+                value_email_severity = "review"
+            if isinstance(key, str):
+                location = f"JSON key {_safe_location_path(path)}"
+                findings.extend(
+                    replace(item, location=location)
+                    for item in scan_text(
+                        key,
+                        relative_path,
+                        known_terms,
+                        email_severity=value_email_severity,
+                    )
+                )
+            if isinstance(value, str):
+                location = f"JSON value {_safe_location_path(path)}"
+                findings.extend(
+                    replace(item, location=location)
+                    for item in scan_text(
+                        value,
+                        relative_path,
+                        known_terms,
+                        email_severity=value_email_severity,
+                    )
+                )
             finding = _finding_for_field(
                 key,
                 value,

@@ -11,18 +11,60 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.13"]
+        install-target: [".", ".[formats]", ".[imaging]", ".[formats,imaging]"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install package
-        run: python -m pip install .
+        run: python -m pip install "${{ matrix.install-target }}"
       - name: Run tests
         run: python -m unittest -v
       - name: Check installed command
         run: |
           neurodata-security-audit --version
           neurodata-security-audit scan tests/fixtures/clean_bids
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install build checks
+        run: python -m pip install build jsonschema
+      - name: Build the wheel twice
+        env:
+          SOURCE_DATE_EPOCH: "315532800"
+        run: |
+          python -m build --wheel --outdir dist-a
+          python -m build --wheel --outdir dist-b
+          cmp \
+            dist-a/neurodata_release_security_audit-0.2.0.dev0-py3-none-any.whl \
+            dist-b/neurodata_release_security_audit-0.2.0.dev0-py3-none-any.whl
+      - name: Validate a generated report
+        run: |
+          python -m pip install \
+            dist-a/neurodata_release_security_audit-0.2.0.dev0-py3-none-any.whl
+          neurodata-security-audit scan tests/fixtures/clean_bids \
+            --json "${RUNNER_TEMP}/audit.json" \
+            --html "${RUNNER_TEMP}/audit.html"
+          test -s "${RUNNER_TEMP}/audit.html"
+          python - "${RUNNER_TEMP}/audit.json" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          import jsonschema
+
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          schema = json.loads(
+              Path("schema/report.schema.json").read_text(encoding="utf-8")
+          )
+          jsonschema.validate(report, schema)
+          PY

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:neurodata-release-security-audit:report:1",
+  "$id": "urn:neurodata-release-security-audit:report:2",
   "title": "NeuroData Release Security Audit report",
   "type": "object",
   "additionalProperties": false,
@@ -10,10 +10,14 @@
     "summary",
     "files_inspected",
     "skipped_files",
+    "coverage",
+    "manifest",
+    "container_members",
+    "references",
     "findings"
   ],
   "properties": {
-    "schema_version": {"const": "1"},
+    "schema_version": {"const": "2"},
     "scanner_version": {"type": "string"},
     "summary": {
       "type": "object",
@@ -21,6 +25,18 @@
       "required": [
         "files_inspected",
         "files_skipped",
+        "entries_total",
+        "manifest_files",
+        "manifest_recheck_passed",
+        "release_tree_recheck_passed",
+        "container_members",
+        "references_checked",
+        "references_valid",
+        "fully_inspected_metadata",
+        "header_or_structure_only",
+        "payload_not_opened",
+        "unsupported_manual_review",
+        "not_traversed",
         "findings_high",
         "findings_review",
         "findings_info"
@@ -28,6 +44,18 @@
       "properties": {
         "files_inspected": {"type": "integer", "minimum": 0},
         "files_skipped": {"type": "integer", "minimum": 0},
+        "entries_total": {"type": "integer", "minimum": 0},
+        "manifest_files": {"type": "integer", "minimum": 0},
+        "manifest_recheck_passed": {"type": "boolean"},
+        "release_tree_recheck_passed": {"type": "boolean"},
+        "container_members": {"type": "integer", "minimum": 0},
+        "references_checked": {"type": "integer", "minimum": 0},
+        "references_valid": {"type": "integer", "minimum": 0},
+        "fully_inspected_metadata": {"type": "integer", "minimum": 0},
+        "header_or_structure_only": {"type": "integer", "minimum": 0},
+        "payload_not_opened": {"type": "integer", "minimum": 0},
+        "unsupported_manual_review": {"type": "integer", "minimum": 0},
+        "not_traversed": {"type": "integer", "minimum": 0},
         "findings_high": {"type": "integer", "minimum": 0},
         "findings_review": {"type": "integer", "minimum": 0},
         "findings_info": {"type": "integer", "minimum": 0}
@@ -45,6 +73,109 @@
         "required": ["path", "reason"],
         "properties": {
           "path": {"type": "string"},
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "coverage": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "entry_type", "status", "reason"],
+        "properties": {
+          "path": {"type": "string"},
+          "entry_type": {
+            "enum": [
+              "file",
+              "directory",
+              "format_directory",
+              "symlink",
+              "other",
+              "unreadable"
+            ]
+          },
+          "status": {
+            "enum": [
+              "fully_inspected_metadata",
+              "header_or_structure_only",
+              "payload_not_opened",
+              "unsupported_manual_review",
+              "not_traversed"
+            ]
+          },
+          "reason": {"type": "string"}
+        }
+      }
+    },
+    "manifest": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "size_bytes", "sha256"],
+        "properties": {
+          "path": {"type": "string"},
+          "size_bytes": {"type": "integer", "minimum": 0},
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "container_members": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "container_path",
+          "member_path",
+          "member_type",
+          "size_bytes",
+          "compressed_bytes",
+          "encrypted"
+        ],
+        "properties": {
+          "container_path": {"type": "string"},
+          "member_path": {"type": "string"},
+          "member_type": {
+            "enum": [
+              "file",
+              "directory",
+              "symlink",
+              "hardlink",
+              "special",
+              "unknown"
+            ]
+          },
+          "size_bytes": {"type": "integer", "minimum": 0},
+          "compressed_bytes": {"type": "integer", "minimum": 0},
+          "encrypted": {"type": "boolean"}
+        }
+      }
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_path", "location", "target", "status", "reason"],
+        "properties": {
+          "source_path": {"type": "string"},
+          "location": {"type": "string"},
+          "target": {"type": "string"},
+          "status": {
+            "enum": [
+              "valid_internal",
+              "missing",
+              "external",
+              "through_symlink",
+              "case_mismatch",
+              "not_regular_file"
+            ]
+          },
           "reason": {"type": "string"}
         }
       }

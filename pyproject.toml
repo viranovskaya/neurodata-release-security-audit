@@ -5,10 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "neurodata-release-security-audit"
 dynamic = ["version"]
-description = "Local pre-release privacy and metadata checks for EEG datasets"
+description = "Local pre-release privacy and metadata checks for neurodata"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
   {name = "Daria Agafonova"},
 ]
@@ -23,6 +24,7 @@ dependencies = []
 
 [project.optional-dependencies]
 formats = ["mne[hdf5]>=1.12.1", "defusedxml>=0.7.1"]
+imaging = ["nibabel>=5.3.2", "pydicom>=3.0.1"]
 
 [project.scripts]
 neurodata-security-audit = "neurodata_security_audit.cli:main"

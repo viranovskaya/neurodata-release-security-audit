@@ -10,20 +10,30 @@ import json
 from numbers import Number
 import os
 import socket
+import tarfile
 import tempfile
 from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+import zipfile
 
 from neurodata_security_audit.cli import main
-from neurodata_security_audit.reporting import render_json, render_markdown
+from neurodata_security_audit.containers import inspect_archive
+from neurodata_security_audit.html_report import render_html
+from neurodata_security_audit.models import Finding, ManifestEntry, ScanReport
 from neurodata_security_audit.readers import (
     FormatReaderUnavailable,
     inspect_eeglab_metadata,
     inspect_mne_info,
 )
-from neurodata_security_audit.scanner import ScanPolicy, scan_dataset
+from neurodata_security_audit.reporting import render_json, render_markdown
+from neurodata_security_audit.scanner import (
+    ScanPolicy,
+    _release_collision_findings,
+    _tree_signature,
+    scan_dataset,
+)
 from neurodata_security_audit.structured import inspect_delimited
 
 
@@ -88,8 +98,20 @@ class ScannerTests(unittest.TestCase):
             {
                 "files_inspected": 5,
                 "files_skipped": 2,
-                "findings_high": 6,
-                "findings_review": 4,
+                "entries_total": 9,
+                "manifest_files": 7,
+                "manifest_recheck_passed": True,
+                "release_tree_recheck_passed": True,
+                "container_members": 0,
+                "references_checked": 2,
+                "references_valid": 1,
+                "fully_inspected_metadata": 5,
+                "header_or_structure_only": 2,
+                "payload_not_opened": 1,
+                "unsupported_manual_review": 1,
+                "not_traversed": 0,
+                "findings_high": 5,
+                "findings_review": 6,
                 "findings_info": 0,
             },
             report.to_dict()["summary"],
@@ -124,6 +146,141 @@ class ScannerTests(unittest.TestCase):
         rendered = render_json(report) + render_markdown(report)
         for secret in (email, phone, local_path, token):
             self.assertNotIn(secret, rendered)
+
+    def test_public_contact_email_requires_review_but_is_not_high(self) -> None:
+        public_email = "study.contact@example.org"
+        participant_email = "participant.contact@example.org"
+        (self.root / "README").write_text(
+            f"Contact: {public_email}\n"
+            f"Participant contact: {participant_email}\n",
+            encoding="utf-8",
+        )
+        (self.root / "notes.txt").write_text(
+            f"Contact: {public_email}\n",
+            encoding="utf-8",
+        )
+
+        findings = [
+            item
+            for item in scan_dataset(self.root).findings
+            if item.code == "DIRECT_EMAIL"
+        ]
+
+        self.assertEqual(
+            [
+                ("README", "high"),
+                ("README", "review"),
+                ("notes.txt", "high"),
+            ],
+            sorted((item.path, item.severity) for item in findings),
+        )
+
+    def test_public_readme_participant_email_labels_remain_high(self) -> None:
+        values = (
+            "participant@example.org",
+            "subject01@example.org",
+            "patient@example.org",
+            "donor@example.org",
+            "volunteer@example.org",
+            "participant.field@example.org",
+        )
+        (self.root / "README").write_text(
+            f"Participant: {values[0]}\n"
+            f"Subject 01: {values[1]}\n"
+            f"Patient-email = {values[2]}\n"
+            f"Donor: {values[3]}\n"
+            f"Volunteer address: {values[4]}\n"
+            f"participant_email: {values[5]}\n",
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+        findings = [
+            item for item in report.findings if item.code == "DIRECT_EMAIL"
+        ]
+
+        self.assertEqual(["high"] * 6, [item.severity for item in findings])
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_json_arrays_and_keys_are_scanned(self) -> None:
+        values = (
+            "participant@example.org",
+            "/Users/alice/private/participants.csv",
+            "ghp_" + "A" * 32,
+        )
+        key_email = "second.participant@example.org"
+        (self.root / "metadata.json").write_text(
+            json.dumps(
+                {
+                    "values": list(values),
+                    "nested": [["safe", values[0]]],
+                    "keyed": {key_email: "x"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        (self.root / "top_level_array.json").write_text(
+            json.dumps(list(values)),
+            encoding="utf-8",
+        )
+        (self.root / "top_level_scalar.json").write_text(
+            json.dumps(values[0]),
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+        codes = {item.code for item in report.findings}
+
+        self.assertTrue(
+            {"DIRECT_EMAIL", "LOCAL_PATH", "POTENTIAL_SECRET"} <= codes
+        )
+        rendered = render_json(report) + render_markdown(report)
+        for value in values + (key_email,):
+            self.assertNotIn(value, rendered)
+
+    def test_json_public_and_participant_contacts_use_different_severity(self) -> None:
+        (self.root / "dataset_description.json").write_text(
+            json.dumps(
+                {
+                    "Authors": [{"Email": "author@example.org"}],
+                    "Participant": {"Email": "participant@example.org"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        findings = [
+            item
+            for item in scan_dataset(self.root).findings
+            if item.code == "DIRECT_EMAIL"
+        ]
+
+        self.assertEqual(
+            ["high", "review"],
+            sorted(item.severity for item in findings),
+        )
+
+    def test_json_string_values_are_scanned_after_decoding(self) -> None:
+        (self.root / "scan.json").write_text(
+            json.dumps(
+                {
+                    "SequenceVariant": r"SK\SP\MP",
+                    "Source": r"\\server\share\file.edf",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        findings = [
+            item
+            for item in scan_dataset(self.root).findings
+            if item.code == "NETWORK_PATH"
+        ]
+
+        self.assertEqual(1, len(findings))
+        self.assertEqual("JSON value <field>", findings[0].location)
 
     def test_network_and_machine_values_are_detected_and_masked(self) -> None:
         values = (
@@ -307,6 +464,176 @@ class ScannerTests(unittest.TestCase):
         report = scan_dataset(self.root)
         unexpected = [item for item in report.findings if item.code == "UNEXPECTED_FILE"]
         self.assertEqual(4, len(unexpected))
+
+    def test_zip_member_table_is_checked_without_opening_payloads(self) -> None:
+        archive_path = self.root / "release.zip"
+        secret = "ghp_" + "A" * 32
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("safe/sub-01.txt", secret)
+            archive.writestr("../private/Jane Doe.txt", b"identifier")
+            archive.writestr("nested/data.tar.gz", b"nested archive payload")
+
+        with patch.object(
+            zipfile.ZipFile,
+            "open",
+            side_effect=AssertionError("archive payload must not be opened"),
+        ):
+            report = scan_dataset(
+                self.root,
+                ScanPolicy(sensitive_terms=("Jane Doe",)),
+            )
+
+        self.assertEqual(3, len(report.container_members))
+        codes = {item.code for item in report.findings}
+        self.assertTrue(
+            {
+                "ARCHIVE_MEMBER_PATH_TRAVERSAL",
+                "KNOWN_IDENTIFIER",
+                "NESTED_ARCHIVE",
+            }
+            <= codes
+        )
+        self.assertNotIn("POTENTIAL_SECRET", codes)
+        entry = next(item for item in report.coverage if item.path == "release.zip")
+        self.assertEqual("header_or_structure_only", entry.status)
+        rendered = render_json(report) + render_markdown(report)
+        self.assertNotIn(secret, rendered)
+        self.assertNotIn("Jane Doe", rendered)
+
+    def test_tar_links_are_listed_but_not_followed_or_extracted(self) -> None:
+        archive_path = self.root / "release.tar"
+        with tarfile.open(archive_path, "w") as archive:
+            directory = tarfile.TarInfo("safe")
+            directory.type = tarfile.DIRTYPE
+            archive.addfile(directory)
+            link = tarfile.TarInfo("safe/external-link")
+            link.type = tarfile.SYMTYPE
+            link.linkname = "../../private/participant.tsv"
+            archive.addfile(link)
+
+        with (
+            patch.object(
+                tarfile.TarFile,
+                "extract",
+                side_effect=AssertionError("archive members must not be extracted"),
+            ),
+            patch.object(
+                tarfile.TarFile,
+                "extractall",
+                side_effect=AssertionError("archive members must not be extracted"),
+            ),
+        ):
+            report = scan_dataset(self.root)
+
+        codes = {item.code for item in report.findings}
+        self.assertIn("ARCHIVE_SPECIAL_MEMBER", codes)
+        self.assertIn("ARCHIVE_LINK_PATH_TRAVERSAL", codes)
+        member_type = {
+            item.member_path: item.member_type for item in report.container_members
+        }
+        self.assertEqual("symlink", member_type["safe/external-link"])
+
+    def test_encrypted_zip_is_an_explicit_high_severity_boundary(self) -> None:
+        archive_path = self.root / "release.zip"
+        archive_path.write_bytes(b"synthetic-zip-placeholder")
+        info = SimpleNamespace(
+            filename="data/sub-01.txt",
+            flag_bits=1,
+            external_attr=0,
+            file_size=100,
+            compress_size=80,
+            is_dir=lambda: False,
+        )
+
+        class FakeZip:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            @staticmethod
+            def infolist():
+                return [info]
+
+        with patch(
+            "neurodata_security_audit.containers.zipfile.ZipFile",
+            return_value=FakeZip(),
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertIn(
+            "ENCRYPTED_ARCHIVE",
+            {item.code for item in report.findings},
+        )
+        entry = next(item for item in report.coverage if item.path == "release.zip")
+        self.assertEqual("unsupported_manual_review", entry.status)
+        self.assertTrue(report.container_members[0].encrypted)
+
+    def test_zip_expansion_risk_uses_member_metadata_only(self) -> None:
+        archive_path = self.root / "release.zip"
+        archive_path.write_bytes(b"synthetic-zip-placeholder")
+        info = SimpleNamespace(
+            filename="data/large.bin",
+            flag_bits=0,
+            external_attr=0,
+            file_size=200 * 1024 * 1024,
+            compress_size=1,
+            is_dir=lambda: False,
+        )
+
+        class FakeZip:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            @staticmethod
+            def infolist():
+                return [info]
+
+        with patch(
+            "neurodata_security_audit.containers.zipfile.ZipFile",
+            return_value=FakeZip(),
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertIn(
+            "ARCHIVE_EXPANSION_RISK",
+            {item.code for item in report.findings},
+        )
+
+    def test_archive_member_limit_fails_visibly(self) -> None:
+        archive_path = self.root / "release.zip"
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("first.txt", b"one")
+            archive.writestr("second.txt", b"two")
+
+        result = inspect_archive(
+            archive_path,
+            "release.zip",
+            max_members=1,
+        )
+
+        self.assertFalse(result.complete)
+        self.assertEqual(1, len(result.members))
+        self.assertIn(
+            "ARCHIVE_MEMBER_LIMIT",
+            {item.code for item in result.findings},
+        )
+
+    def test_corrupt_archive_fails_visibly(self) -> None:
+        (self.root / "release.zip").write_bytes(b"not a zip")
+
+        report = scan_dataset(self.root)
+
+        self.assertIn(
+            "ARCHIVE_UNREADABLE",
+            {item.code for item in report.findings},
+        )
+        entry = next(item for item in report.coverage if item.path == "release.zip")
+        self.assertEqual("unsupported_manual_review", entry.status)
 
     def test_sensitive_configuration_directory_is_visible_and_scanned(self) -> None:
         secret = "AKIA" + "A" * 16
@@ -557,6 +884,117 @@ class ScannerTests(unittest.TestCase):
         report = scan_dataset(self.root)
         self.assertIn("SOURCE_FILENAME", {finding.code for finding in report.findings})
         self.assertNotIn(source_name, render_json(report) + render_markdown(report))
+
+    def test_brainvision_internal_references_are_checked(self) -> None:
+        header = self.root / "sub-01_task-rest_eeg.vhdr"
+        marker = self.root / "sub-01_task-rest_eeg.vmrk"
+        signal = self.root / "sub-01_task-rest_eeg.eeg"
+        header.write_text(
+            "[Common Infos]\n"
+            f"DataFile={signal.name}\n"
+            f"MarkerFile={marker.name}\n",
+            encoding="utf-8",
+        )
+        marker.write_text(
+            "[Common Infos]\n"
+            f"DataFile={signal.name}\n",
+            encoding="utf-8",
+        )
+        signal.write_bytes(b"synthetic signal")
+
+        report = scan_dataset(self.root)
+
+        self.assertEqual(3, len(report.references))
+        self.assertEqual(
+            {"valid_internal"},
+            {item.status for item in report.references},
+        )
+        self.assertNotIn(
+            "MISSING_DATA_REFERENCE",
+            {item.code for item in report.findings},
+        )
+
+    def test_brainvision_external_case_and_symlink_references_are_visible(self) -> None:
+        case_target = self.root / "Signal.EEG"
+        case_target.write_bytes(b"synthetic signal")
+        real_target = self.root / "real.eeg"
+        real_target.write_bytes(b"synthetic signal")
+        symlink = self.root / "linked.eeg"
+        symlink.symlink_to(real_target)
+        header = self.root / "recording.vhdr"
+        header.write_text(
+            "[Common Infos]\n"
+            "DataFile=signal.eeg\n"
+            "MarkerFile=linked.eeg\n"
+            "DataFile=../../private/source.eeg\n",
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+
+        statuses = {item.status for item in report.references}
+        self.assertTrue(
+            {"case_mismatch", "through_symlink", "external"} <= statuses
+        )
+        codes = {item.code for item in report.findings}
+        self.assertTrue(
+            {
+                "CASE_MISMATCHED_REFERENCE",
+                "REFERENCE_THROUGH_SYMLINK",
+                "EXTERNAL_DATA_REFERENCE",
+            }
+            <= codes
+        )
+
+    def test_bids_intended_for_reference_is_resolved_from_dataset_root(self) -> None:
+        target = self.root / "sub-01" / "func" / "sub-01_task-rest_bold.nii.gz"
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b"synthetic image")
+        sidecar = self.root / "sub-01" / "fmap" / "sub-01_phasediff.json"
+        sidecar.parent.mkdir(parents=True)
+        sidecar.write_text(
+            json.dumps(
+                {
+                    "IntendedFor": [
+                        "bids::sub-01/func/sub-01_task-rest_bold.nii.gz"
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch(
+            "neurodata_security_audit.scanner.inspect_nifti_metadata",
+            return_value=[],
+        ):
+            report = scan_dataset(self.root)
+
+        reference = next(
+            item for item in report.references if item.source_path.endswith(".json")
+        )
+        self.assertEqual("valid_internal", reference.status)
+        self.assertEqual(
+            "sub-01/func/sub-01_task-rest_bold.nii.gz",
+            reference.target,
+        )
+
+    def test_missing_bids_intended_for_reference_is_visible(self) -> None:
+        sidecar = self.root / "sub-01" / "fmap" / "sub-01_phasediff.json"
+        sidecar.parent.mkdir(parents=True)
+        sidecar.write_text(
+            json.dumps({"IntendedFor": ["bids::sub-01/func/missing.nii.gz"]}),
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+
+        self.assertIn(
+            "MISSING_DATA_REFERENCE",
+            {item.code for item in report.findings},
+        )
+        reference = report.references[0]
+        self.assertEqual("missing", reference.status)
+        self.assertEqual("<missing-reference>", reference.target)
 
     def test_structured_json_fields_are_detected_and_masked(self) -> None:
         values = {
@@ -1033,6 +1471,388 @@ class ScannerTests(unittest.TestCase):
             {"LINKED_SOURCE_ID", "EXACT_RECORDING_DATE"}
             <= {finding.code for finding in report.findings}
         )
+
+    def test_nifti_reader_inspects_header_without_loading_voxels(self) -> None:
+        nifti = self.root / "sub-01_T1w.nii"
+        nifti.write_bytes(b"synthetic-nifti-placeholder")
+        values = (
+            "Jane Doe",
+            "study.contact@example.org",
+            "/Users/operator/private/original.nii",
+            "HOSP-0042",
+        )
+
+        class FakeHeader(dict):
+            extensions: tuple[object, ...] = ()
+
+        class FakeImage:
+            header = FakeHeader(
+                {
+                    "descrip": (
+                        f"Participant {values[0]}, contact {values[1]}"
+                    ).encode(),
+                    "aux_file": values[2].encode(),
+                    "intent_name": b"rest",
+                    "db_name": values[3].encode(),
+                }
+            )
+
+            @property
+            def dataobj(self):
+                raise AssertionError("voxel data must not be accessed")
+
+        class FakeNibabel:
+            @staticmethod
+            def load(path: str, *, mmap: bool, keep_file_open: bool):
+                self.assertEqual(nifti.resolve(), Path(path))
+                self.assertFalse(mmap)
+                self.assertFalse(keep_file_open)
+                return FakeImage()
+
+        with patch(
+            "neurodata_security_audit.imaging._load_nibabel",
+            return_value=FakeNibabel(),
+        ):
+            report = scan_dataset(
+                self.root,
+                ScanPolicy(sensitive_terms=("Jane Doe",)),
+            )
+
+        codes = {item.code for item in report.findings}
+        self.assertTrue(
+            {
+                "KNOWN_IDENTIFIER",
+                "DIRECT_EMAIL",
+                "LOCAL_PATH",
+                "FREE_TEXT_METADATA",
+                "SOURCE_FILENAME",
+                "LINKED_SOURCE_ID",
+            }
+            <= codes
+        )
+        coverage = next(item for item in report.coverage if item.path == nifti.name)
+        self.assertEqual("header_or_structure_only", coverage.status)
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_nifti_extension_is_a_visible_coverage_boundary(self) -> None:
+        nifti = self.root / "sub-01_T1w.nii.gz"
+        nifti.write_bytes(b"synthetic-nifti-placeholder")
+
+        class FakeExtension:
+            @staticmethod
+            def get_code() -> int:
+                return 6
+
+        class FakeHeader(dict):
+            extensions = (FakeExtension(),)
+
+        image = SimpleNamespace(
+            header=FakeHeader(
+                {
+                    "descrip": b"",
+                    "aux_file": b"",
+                    "intent_name": b"",
+                    "db_name": b"",
+                }
+            )
+        )
+        with patch(
+            "neurodata_security_audit.imaging._load_nibabel",
+            return_value=SimpleNamespace(load=lambda *args, **kwargs: image),
+        ):
+            report = scan_dataset(self.root)
+        extension = next(
+            item for item in report.findings if item.code == "NIFTI_EXTENSION_PRESENT"
+        )
+        self.assertEqual("<nifti-extension-code:6>", extension.evidence)
+
+    def test_missing_nifti_reader_is_visible(self) -> None:
+        nifti = self.root / "sub-01_T1w.nii"
+        nifti.write_bytes(b"synthetic-nifti-placeholder")
+        with patch(
+            "neurodata_security_audit.scanner.inspect_nifti_metadata",
+            side_effect=FormatReaderUnavailable("synthetic"),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "FORMAT_READER_UNAVAILABLE",
+            {item.code for item in report.findings},
+        )
+        coverage = next(item for item in report.coverage if item.path == nifti.name)
+        self.assertEqual("unsupported_manual_review", coverage.status)
+
+    def test_unreadable_nifti_metadata_is_visible_without_error_details(self) -> None:
+        nifti = self.root / "sub-01_T1w.nii"
+        nifti.write_bytes(b"synthetic-nifti-placeholder")
+        private_error = "Jane Doe at /Users/jane/private"
+        with patch(
+            "neurodata_security_audit.scanner.inspect_nifti_metadata",
+            side_effect=ValueError(private_error),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "FORMAT_METADATA_UNREADABLE",
+            {item.code for item in report.findings},
+        )
+        self.assertNotIn(private_error, render_json(report) + render_markdown(report))
+
+    def test_nifti_pair_image_is_treated_as_payload(self) -> None:
+        image = self.root / "sub-01_T1w.img"
+        image.write_bytes(b"synthetic image payload")
+
+        report = scan_dataset(self.root)
+
+        entry = next(item for item in report.coverage if item.path == image.name)
+        self.assertEqual("payload_not_opened", entry.status)
+        self.assertNotIn(image.name, report.files_inspected)
+
+    def test_dicom_reader_inspects_nested_metadata_without_pixels(self) -> None:
+        dicom = self.root / "sub-01_scan.dcm"
+        dicom.write_bytes(b"synthetic-dicom-placeholder")
+        values = (
+            "Jane Doe",
+            "19900102",
+            "HOSP-0042",
+            "Example Hospital",
+            "Acquisition Operator",
+            "SCANNER-928374",
+            "study.contact@example.org",
+            "1.2.826.0.1.3680043.8.498.1234",
+            "12 Main Street",
+        )
+
+        class FakeTag:
+            is_private = False
+            group = 0
+            element = 0
+
+        class FakeElement:
+            def __init__(self, keyword: str, vr: str, value: object):
+                self.keyword = keyword
+                self.VR = vr
+                self.value = value
+                self.tag = FakeTag()
+
+        nested = [
+            FakeElement("PatientAddress", "LO", values[8]),
+        ]
+        dataset = [
+            FakeElement("PatientName", "PN", values[0]),
+            FakeElement("PatientBirthDate", "DA", values[1]),
+            FakeElement("PatientID", "LO", values[2]),
+            FakeElement("InstitutionName", "LO", values[3]),
+            FakeElement("OperatorsName", "PN", values[4]),
+            FakeElement("DeviceSerialNumber", "LO", values[5]),
+            FakeElement("StudyDescription", "LO", values[6]),
+            FakeElement("StudyInstanceUID", "UI", values[7]),
+            FakeElement("BurnedInAnnotation", "CS", "YES"),
+            FakeElement("RecognizableVisualFeatures", "CS", "YES"),
+            FakeElement("PatientIdentityRemoved", "CS", "NO"),
+            FakeElement("ReferencedStudySequence", "SQ", nested),
+        ]
+
+        class FakeDataset(list):
+            @property
+            def pixel_array(self):
+                raise AssertionError("pixel data must not be accessed")
+
+        class FakePydicom:
+            @staticmethod
+            def dcmread(
+                path: str,
+                *,
+                stop_before_pixels: bool,
+                force: bool,
+                defer_size: int,
+            ):
+                self.assertEqual(dicom.resolve(), Path(path))
+                self.assertTrue(stop_before_pixels)
+                self.assertFalse(force)
+                self.assertEqual(1024 * 1024, defer_size)
+                return FakeDataset(dataset)
+
+        with patch(
+            "neurodata_security_audit.imaging._load_pydicom",
+            return_value=FakePydicom(),
+        ):
+            report = scan_dataset(
+                self.root,
+                ScanPolicy(sensitive_terms=("Jane Doe",)),
+            )
+
+        codes = {item.code for item in report.findings}
+        self.assertTrue(
+            {
+                "SUBJECT_NAME_FIELD",
+                "BIRTH_DATE_FIELD",
+                "LINKED_SOURCE_ID",
+                "SITE_IDENTIFIER",
+                "PERSONNEL_FIELD",
+                "DEVICE_IDENTIFIER",
+                "DIRECT_EMAIL",
+                "FREE_TEXT_METADATA",
+                "DICOM_UID",
+                "BURNED_IN_ANNOTATION",
+                "DICOM_IDENTITY_NOT_REMOVED",
+                "POSTAL_ADDRESS_FIELD",
+            }
+            <= codes
+        )
+        coverage = next(item for item in report.coverage if item.path == dicom.name)
+        self.assertEqual("header_or_structure_only", coverage.status)
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_dicom_private_binary_and_documents_are_not_opened(self) -> None:
+        dicom = self.root / "sub-01_scan.dcm"
+        dicom.write_bytes(b"synthetic-dicom-placeholder")
+
+        class FakeTag:
+            def __init__(self, private: bool, group: int, element: int):
+                self.is_private = private
+                self.group = group
+                self.element = element
+
+        class RefuseValue:
+            def __str__(self):
+                raise AssertionError("binary value must not be read")
+
+        class FakeElement:
+            def __init__(
+                self,
+                keyword: str,
+                vr: str,
+                tag: FakeTag,
+            ):
+                self.keyword = keyword
+                self.VR = vr
+                self.tag = tag
+
+            @property
+            def value(self):
+                return RefuseValue()
+
+        dataset = [
+            FakeElement(
+                "",
+                "OB",
+                FakeTag(True, 0x0019, 0x100A),
+            ),
+            FakeElement(
+                "EncapsulatedDocument",
+                "OB",
+                FakeTag(False, 0x0042, 0x0011),
+            ),
+            FakeElement(
+                "PixelData",
+                "OB",
+                FakeTag(False, 0x7FE0, 0x0010),
+            ),
+        ]
+        with patch(
+            "neurodata_security_audit.imaging._load_pydicom",
+            return_value=SimpleNamespace(
+                dcmread=lambda *args, **kwargs: dataset,
+            ),
+        ):
+            report = scan_dataset(self.root)
+
+        codes = {item.code for item in report.findings}
+        self.assertTrue(
+            {
+                "DICOM_PRIVATE_TAG",
+                "ENCAPSULATED_DOCUMENT_PRESENT",
+                "DICOM_PIXEL_DATA_PRESENT",
+            }
+            <= codes
+        )
+
+    def test_dicom_nested_metadata_depth_is_bounded(self) -> None:
+        dicom = self.root / "sub-01_scan.dcm"
+        dicom.write_bytes(b"synthetic-dicom-placeholder")
+
+        tag = SimpleNamespace(is_private=False, group=0, element=0)
+        nested: list[object] = [
+            SimpleNamespace(
+                keyword="PatientID",
+                VR="LO",
+                value="HOSP-0042",
+                tag=tag,
+            )
+        ]
+        for _ in range(18):
+            nested = [
+                SimpleNamespace(
+                    keyword="ReferencedStudySequence",
+                    VR="SQ",
+                    value=nested,
+                    tag=tag,
+                )
+            ]
+
+        with patch(
+            "neurodata_security_audit.imaging._load_pydicom",
+            return_value=SimpleNamespace(
+                dcmread=lambda *args, **kwargs: nested,
+            ),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "DICOM_METADATA_LIMIT",
+            {item.code for item in report.findings},
+        )
+        coverage = next(item for item in report.coverage if item.path == dicom.name)
+        self.assertEqual("unsupported_manual_review", coverage.status)
+        self.assertIn(
+            dicom.name,
+            {item.path for item in report.skipped_files},
+        )
+
+    def test_extensionless_dicom_preamble_is_detected(self) -> None:
+        dicom = self.root / "scan0001"
+        dicom.write_bytes(b"\x00" * 128 + b"DICM")
+        with patch(
+            "neurodata_security_audit.scanner.inspect_dicom_metadata",
+            return_value=[],
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(dicom.name, report.files_inspected)
+        entry = next(item for item in report.coverage if item.path == dicom.name)
+        self.assertEqual("header_or_structure_only", entry.status)
+
+    def test_missing_dicom_reader_is_visible(self) -> None:
+        dicom = self.root / "sub-01_scan.dcm"
+        dicom.write_bytes(b"synthetic-dicom-placeholder")
+        with patch(
+            "neurodata_security_audit.scanner.inspect_dicom_metadata",
+            side_effect=FormatReaderUnavailable("synthetic"),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "FORMAT_READER_UNAVAILABLE",
+            {item.code for item in report.findings},
+        )
+        entry = next(item for item in report.coverage if item.path == dicom.name)
+        self.assertEqual("unsupported_manual_review", entry.status)
+
+    def test_unreadable_dicom_metadata_hides_error_details(self) -> None:
+        dicom = self.root / "sub-01_scan.dcm"
+        dicom.write_bytes(b"synthetic-dicom-placeholder")
+        private_error = "Jane Doe at /Users/jane/private"
+        with patch(
+            "neurodata_security_audit.scanner.inspect_dicom_metadata",
+            side_effect=ValueError(private_error),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "FORMAT_METADATA_UNREADABLE",
+            {item.code for item in report.findings},
+        )
+        self.assertNotIn(private_error, render_json(report) + render_markdown(report))
+
     def test_empty_mne_identifiers_are_not_reported(self) -> None:
         findings = inspect_mne_info(
             {
@@ -1090,6 +1910,59 @@ class ScannerTests(unittest.TestCase):
             {finding.code for finding in report.findings},
         )
 
+    def test_small_bids_text_metadata_is_fully_inspected(self) -> None:
+        files = {
+            ".bidsignore": "private/source/**\n",
+            ".gitattributes": "*.edf annex.largefiles=anything\n",
+            "sub-01_dwi.bval": "0 1000 1000\n",
+            "sub-01_dwi.bvec": "1 0 0\n0 1 0\n0 0 1\n",
+        }
+        for name, content in files.items():
+            (self.root / name).write_text(content, encoding="utf-8")
+
+        report = scan_dataset(self.root)
+
+        inspected = set(report.files_inspected)
+        self.assertTrue(set(files) <= inspected)
+        coverage = {item.path: item.status for item in report.coverage}
+        self.assertTrue(
+            all(coverage[name] == "fully_inspected_metadata" for name in files)
+        )
+
+    def test_kit_reader_uses_preload_false(self) -> None:
+        kit = self.root / "sub-01_task-rest_meg.con"
+        kit.write_bytes(b"synthetic-format-placeholder")
+        calls: list[bool] = []
+
+        class FakeRaw:
+            preload = False
+            info = {"subject_info": {"his_id": "HOSP-0042"}}
+
+            def close(self) -> None:
+                pass
+
+        def read_raw_kit(path, preload, verbose):
+            calls.append(preload)
+            return FakeRaw()
+
+        io_module = SimpleNamespace(read_raw_kit=read_raw_kit)
+        with patch(
+            "neurodata_security_audit.readers._load_mne",
+            return_value=SimpleNamespace(io=io_module),
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertEqual([False], calls)
+        self.assertIn(kit.name, report.files_inspected)
+        self.assertIn(
+            "LINKED_SOURCE_ID",
+            {finding.code for finding in report.findings},
+        )
+        self.assertNotIn(
+            "FORMAT_READER_UNAVAILABLE",
+            {finding.code for finding in report.findings},
+        )
+
     def test_eeglab_private_fields_are_detected_and_masked(self) -> None:
         values = {
             "subject": ["HOSP-0042"],
@@ -1127,6 +2000,29 @@ class ScannerTests(unittest.TestCase):
             "eeg.operator@example.org",
         ):
             self.assertNotIn(value, rendered)
+
+    def test_eeglab_external_data_file_reference_is_checked(self) -> None:
+        set_file = self.root / "recording.set"
+        fdt_file = self.root / "recording.fdt"
+        set_file.write_bytes(b"synthetic-format-placeholder")
+        fdt_file.write_bytes(b"synthetic signal")
+        references = []
+
+        with patch(
+            "neurodata_security_audit.readers._read_eeglab_metadata",
+            return_value=({"data": [fdt_file.name]}, True),
+        ):
+            findings = inspect_eeglab_metadata(
+                set_file,
+                set_file.name,
+                dataset_root=self.root,
+                reference_entries=references,
+            )
+
+        self.assertEqual([], findings)
+        self.assertEqual(1, len(references))
+        self.assertEqual("valid_internal", references[0].status)
+        self.assertEqual(fdt_file.name, references[0].target)
 
     def test_nested_eeglab_metadata_gap_is_visible(self) -> None:
         with patch(
@@ -1314,6 +2210,21 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("EMPTY_PLACEHOLDER", codes)
         self.assertIn("GIT_LFS_POINTER", codes)
         self.assertNotIn("FORMAT_READER_UNAVAILABLE", codes)
+        coverage = {item.path: item.status for item in report.coverage}
+        self.assertEqual("unsupported_manual_review", coverage["empty.set"])
+        self.assertEqual("unsupported_manual_review", coverage["pointer.fif"])
+
+    def test_empty_nifti_is_reported_as_a_placeholder(self) -> None:
+        path = self.root / "sub-01_T1w.nii.gz"
+        path.write_bytes(b"")
+
+        report = scan_dataset(self.root)
+
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("EMPTY_PLACEHOLDER", codes)
+        self.assertNotIn("FORMAT_METADATA_UNREADABLE", codes)
+        entry = next(item for item in report.coverage if item.path == path.name)
+        self.assertEqual("unsupported_manual_review", entry.status)
 
     def test_clean_and_leaky_edf_headers(self) -> None:
         _write_edf(self.root / "clean.edf", "X X X X", "Startdate X X X X", "01.01.85")
@@ -1378,6 +2289,9 @@ class ScannerTests(unittest.TestCase):
         codes = set(self._codes())
         self.assertIn("EMPTY_PLACEHOLDER", codes)
         self.assertNotIn("MALFORMED_HEADER", codes)
+        report = scan_dataset(self.root)
+        entry = next(item for item in report.coverage if item.path == "recording.edf")
+        self.assertEqual("unsupported_manual_review", entry.status)
 
     def test_participant_key_and_backup_are_visible(self) -> None:
         (self.root / "participant_name_key.xlsx").write_bytes(b"synthetic")
@@ -1515,7 +2429,197 @@ class ScannerTests(unittest.TestCase):
         after = hashlib.sha256(source.read_bytes()).hexdigest()
         self.assertEqual(first, second)
         self.assertEqual(before, after)
-        self.assertEqual("1", json.loads(first)["schema_version"])
+        self.assertEqual("2", json.loads(first)["schema_version"])
+
+    def test_every_release_entry_has_one_coverage_record(self) -> None:
+        data_dir = self.root / "sub-01" / "eeg"
+        data_dir.mkdir(parents=True)
+        (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+        (data_dir / "recording.eeg").write_bytes(b"synthetic signal")
+        (data_dir / "notes.unknown").write_bytes(b"opaque")
+
+        report = scan_dataset(self.root)
+        expected = {
+            path.relative_to(self.root).as_posix()
+            for path in self.root.rglob("*")
+        }
+        coverage_paths = [item.path for item in report.coverage]
+        self.assertEqual(expected, set(coverage_paths))
+        self.assertEqual(len(expected), len(coverage_paths))
+
+        status = {item.path: item.status for item in report.coverage}
+        self.assertEqual("fully_inspected_metadata", status["README"])
+        self.assertEqual("header_or_structure_only", status["sub-01"])
+        self.assertEqual("payload_not_opened", status["sub-01/eeg/recording.eeg"])
+        self.assertEqual(
+            "unsupported_manual_review",
+            status["sub-01/eeg/notes.unknown"],
+        )
+
+    def test_manifest_hashes_every_regular_file_without_changing_it(self) -> None:
+        text = self.root / "README"
+        signal = self.root / "recording.eeg"
+        text.write_text("Synthetic dataset\n", encoding="utf-8")
+        signal.write_bytes(b"\x00\x01synthetic signal")
+        before = {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (text, signal)
+        }
+
+        report = scan_dataset(self.root)
+
+        manifest = {item.path: item for item in report.manifest}
+        self.assertEqual({"README", "recording.eeg"}, set(manifest))
+        self.assertEqual(before["README"], manifest["README"].sha256)
+        self.assertEqual(before["recording.eeg"], manifest["recording.eeg"].sha256)
+        self.assertEqual(text.stat().st_size, manifest["README"].size_bytes)
+        self.assertEqual(signal.stat().st_size, manifest["recording.eeg"].size_bytes)
+        after = {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in (text, signal)
+        }
+        self.assertEqual(before, after)
+
+    def test_file_change_between_manifest_passes_is_visible(self) -> None:
+        source = self.root / "README"
+        source.write_text("Synthetic dataset\n", encoding="utf-8")
+
+        with patch(
+            "neurodata_security_audit.scanner._sha256_file",
+            side_effect=["0" * 64, "1" * 64],
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertFalse(report.manifest_recheck_passed)
+        self.assertIn(
+            "FILE_CHANGED_DURING_SCAN",
+            {item.code for item in report.findings},
+        )
+        entry = next(item for item in report.coverage if item.path == "README")
+        self.assertEqual("unsupported_manual_review", entry.status)
+
+    def test_release_tree_change_during_scan_is_visible(self) -> None:
+        source = self.root / "README"
+        source.write_text("Synthetic dataset\n", encoding="utf-8")
+        with patch(
+            "neurodata_security_audit.scanner._tree_signature",
+            side_effect=[
+                {"README": ("file", "")},
+                {
+                    "README": ("file", ""),
+                    "late-file.txt": ("file", ""),
+                },
+            ],
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertFalse(report.release_tree_recheck_passed)
+        self.assertIn(
+            "RELEASE_TREE_CHANGED_DURING_SCAN",
+            {item.code for item in report.findings},
+        )
+        late = next(item for item in report.coverage if item.path == "late-file.txt")
+        self.assertEqual("unsupported_manual_review", late.status)
+
+    def test_symlink_target_change_during_scan_is_visible(self) -> None:
+        link = self.root / "recording-link"
+        os.symlink("first-target", link)
+        with patch(
+            "neurodata_security_audit.scanner._tree_signature",
+            side_effect=[
+                {"recording-link": ("symlink", "signature-a")},
+                {"recording-link": ("symlink", "signature-b")},
+            ],
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertFalse(report.release_tree_recheck_passed)
+        finding = next(
+            item
+            for item in report.findings
+            if item.code == "RELEASE_TREE_CHANGED_DURING_SCAN"
+        )
+        self.assertEqual("<tree-entry:symlink-target-changed>", finding.evidence)
+        rendered = render_json(report) + render_markdown(report)
+        self.assertNotIn("first-target", rendered)
+        self.assertNotIn("second-target", rendered)
+
+    def test_tree_signature_reads_symlink_target_without_opening_it(self) -> None:
+        outside = Path(self.temp_dir.name) / "outside.txt"
+        outside.write_text("must not be read", encoding="utf-8")
+        link = self.root / "recording-link"
+        os.symlink(outside, link)
+
+        with patch.object(
+            Path,
+            "open",
+            side_effect=AssertionError("symlink target must not be opened"),
+        ):
+            signature = _tree_signature(self.root)
+
+        expected = hashlib.sha256(os.fsencode(str(outside))).hexdigest()
+        self.assertEqual(("symlink", expected), signature[link.name])
+
+    def test_ignored_directory_descendants_are_inventoried_but_not_parsed(self) -> None:
+        ignored = self.root / ".git"
+        nested = ignored / "objects"
+        nested.mkdir(parents=True)
+        secret = "ghp_" + "A" * 32
+        payload = nested / "private.txt"
+        payload.write_text(secret, encoding="utf-8")
+
+        report = scan_dataset(self.root)
+
+        coverage = {item.path: item.status for item in report.coverage}
+        self.assertEqual("not_traversed", coverage[".git"])
+        self.assertEqual("not_traversed", coverage[".git/objects"])
+        self.assertEqual("not_traversed", coverage[".git/objects/private.txt"])
+        self.assertIn(
+            ".git/objects/private.txt",
+            {item.path for item in report.manifest},
+        )
+        self.assertNotIn("POSSIBLE_CREDENTIAL", {item.code for item in report.findings})
+        self.assertNotIn(secret, render_json(report) + render_markdown(report))
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFO fixture requires os.mkfifo")
+    def test_special_filesystem_entry_is_accounted_for_without_opening_it(self) -> None:
+        fifo = self.root / "acquisition.pipe"
+        os.mkfifo(fifo)
+
+        report = scan_dataset(self.root)
+
+        entry = next(item for item in report.coverage if item.path == fifo.name)
+        self.assertEqual("other", entry.entry_type)
+        self.assertEqual("unsupported_manual_review", entry.status)
+        self.assertIn(
+            "SPECIAL_FILESYSTEM_ENTRY",
+            {item.code for item in report.findings},
+        )
+        self.assertNotIn(fifo.name, {item.path for item in report.manifest})
+
+    def test_release_filename_collisions_are_visible(self) -> None:
+        manifest = [
+            ManifestEntry("sub-01/eeg/data.edf", 1, "0" * 64),
+            ManifestEntry("sub-02/eeg/data.edf", 1, "1" * 64),
+            ManifestEntry("sub-03/eeg/Data.EDF", 1, "2" * 64),
+            ManifestEntry("Sub-04/eeg/file.txt", 1, "3" * 64),
+            ManifestEntry("sub-04/eeg/file.txt", 1, "4" * 64),
+            ManifestEntry("sub-05/notes.txt", 1, "5" * 64),
+            ManifestEntry("sub-06/notes.txt", 1, "6" * 64),
+        ]
+
+        codes = {
+            item.code for item in _release_collision_findings(manifest)
+        }
+
+        self.assertTrue(
+            {
+                "CASE_COLLIDING_RELEASE_PATH",
+                "DUPLICATE_BASENAME",
+                "CASE_COLLIDING_BASENAME",
+            }
+            <= codes
+        )
 
     def test_scan_does_not_open_network_connections(self) -> None:
         (self.root / "dataset_description.json").write_text(
@@ -1545,6 +2649,90 @@ class ScannerTests(unittest.TestCase):
             rendered,
         )
 
+    def test_html_report_is_deterministic_and_self_contained(self) -> None:
+        (self.root / "notes.txt").write_text(
+            "Contact: alice@example.org\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+
+        first = render_html(report)
+        second = render_html(report)
+
+        self.assertEqual(first, second)
+        self.assertTrue(first.startswith("<!doctype html>"))
+        self.assertIn("<title>NeuroData release security audit</title>", first)
+        self.assertIn("DIRECT_EMAIL", first)
+        self.assertNotIn("alice@example.org", first)
+        self.assertNotIn("<script", first.lower())
+        self.assertNotIn("https://", first)
+
+    def test_findings_with_the_same_location_have_a_total_order(self) -> None:
+        common = {
+            "code": "MISSING_DATA_REFERENCE",
+            "severity": "review",
+            "path": "sub-01/fmap/image.json",
+            "location": "JSON field IntendedFor",
+            "message": "Check the reference.",
+        }
+        shorter = Finding(evidence="<redacted:file-reference,length=8>", **common)
+        longer = Finding(evidence="<redacted:file-reference,length=12>", **common)
+
+        forward = ScanReport(
+            scanner_version="test",
+            findings=[shorter, longer],
+        ).to_dict()["findings"]
+        reverse = ScanReport(
+            scanner_version="test",
+            findings=[longer, shorter],
+        ).to_dict()["findings"]
+
+        self.assertEqual(forward, reverse)
+
+    def test_html_report_escapes_untrusted_markup(self) -> None:
+        filename = 'notes"><img src=x onerror=alert(1)>.txt'
+        (self.root / filename).write_text(
+            "Contact: alice@example.org\n",
+            encoding="utf-8",
+        )
+
+        rendered = render_html(scan_dataset(self.root))
+
+        self.assertNotIn("<img src=x onerror=alert(1)>", rendered)
+        self.assertIn(
+            "notes&quot;&gt;&lt;img src=x onerror=alert(1)&gt;.txt",
+            rendered,
+        )
+
+    def test_html_report_warns_that_unrecognized_filename_text_can_remain(self) -> None:
+        filename = "family-reference-green-owl.txt"
+        (self.root / filename).write_text("release note\n", encoding="utf-8")
+
+        rendered = render_html(scan_dataset(self.root))
+
+        self.assertIn(filename, rendered)
+        self.assertIn("Keep this report private.", rendered)
+        self.assertIn(
+            "unrecognized identifying text may remain in\n  relative paths or locations",
+            rendered,
+        )
+        self.assertIn("before sharing or publishing it", rendered)
+
+    def test_html_report_puts_high_findings_first_with_safe_fix_steps(self) -> None:
+        (self.root / "notes.txt").write_text(
+            "Participant: private.person@example.org\n",
+            encoding="utf-8",
+        )
+
+        rendered = render_html(scan_dataset(self.root))
+
+        self.assertIn('href="#high-findings"', rendered)
+        self.assertIn('<section id="high-findings">', rendered)
+        self.assertIn("How to fix safely", rendered)
+        self.assertIn("make a working copy", rendered)
+        self.assertIn("The audit is read-only", rendered)
+        self.assertNotIn("private.person@example.org", rendered)
+
     def test_cli_writes_reports_and_returns_finding_status(self) -> None:
         (self.root / "notes.txt").write_text("Contact: alice@example.org\n", encoding="utf-8")
         output = Path(self.temp_dir.name) / "reports"
@@ -1557,11 +2745,16 @@ class ScannerTests(unittest.TestCase):
                     str(output / "audit.json"),
                     "--markdown",
                     str(output / "audit.md"),
+                    "--html",
+                    str(output / "audit.html"),
                 ]
             )
         self.assertEqual(1, code)
         self.assertTrue((output / "audit.json").is_file())
         self.assertTrue((output / "audit.md").is_file())
+        html = (output / "audit.html").read_text(encoding="utf-8")
+        self.assertIn("<!doctype html>", html)
+        self.assertNotIn("alice@example.org", html)
 
     def test_cli_handles_report_write_error(self) -> None:
         (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
@@ -1575,11 +2768,38 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertIn("could not write report (PermissionError)", stderr.getvalue())
 
+    def test_cli_returns_error_when_integrity_recheck_fails(self) -> None:
+        report = ScanReport(
+            scanner_version="test",
+            release_tree_recheck_passed=False,
+        )
+        stdout = io.StringIO()
+        with (
+            patch(
+                "neurodata_security_audit.cli.scan_dataset",
+                return_value=report,
+            ),
+            redirect_stdout(stdout),
+        ):
+            code = main(["scan", str(self.root)])
+
+        self.assertEqual(2, code)
+        self.assertIn("integrity=failed", stdout.getvalue())
+
     def test_cli_rejects_report_inside_dataset(self) -> None:
         report_path = self.root / "audit.json"
         stderr = io.StringIO()
         with redirect_stderr(stderr):
             code = main(["scan", str(self.root), "--json", str(report_path)])
+        self.assertEqual(2, code)
+        self.assertFalse(report_path.exists())
+        self.assertIn("Report paths must be outside", stderr.getvalue())
+
+    def test_cli_rejects_html_report_inside_dataset(self) -> None:
+        report_path = self.root / "audit.html"
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            code = main(["scan", str(self.root), "--html", str(report_path)])
         self.assertEqual(2, code)
         self.assertFalse(report_path.exists())
         self.assertIn("Report paths must be outside", stderr.getvalue())
