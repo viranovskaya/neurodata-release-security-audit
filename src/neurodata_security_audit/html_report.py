@@ -76,6 +76,17 @@ p { margin: 0; }
   margin-bottom: 22px;
 }
 .subtitle { color: var(--muted); margin-top: 8px; max-width: 760px; }
+.report-actions { margin-top: 14px; }
+.report-action {
+  display: inline-block;
+  border-radius: 9px;
+  padding: 8px 12px;
+  color: var(--surface);
+  background: var(--high);
+  font-size: .88rem;
+  font-weight: 650;
+  text-decoration: none;
+}
 .status {
   display: inline-flex;
   align-items: center;
@@ -128,6 +139,7 @@ section { margin-top: 16px; padding: 20px; }
 .table-wrap { overflow-x: auto; }
 table {
   width: 100%;
+  min-width: 900px;
   border-collapse: collapse;
   font-size: .9rem;
 }
@@ -164,6 +176,8 @@ code {
 .severity.info { color: var(--info); background: var(--info-soft); }
 .empty, .note { color: var(--muted); }
 .note { margin-top: 12px; font-size: .86rem; }
+.fix-list { margin: 0; padding-left: 22px; }
+.fix-list li + li { margin-top: 8px; }
 footer {
   color: var(--muted);
   font-size: .82rem;
@@ -290,6 +304,14 @@ def render_html(report: ScanReport) -> str:
         code_columns=frozenset({1}),
         renderers={0: _severity},
     )
+    high_findings = [row for row in findings if row[0] == "high"]
+    high_findings_table = _table(
+        ("Severity", "Code", "File", "Location", "Evidence", "What to check"),
+        high_findings,
+        empty="No high-priority findings.",
+        code_columns=frozenset({1}),
+        renderers={0: _severity},
+    )
 
     coverage_table = _table(
         ("Status", "Type", "Entry", "Reason"),
@@ -390,6 +412,41 @@ def render_html(report: ScanReport) -> str:
     )
     status_class = "ok" if integrity_ok else "failed"
     status_text = "Integrity checks passed" if integrity_ok else "Integrity check failed"
+    high_count = summary["findings_high"]
+    high_action = (
+        '<div class="report-actions">'
+        f'<a class="report-action" href="#high-findings">Review {high_count} '
+        f'high-priority finding{"s" if high_count != 1 else ""}</a>'
+        "</div>"
+        if high_count
+        else ""
+    )
+    high_section = (
+        f"""
+  <section id="high-findings">
+    <h2>High-priority findings</h2>
+    {high_findings_table}
+    <p class="note">The sensitive value stays redacted. Use the file and location
+    columns to find the field in a private working copy.</p>
+  </section>
+
+  <section>
+    <h2>How to fix safely</h2>
+    <ol class="fix-list">
+      <li>Keep the source dataset unchanged and make a working copy.</li>
+      <li>Remove or replace only the flagged field with a tool that understands
+      its format. JSON and TSV fields can be edited directly; FIF and EDF/BDF
+      headers need format-aware tools.</li>
+      <li>Run the audit again, then verify the signal, channels, sampling,
+      annotations and duration before replacing a release candidate.</li>
+    </ol>
+    <p class="note">The audit is read-only. It never deletes or rewrites research
+    data automatically.</p>
+  </section>
+"""
+        if high_count
+        else ""
+    )
     valid_references = (
         f"{summary['references_valid']} / {summary['references_checked']}"
     )
@@ -409,6 +466,7 @@ def render_html(report: ScanReport) -> str:
       <h1>NeuroData release security audit</h1>
       <p class="subtitle">A local, read-only pre-release check. This report identifies
       items that need a decision; it does not certify anonymity or compliance.</p>
+      {high_action}
     </div>
     <span class="status {status_class}">{status_text}</span>
   </header>
@@ -441,6 +499,8 @@ def render_html(report: ScanReport) -> str:
     {severity_bars}
   </section>
 
+  {high_section}
+
   <section>
     <h2>Coverage</h2>
     {coverage_bars}
@@ -449,7 +509,7 @@ def render_html(report: ScanReport) -> str:
   </section>
 
   <section>
-    <h2>Findings</h2>
+    <h2>All findings</h2>
     {findings_table}
   </section>
 

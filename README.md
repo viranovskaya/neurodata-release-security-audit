@@ -96,7 +96,9 @@ selected release so the source tree is not changed by the audit.
 The HTML file is self-contained and works offline. It shows the finding severity,
 coverage, integrity result, cross-file references and full SHA-256 manifest. It
 uses the same masked report data as JSON and Markdown; it does not add another
-metadata-reading path.
+metadata-reading path. When high-priority findings are present, the first link
+jumps straight to a short table with the exact file, field location and a
+plain-language next step.
 
 The terminal exits with:
 
@@ -144,6 +146,12 @@ ZIP and TAR directory entries. `references` shows which supported cross-file lin
 are valid and which need repair.
 
 A clean findings list does not override a coverage gap.
+
+The report does not contain a delete button. Work on a copy, use a tool that
+understands the flagged format, and run the audit again before replacing a
+release candidate. JSON and TSV fields can usually be edited directly. FIF and
+EDF/BDF headers need format-aware tools, followed by a check that the signal,
+channels, sampling, annotations and duration were preserved.
 
 ## Limits
 

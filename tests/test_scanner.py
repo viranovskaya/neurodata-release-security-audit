@@ -2682,6 +2682,21 @@ class ScannerTests(unittest.TestCase):
             rendered,
         )
 
+    def test_html_report_puts_high_findings_first_with_safe_fix_steps(self) -> None:
+        (self.root / "notes.txt").write_text(
+            "Participant: private.person@example.org\n",
+            encoding="utf-8",
+        )
+
+        rendered = render_html(scan_dataset(self.root))
+
+        self.assertIn('href="#high-findings"', rendered)
+        self.assertIn('<section id="high-findings">', rendered)
+        self.assertIn("How to fix safely", rendered)
+        self.assertIn("make a working copy", rendered)
+        self.assertIn("The audit is read-only", rendered)
+        self.assertNotIn("private.person@example.org", rendered)
+
     def test_cli_writes_reports_and_returns_finding_status(self) -> None:
         (self.root / "notes.txt").write_text("Contact: alice@example.org\n", encoding="utf-8")
         output = Path(self.temp_dir.name) / "reports"
