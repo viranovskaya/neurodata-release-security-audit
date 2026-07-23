@@ -65,6 +65,13 @@ zero unexpected findings, masking failures or integrity failures. This result is
 stored for reproducibility but remains subject to independent review. Even
 after review, it is a small visible holdout rather than a blind validation.
 
+`challenge-v1` was then committed before its first run. It adds field-name
+variations and hard-negative controls without optional binary readers. The
+frozen first run matched 23 of 25 labels and kept all 6 controls clean. Both
+misses were structured JSON credentials: `clientSecret` and `refreshToken`.
+The result remains a no-pass artifact. The labels and case hash are not changed
+when the detector is corrected.
+
 An independently authored hidden-v1 set later matched 30 of 31 exact labels. The
 only mismatch had the correct code, severity and file but used a raw XML field
 path where the report intentionally emitted a masked location. The frozen hidden
