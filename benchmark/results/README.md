@@ -1,5 +1,6 @@
 # Benchmark result status
 
+- `SUMMARY.md` is the short evidence matrix for the complete benchmark.
 - `development.*` is regenerated while the evaluator and development labels
   are being refined.
 - `locked_v1.*` is preserved as a rejected historical result. Its matcher
