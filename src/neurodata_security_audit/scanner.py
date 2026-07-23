@@ -15,7 +15,7 @@ from .detectors import (
     redacted,
     scan_text,
 )
-from .imaging import inspect_nifti_metadata
+from .imaging import inspect_dicom_metadata, inspect_nifti_metadata
 from .models import (
     CoverageEntry,
     CoverageStatus,
@@ -96,6 +96,7 @@ _TEXT_NAMES = {
 _SIGNAL_PAYLOAD_SUFFIXES = {".eeg", ".fdt"}
 _IMAGE_PAYLOAD_SUFFIXES = {".img"}
 _EDF_SUFFIXES = {".edf", ".bdf"}
+_DICOM_SUFFIXES = {".dcm", ".dicom", ".ima"}
 _MNE_FILE_FORMATS = {".fif": "fif", ".set": "eeglab"}
 _UNEXPECTED_SUFFIXES = {
     ".7z",
@@ -476,6 +477,16 @@ def _mne_format_for_path(path: Path) -> str | None:
 def _is_nifti_path(path: Path) -> bool:
     lower_name = path.name.lower()
     return lower_name.endswith(".nii.gz") or path.suffix.lower() in {".nii", ".hdr"}
+
+
+def _is_dicom_path(path: Path) -> bool:
+    if path.suffix.lower() in _DICOM_SUFFIXES:
+        return True
+    if path.suffix:
+        return False
+    with path.open("rb") as stream:
+        prefix = stream.read(132)
+    return len(prefix) == 132 and prefix[128:132] == b"DICM"
 
 
 def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
@@ -954,6 +965,69 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                         "file",
                         "unsupported_manual_review",
                         "The NIfTI metadata reader failed",
+                    )
+            elif _is_dicom_path(path):
+                try:
+                    report.findings.extend(
+                        inspect_dicom_metadata(path, relative_path, known_terms)
+                    )
+                    report.files_inspected.append(relative_path)
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "header_or_structure_only",
+                        "DICOM metadata before Pixel Data was inspected; "
+                        "pixels were not opened",
+                    )
+                except FormatReaderUnavailable:
+                    report.findings.append(
+                        Finding(
+                            code="FORMAT_READER_UNAVAILABLE",
+                            severity="review",
+                            path=relative_path,
+                            location="DICOM metadata",
+                            evidence="<optional-reader-unavailable>",
+                            message=(
+                                "Install the 'imaging' extra to inspect this DICOM file."
+                            ),
+                        )
+                    )
+                    report.skipped_files.append(
+                        SkippedFile(
+                            relative_path,
+                            "Optional DICOM metadata reader is unavailable",
+                        )
+                    )
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "unsupported_manual_review",
+                        "The optional DICOM metadata reader is unavailable",
+                    )
+                except Exception as error:
+                    report.findings.append(
+                        Finding(
+                            code="FORMAT_METADATA_UNREADABLE",
+                            severity="review",
+                            path=relative_path,
+                            location="DICOM metadata",
+                            evidence=f"<error:{type(error).__name__}>",
+                            message=(
+                                "Review this file manually; its DICOM metadata was not read."
+                            ),
+                        )
+                    )
+                    report.skipped_files.append(
+                        SkippedFile(
+                            relative_path,
+                            f"Could not inspect DICOM metadata: {type(error).__name__}",
+                        )
+                    )
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "unsupported_manual_review",
+                        "The DICOM metadata reader failed",
                     )
             elif mne_format is not None:
                 with path.open("rb") as stream:

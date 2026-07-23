@@ -1178,6 +1178,245 @@ class ScannerTests(unittest.TestCase):
         self.assertEqual("payload_not_opened", entry.status)
         self.assertNotIn(image.name, report.files_inspected)
 
+    def test_dicom_reader_inspects_nested_metadata_without_pixels(self) -> None:
+        dicom = self.root / "sub-01_scan.dcm"
+        dicom.write_bytes(b"synthetic-dicom-placeholder")
+        values = (
+            "Jane Doe",
+            "19900102",
+            "HOSP-0042",
+            "Example Hospital",
+            "Acquisition Operator",
+            "SCANNER-928374",
+            "study.contact@example.org",
+            "1.2.826.0.1.3680043.8.498.1234",
+            "12 Main Street",
+        )
+
+        class FakeTag:
+            is_private = False
+            group = 0
+            element = 0
+
+        class FakeElement:
+            def __init__(self, keyword: str, vr: str, value: object):
+                self.keyword = keyword
+                self.VR = vr
+                self.value = value
+                self.tag = FakeTag()
+
+        nested = [
+            FakeElement("PatientAddress", "LO", values[8]),
+        ]
+        dataset = [
+            FakeElement("PatientName", "PN", values[0]),
+            FakeElement("PatientBirthDate", "DA", values[1]),
+            FakeElement("PatientID", "LO", values[2]),
+            FakeElement("InstitutionName", "LO", values[3]),
+            FakeElement("OperatorsName", "PN", values[4]),
+            FakeElement("DeviceSerialNumber", "LO", values[5]),
+            FakeElement("StudyDescription", "LO", values[6]),
+            FakeElement("StudyInstanceUID", "UI", values[7]),
+            FakeElement("BurnedInAnnotation", "CS", "YES"),
+            FakeElement("RecognizableVisualFeatures", "CS", "YES"),
+            FakeElement("PatientIdentityRemoved", "CS", "NO"),
+            FakeElement("ReferencedStudySequence", "SQ", nested),
+        ]
+
+        class FakeDataset(list):
+            @property
+            def pixel_array(self):
+                raise AssertionError("pixel data must not be accessed")
+
+        class FakePydicom:
+            @staticmethod
+            def dcmread(
+                path: str,
+                *,
+                stop_before_pixels: bool,
+                force: bool,
+                defer_size: int,
+            ):
+                self.assertEqual(dicom.resolve(), Path(path))
+                self.assertTrue(stop_before_pixels)
+                self.assertFalse(force)
+                self.assertEqual(1024 * 1024, defer_size)
+                return FakeDataset(dataset)
+
+        with patch(
+            "neurodata_security_audit.imaging._load_pydicom",
+            return_value=FakePydicom(),
+        ):
+            report = scan_dataset(
+                self.root,
+                ScanPolicy(sensitive_terms=("Jane Doe",)),
+            )
+
+        codes = {item.code for item in report.findings}
+        self.assertTrue(
+            {
+                "SUBJECT_NAME_FIELD",
+                "BIRTH_DATE_FIELD",
+                "LINKED_SOURCE_ID",
+                "SITE_IDENTIFIER",
+                "PERSONNEL_FIELD",
+                "DEVICE_IDENTIFIER",
+                "DIRECT_EMAIL",
+                "FREE_TEXT_METADATA",
+                "DICOM_UID",
+                "BURNED_IN_ANNOTATION",
+                "DICOM_IDENTITY_NOT_REMOVED",
+                "POSTAL_ADDRESS_FIELD",
+            }
+            <= codes
+        )
+        coverage = next(item for item in report.coverage if item.path == dicom.name)
+        self.assertEqual("header_or_structure_only", coverage.status)
+        rendered = render_json(report) + render_markdown(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_dicom_private_binary_and_documents_are_not_opened(self) -> None:
+        dicom = self.root / "sub-01_scan.dcm"
+        dicom.write_bytes(b"synthetic-dicom-placeholder")
+
+        class FakeTag:
+            def __init__(self, private: bool, group: int, element: int):
+                self.is_private = private
+                self.group = group
+                self.element = element
+
+        class RefuseValue:
+            def __str__(self):
+                raise AssertionError("binary value must not be read")
+
+        class FakeElement:
+            def __init__(
+                self,
+                keyword: str,
+                vr: str,
+                tag: FakeTag,
+            ):
+                self.keyword = keyword
+                self.VR = vr
+                self.tag = tag
+
+            @property
+            def value(self):
+                return RefuseValue()
+
+        dataset = [
+            FakeElement(
+                "",
+                "OB",
+                FakeTag(True, 0x0019, 0x100A),
+            ),
+            FakeElement(
+                "EncapsulatedDocument",
+                "OB",
+                FakeTag(False, 0x0042, 0x0011),
+            ),
+            FakeElement(
+                "PixelData",
+                "OB",
+                FakeTag(False, 0x7FE0, 0x0010),
+            ),
+        ]
+        with patch(
+            "neurodata_security_audit.imaging._load_pydicom",
+            return_value=SimpleNamespace(
+                dcmread=lambda *args, **kwargs: dataset,
+            ),
+        ):
+            report = scan_dataset(self.root)
+
+        codes = {item.code for item in report.findings}
+        self.assertTrue(
+            {
+                "DICOM_PRIVATE_TAG",
+                "ENCAPSULATED_DOCUMENT_PRESENT",
+                "DICOM_PIXEL_DATA_PRESENT",
+            }
+            <= codes
+        )
+
+    def test_dicom_nested_metadata_depth_is_bounded(self) -> None:
+        dicom = self.root / "sub-01_scan.dcm"
+        dicom.write_bytes(b"synthetic-dicom-placeholder")
+
+        tag = SimpleNamespace(is_private=False, group=0, element=0)
+        nested: list[object] = [
+            SimpleNamespace(
+                keyword="PatientID",
+                VR="LO",
+                value="HOSP-0042",
+                tag=tag,
+            )
+        ]
+        for _ in range(18):
+            nested = [
+                SimpleNamespace(
+                    keyword="ReferencedStudySequence",
+                    VR="SQ",
+                    value=nested,
+                    tag=tag,
+                )
+            ]
+
+        with patch(
+            "neurodata_security_audit.imaging._load_pydicom",
+            return_value=SimpleNamespace(
+                dcmread=lambda *args, **kwargs: nested,
+            ),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "DICOM_METADATA_LIMIT",
+            {item.code for item in report.findings},
+        )
+
+    def test_extensionless_dicom_preamble_is_detected(self) -> None:
+        dicom = self.root / "scan0001"
+        dicom.write_bytes(b"\x00" * 128 + b"DICM")
+        with patch(
+            "neurodata_security_audit.scanner.inspect_dicom_metadata",
+            return_value=[],
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(dicom.name, report.files_inspected)
+        entry = next(item for item in report.coverage if item.path == dicom.name)
+        self.assertEqual("header_or_structure_only", entry.status)
+
+    def test_missing_dicom_reader_is_visible(self) -> None:
+        dicom = self.root / "sub-01_scan.dcm"
+        dicom.write_bytes(b"synthetic-dicom-placeholder")
+        with patch(
+            "neurodata_security_audit.scanner.inspect_dicom_metadata",
+            side_effect=FormatReaderUnavailable("synthetic"),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "FORMAT_READER_UNAVAILABLE",
+            {item.code for item in report.findings},
+        )
+        entry = next(item for item in report.coverage if item.path == dicom.name)
+        self.assertEqual("unsupported_manual_review", entry.status)
+
+    def test_unreadable_dicom_metadata_hides_error_details(self) -> None:
+        dicom = self.root / "sub-01_scan.dcm"
+        dicom.write_bytes(b"synthetic-dicom-placeholder")
+        private_error = "Jane Doe at /Users/jane/private"
+        with patch(
+            "neurodata_security_audit.scanner.inspect_dicom_metadata",
+            side_effect=ValueError(private_error),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn(
+            "FORMAT_METADATA_UNREADABLE",
+            {item.code for item in report.findings},
+        )
+        self.assertNotIn(private_error, render_json(report) + render_markdown(report))
+
     def test_empty_mne_identifiers_are_not_reported(self) -> None:
         findings = inspect_mne_info(
             {
