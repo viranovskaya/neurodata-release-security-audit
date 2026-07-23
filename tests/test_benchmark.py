@@ -32,6 +32,9 @@ class BenchmarkTests(unittest.TestCase):
         result = run_benchmark(self.cases_path)
         summary = result["summary"]
 
+        self.assertEqual(result["suite_name"], "development")
+        self.assertFalse(result["locked"])
+        self.assertEqual(len(result["case_files"]), 5)
         self.assertEqual(summary["cases"], 36)
         self.assertEqual(summary["matched_findings"], 50)
         self.assertEqual(summary["expected_findings"], 50)
@@ -160,6 +163,32 @@ class BenchmarkTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(ValueError, "suite schema version"):
+                run_benchmark(cases_path)
+
+    def test_locked_case_file_hash_is_checked(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cases_path = root / "cases.json"
+            included_path = root / "included.json"
+            cases_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1",
+                        "case_files": [
+                            {
+                                "path": "included.json",
+                                "sha256": "0" * 64,
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            included_path.write_text(
+                json.dumps({"schema_version": "1", "cases": []}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "hash does not match"):
                 run_benchmark(cases_path)
 
 

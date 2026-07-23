@@ -1,5 +1,7 @@
 {
   "schema_version": "1",
+  "suite_name": "development",
+  "locked": false,
   "case_files": [
     "cases/development_core.json",
     "cases/development_archives.json",

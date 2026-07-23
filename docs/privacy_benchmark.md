@@ -50,9 +50,11 @@ than an independent validation result.
 The initial cases are a development pilot. They are used to check the evaluator
 and refine the labels.
 
-A separate locked split will be versioned and hashed before it is first run. A
-later independent review should add a small hidden set; a repository-visible
-split is locked, but it is not genuinely blind to the developer.
+The first locked split is stored in `benchmark/cases/locked_v1.json`. Its
+SHA-256 is pinned in `benchmark/locked.json`, and the runner stops if the file
+changes. It must not be edited after its first committed version. A later
+independent review should add a small hidden set; a repository-visible split is
+locked, but it is not genuinely blind to the developer.
 
 ## Scope
 
@@ -79,4 +81,13 @@ python -m pip install -e '.[formats,imaging]'
 python -m benchmark.run_benchmark \
   --json reports/benchmark.json \
   --markdown reports/benchmark.md
+```
+
+Run the locked split separately:
+
+```bash
+python -m benchmark.run_benchmark \
+  --cases benchmark/locked.json \
+  --json reports/benchmark-locked-v1.json \
+  --markdown reports/benchmark-locked-v1.md
 ```

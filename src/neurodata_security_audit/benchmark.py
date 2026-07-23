@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 from pathlib import Path
@@ -86,14 +87,33 @@ def _load_specification(path: Path) -> dict[str, object]:
         return document
 
     cases: list[dict[str, object]] = []
-    for relative_path in case_files:
+    source_files: list[dict[str, str]] = []
+    for case_file in case_files:
+        if isinstance(case_file, str):
+            relative_path = case_file
+            expected_hash = None
+        elif isinstance(case_file, dict):
+            relative_path = case_file["path"]
+            expected_hash = case_file.get("sha256")
+        else:
+            raise ValueError("Benchmark case file entries must be paths or mappings")
         case_path = path.parent / _relative_path(relative_path)
-        case_document = json.loads(case_path.read_text(encoding="utf-8"))
+        case_bytes = case_path.read_bytes()
+        actual_hash = hashlib.sha256(case_bytes).hexdigest()
+        if expected_hash is not None and expected_hash != actual_hash:
+            raise ValueError(
+                f"Benchmark case file hash does not match: {relative_path}"
+            )
+        case_document = json.loads(case_bytes.decode("utf-8"))
         if case_document.get("schema_version") != document.get("schema_version"):
             raise ValueError("Benchmark case files must use the suite schema version")
         cases.extend(case_document.get("cases", []))
+        source_files.append({"path": relative_path, "sha256": actual_hash})
     return {
         "schema_version": document["schema_version"],
+        "suite_name": document.get("suite_name", path.stem),
+        "locked": bool(document.get("locked", False)),
+        "case_files": source_files,
         "cases": cases,
     }
 
@@ -443,6 +463,9 @@ def run_benchmark(cases_path: Path) -> dict[str, object]:
 
     result = {
         "schema_version": specification["schema_version"],
+        "suite_name": specification.get("suite_name", cases_path.stem),
+        "locked": bool(specification.get("locked", False)),
+        "case_files": specification.get("case_files", []),
         "summary": {
             "cases": len(results),
             "expected_findings": expected_total,

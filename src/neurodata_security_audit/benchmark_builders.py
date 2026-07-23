@@ -106,6 +106,9 @@ def _build_dicom(root: Path, builder: dict[str, object]) -> None:
     dataset.Modality = "OT"
     for field, value in builder.get("fields", {}).items():
         setattr(dataset, field, value)
+    private_text = builder.get("private_text")
+    if private_text is not None:
+        dataset.add_new((0x0011, 0x1010), "LO", str(private_text))
     dataset.save_as(path, enforce_file_format=True)
 
 
@@ -122,6 +125,10 @@ def _build_fif(root: Path, builder: dict[str, object]) -> None:
         if birthday is not None:
             subject_info["birthday"] = date.fromisoformat(str(birthday))
         info["subject_info"] = subject_info
+    if "experimenter" in builder:
+        info["experimenter"] = str(builder["experimenter"])
+    if "device_info" in builder:
+        info["device_info"] = dict(builder["device_info"])
     raw = mne.io.RawArray(
         np.zeros((1, 10), dtype=float),
         info,
