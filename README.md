@@ -180,6 +180,11 @@ recorded in [docs/v0.2_calibration.md](docs/v0.2_calibration.md). A separate
 [50-dataset OpenNeuro calibration](docs/public_50_dataset_calibration.md) covers
 EEG, MEG, iEEG, MRI and fMRI.
 
+The [labelled leak benchmark](docs/privacy_benchmark.md) keeps failed first runs
+alongside corrected regression results instead of replacing them. Its separate
+public-format layer checks hash-pinned EEGLAB, KIT and EGI MFF fixtures, with no
+claim of privacy ground truth.
+
 ## Status
 
 The private v0.1 snapshot was independently reviewed before it was merged.
