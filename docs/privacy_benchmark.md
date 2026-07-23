@@ -68,6 +68,28 @@ path where the report intentionally emitted a masked location. The frozen hidden
 result remains a no-pass result; the case was not relabelled after the run. This
 ambiguity led to the explicit report-safe location rule above.
 
+After that rule was documented, the reviewer changed only the disputed hidden
+location label and reran the same cases as hidden-v2. The adjudicated result
+matched 31 of 31 labels. It confirms the clarified scoring rule, but it is not a
+second blind test and should not be reported as one.
+
+## Public format smoke checks
+
+Two hash-pinned OpenNeuro files provide a separate reader check:
+
+- an EEGLAB `.set` file from `ds004745`;
+- a KIT/Yokogawa `.con` file from `ds004738`.
+
+The runner verifies each source hash, copies the file into a temporary release,
+runs the normal scanner, checks the copy and original again, and requires
+header-or-structure-only coverage with both integrity rechecks passing. The
+result records finding codes, not values or evidence.
+
+This is not part of the labelled privacy score. It shows that the installed
+readers can inspect these two real files without preloading signal data. It does
+not establish whether every finding is a true privacy leak. EGI MFF remains
+unscored because no independent hash-pinned public fixture is included.
+
 ## Splits
 
 The initial cases are a development pilot. They are used to check the evaluator
@@ -116,3 +138,16 @@ python -m benchmark.run_benchmark \
   --json reports/benchmark-locked-v2.json \
   --markdown reports/benchmark-locked-v2.md
 ```
+
+Run the public format smoke checks against a local copy of the pinned files:
+
+```bash
+python -m benchmark.run_public_formats \
+  --fixtures-root /path/to/public/files \
+  --json reports/public-formats.json \
+  --markdown reports/public-formats.md
+```
+
+The expected paths, hashes and provenance are listed in
+`benchmark/public_format_fixtures.json`. The public files are not distributed
+with this repository.
