@@ -333,6 +333,60 @@ class ScannerTests(unittest.TestCase):
         for value in values:
             self.assertNotIn(value, rendered)
 
+    def test_structured_credentials_use_field_names_and_are_masked(self) -> None:
+        values = (
+            "alpha-bravo-charlie-delta-001",
+            "refresh-value-for-challenge-002",
+        )
+        (self.root / "runtime.json").write_text(
+            json.dumps(
+                {
+                    "runtime": {
+                        "clientSecret": values[0],
+                        "refreshToken": values[1],
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+        findings = [
+            finding for finding in report.findings if finding.code == "POTENTIAL_SECRET"
+        ]
+        self.assertEqual(
+            [
+                "JSON field runtime.client_secret",
+                "JSON field runtime.refresh_token",
+            ],
+            [finding.location for finding in findings],
+        )
+        rendered = render_json(report) + render_markdown(report) + render_html(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_structured_credential_placeholders_are_ignored(self) -> None:
+        (self.root / "runtime.json").write_text(
+            json.dumps({"clientSecret": "n/a", "password": "unknown"}),
+            encoding="utf-8",
+        )
+        self.assertNotIn("POTENTIAL_SECRET", set(self._codes()))
+
+    def test_similar_structured_keys_are_not_credentials(self) -> None:
+        (self.root / "runtime.json").write_text(
+            json.dumps(
+                {
+                    "tokenCount": 10,
+                    "passwordPolicy": "strong",
+                    "clientId": "public-app",
+                    "secretariat": "office",
+                    "apiKeyName": "main",
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertNotIn("POTENTIAL_SECRET", set(self._codes()))
+
     def test_common_service_tokens_and_basic_auth_are_masked(self) -> None:
         values = (
             "glpat-" + "A" * 28,

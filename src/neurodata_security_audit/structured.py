@@ -86,6 +86,21 @@ _ACCOUNT_KEYS = {"account_name", "login", "user", "username"}
 _PERSONNEL_KEYS = {"experimenter", "operator", "physician", "technician"}
 _DEVICE_IDENTIFIER_KEYS = {"device_id", "device_serial", "serial_number"}
 _FREE_TEXT_KEYS = {"comment", "comments", "patient_history", "patient_state"}
+_SECRET_KEYS = {
+    "access_token",
+    "api_key",
+    "auth_token",
+    "aws_secret_access_key",
+    "client_secret",
+    "id_token",
+    "password",
+    "passwd",
+    "private_key",
+    "refresh_token",
+    "secret_key",
+    "session_token",
+    "webhook_secret",
+}
 _RECORDING_DATE_KEYS = {
     "acq_date",
     "acq_datetime",
@@ -149,6 +164,7 @@ _SAFE_LOCATION_KEYS = (
     | _PERSONNEL_KEYS
     | _DEVICE_IDENTIFIER_KEYS
     | _FREE_TEXT_KEYS
+    | _SECRET_KEYS
     | _RECORDING_DATE_KEYS
     | _PERSON_CONTEXT_PARTS
     | {
@@ -220,6 +236,17 @@ def _finding_for_field(
     if text is None:
         return None
 
+    if normalised in _SECRET_KEYS and len(text) >= 8:
+        return Finding(
+            code="POTENTIAL_SECRET",
+            severity="high",
+            path=relative_path,
+            location=location,
+            evidence=redacted("potential-secret", text),
+            message=(
+                "Remove this credential from the release and rotate it if it may be real."
+            ),
+        )
     if normalised in _DOB_KEYS:
         return Finding(
             code="BIRTH_DATE_FIELD",
