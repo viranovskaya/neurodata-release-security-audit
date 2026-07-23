@@ -4,6 +4,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import csv
 from datetime import date, datetime, timezone
 import hashlib
+from html.parser import HTMLParser
 from importlib import metadata
 import io
 import json
@@ -46,6 +47,18 @@ def _write_edf(path: Path, patient: str, recording: str, start_date: str) -> Non
     header[176:184] = b"12000000"
     header[184:192] = b"256     "
     path.write_bytes(header)
+
+
+class _VisibleTextParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
+
+    def text(self) -> str:
+        return "".join(self.parts)
 
 
 class ScannerTests(unittest.TestCase):
@@ -332,6 +345,79 @@ class ScannerTests(unittest.TestCase):
         rendered = render_json(report) + render_markdown(report)
         for value in values:
             self.assertNotIn(value, rendered)
+
+    def test_structured_credentials_use_field_names_and_are_masked(self) -> None:
+        values = (
+            "alpha-bravo-charlie-delta-001",
+            "refresh-value-for-challenge-002",
+        )
+        (self.root / "runtime.json").write_text(
+            json.dumps(
+                {
+                    "runtime": {
+                        "clientSecret": values[0],
+                        "refreshToken": values[1],
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+        findings = [
+            finding for finding in report.findings if finding.code == "POTENTIAL_SECRET"
+        ]
+        self.assertEqual(
+            [
+                "JSON field runtime.client_secret",
+                "JSON field runtime.refresh_token",
+            ],
+            [finding.location for finding in findings],
+        )
+        rendered = render_json(report) + render_markdown(report) + render_html(report)
+        for value in values:
+            self.assertNotIn(value, rendered)
+
+    def test_structured_credential_placeholders_are_ignored(self) -> None:
+        (self.root / "runtime.json").write_text(
+            json.dumps({"clientSecret": "n/a", "password": "unknown"}),
+            encoding="utf-8",
+        )
+        self.assertNotIn("POTENTIAL_SECRET", set(self._codes()))
+
+    def test_short_structured_credentials_are_not_missed(self) -> None:
+        values = ("q", "ab", "abc", "abcd", "abcde", "abcdef", "abcdefg")
+        for value in values:
+            with self.subTest(length=len(value)):
+                (self.root / "runtime.json").write_text(
+                    json.dumps({"password": value}),
+                    encoding="utf-8",
+                )
+                findings = [
+                    finding
+                    for finding in scan_dataset(self.root).findings
+                    if finding.code == "POTENTIAL_SECRET"
+                ]
+                self.assertEqual(1, len(findings))
+                self.assertEqual(
+                    f"<redacted:potential-secret,length={len(value)}>",
+                    findings[0].evidence,
+                )
+
+    def test_similar_structured_keys_are_not_credentials(self) -> None:
+        (self.root / "runtime.json").write_text(
+            json.dumps(
+                {
+                    "tokenCount": 10,
+                    "passwordPolicy": "strong",
+                    "clientId": "public-app",
+                    "secretariat": "office",
+                    "apiKeyName": "main",
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertNotIn("POTENTIAL_SECRET", set(self._codes()))
 
     def test_common_service_tokens_and_basic_auth_are_masked(self) -> None:
         values = (
@@ -1204,6 +1290,23 @@ class ScannerTests(unittest.TestCase):
         rendered = render_json(report) + render_markdown(report)
         for value in values:
             self.assertNotIn(value, rendered)
+
+    def test_common_phone_column_aliases_are_detected(self) -> None:
+        value = "+34 600 111 222"
+        (self.root / "participants.tsv").write_text(
+            "participant_id\temergency_contact_phone\n"
+            f"sub-01\t{value}\n",
+            encoding="utf-8",
+        )
+        report = scan_dataset(self.root)
+        finding = next(
+            item for item in report.findings if item.code == "DIRECT_PHONE"
+        )
+        self.assertEqual(
+            "row 2, column emergency_contact_phone",
+            finding.location,
+        )
+        self.assertNotIn(value, render_json(report) + render_markdown(report))
 
     def test_dataset_name_is_not_treated_as_participant_name(self) -> None:
         (self.root / "dataset_description.json").write_text(
@@ -2726,12 +2829,153 @@ class ScannerTests(unittest.TestCase):
 
         rendered = render_html(scan_dataset(self.root))
 
-        self.assertIn('href="#high-findings"', rendered)
-        self.assertIn('<section id="high-findings">', rendered)
-        self.assertIn("How to fix safely", rendered)
-        self.assertIn("make a working copy", rendered)
-        self.assertIn("The audit is read-only", rendered)
+        self.assertIn('href="#what-to-do"', rendered)
+        self.assertIn('<section id="what-to-do">', rendered)
+        self.assertIn("Do not release this copy yet.", rendered)
+        self.assertIn("<th>File</th>", rendered)
+        self.assertIn("<th>Field or location</th>", rendered)
+        self.assertIn("Work on a private copy", rendered)
+        self.assertIn("The audit never deletes", rendered)
+        self.assertIn('<section id="coverage-gaps">', rendered)
         self.assertNotIn("private.person@example.org", rendered)
+
+    def test_markdown_report_has_a_human_remediation_checklist(self) -> None:
+        (self.root / "notes.txt").write_text(
+            "Participant: private.person@example.org\n",
+            encoding="utf-8",
+        )
+
+        rendered = render_markdown(scan_dataset(self.root))
+
+        self.assertIn("## What to do next", rendered)
+        self.assertIn("**Do not release this copy yet.**", rendered)
+        self.assertIn("| Priority | File | Field or location | What to do |", rendered)
+        self.assertIn("After each correction:", rendered)
+        self.assertIn("## Places needing manual review", rendered)
+        self.assertNotIn("private.person@example.org", rendered)
+
+    def test_review_only_report_asks_for_a_curator_decision(self) -> None:
+        report = ScanReport(
+            scanner_version="test",
+            findings=[
+                Finding(
+                    code="FREE_TEXT_METADATA",
+                    severity="review",
+                    path="sub-01/eeg/sub-01_task-rest_eeg.set",
+                    location="EEGLAB field comments",
+                    evidence="<redacted:free-text,length=14>",
+                    message="Review free text before release.",
+                )
+            ],
+        )
+
+        rendered = render_html(report)
+
+        self.assertIn("Review before release.", rendered)
+        self.assertIn("need a curator decision", rendered)
+        self.assertIn("sub-01/eeg/sub-01_task-rest_eeg.set", rendered)
+        self.assertIn("EEGLAB field comments", rendered)
+
+    def test_clean_html_report_keeps_coverage_limits_visible(self) -> None:
+        (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+
+        rendered = render_html(scan_dataset(self.root))
+
+        self.assertIn("No high or review findings in the", rendered)
+        self.assertIn("This is not proof of anonymity.", rendered)
+        self.assertIn("No immediate remediation tasks.", rendered)
+
+    def test_integrity_failure_overrides_all_remediation_states(self) -> None:
+        cases = (
+            ("manifest", False, True, []),
+            ("tree", True, False, []),
+            ("both", False, False, []),
+            (
+                "with-findings",
+                False,
+                True,
+                [
+                    Finding(
+                        code="DIRECT_EMAIL",
+                        severity="high",
+                        path="notes.txt",
+                        location="line 1",
+                        evidence="<redacted:email,length=18>",
+                        message="Remove this email.",
+                    )
+                ],
+            ),
+        )
+        for name, manifest_passed, tree_passed, findings in cases:
+            with self.subTest(name=name):
+                report = ScanReport(
+                    scanner_version="test",
+                    findings=findings,
+                    manifest_recheck_passed=manifest_passed,
+                    release_tree_recheck_passed=tree_passed,
+                )
+
+                html = render_html(report)
+                markdown = render_markdown(report)
+
+                for rendered in (html, markdown):
+                    self.assertIn(
+                        "Do not release or rely on this report yet.",
+                        rendered,
+                    )
+                    self.assertIn("before using the individual findings", rendered)
+                    self.assertIn("only after both integrity checks pass", rendered)
+                    self.assertNotIn("No immediate remediation tasks", rendered)
+                self.assertIn("Resolve integrity failure", html)
+
+    def test_html_decision_sentences_have_visible_spaces(self) -> None:
+        high = Finding(
+            code="DIRECT_EMAIL",
+            severity="high",
+            path="notes.txt",
+            location="line 1",
+            evidence="<redacted:email,length=18>",
+            message="Remove this email.",
+        )
+        review = Finding(
+            code="FREE_TEXT_METADATA",
+            severity="review",
+            path="recording.set",
+            location="EEGLAB field comments",
+            evidence="<redacted:free-text,length=12>",
+            message="Review this field.",
+        )
+        cases = (
+            (
+                "integrity",
+                ScanReport(
+                    scanner_version="test",
+                    manifest_recheck_passed=False,
+                ),
+                "report yet. The release",
+            ),
+            (
+                "high",
+                ScanReport(scanner_version="test", findings=[high]),
+                "copy yet. Resolve",
+            ),
+            (
+                "review",
+                ScanReport(scanner_version="test", findings=[review]),
+                "release. The scanner",
+            ),
+            (
+                "clean",
+                ScanReport(scanner_version="test"),
+                "areas checked. This is",
+            ),
+        )
+
+        for name, report, expected in cases:
+            with self.subTest(name=name):
+                parser = _VisibleTextParser()
+                parser.feed(render_html(report))
+                self.assertIn(expected, parser.text())
 
     def test_cli_writes_reports_and_returns_finding_status(self) -> None:
         (self.root / "notes.txt").write_text("Contact: alice@example.org\n", encoding="utf-8")

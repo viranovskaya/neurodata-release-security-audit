@@ -1,0 +1,11 @@
+{
+  "schema_version": "1",
+  "suite_name": "challenge-v1",
+  "locked": true,
+  "case_files": [
+    {
+      "path": "cases/challenge_v1.json",
+      "sha256": "7825505c139c20f7b9b1370d93860ec5c979c141d9d14cfa74867418b9fa1060"
+    }
+  ]
+}

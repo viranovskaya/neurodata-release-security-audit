@@ -96,9 +96,10 @@ selected release so the source tree is not changed by the audit.
 The HTML file is self-contained and works offline. It shows the finding severity,
 coverage, integrity result, cross-file references and full SHA-256 manifest. It
 uses the same masked report data as JSON and Markdown; it does not add another
-metadata-reading path. When high-priority findings are present, the first link
-jumps straight to a short table with the exact file, field location and a
-plain-language next step.
+metadata-reading path. The first action section says whether to stop the release,
+review an item or continue to the coverage check. It lists the exact file, field
+location and next step without exposing the matched value. Unsupported and
+untraversed entries are repeated in a separate manual-review list.
 
 Treat every report as private working material. Detected values are masked, but
 an identifier that no rule recognized may still appear in a relative filename or
@@ -151,11 +152,11 @@ are valid and which need repair.
 
 A clean findings list does not override a coverage gap.
 
-The report does not contain a delete button. Work on a copy, use a tool that
-understands the flagged format, and run the audit again before replacing a
-release candidate. JSON and TSV fields can usually be edited directly. FIF and
-EDF/BDF headers need format-aware tools, followed by a check that the signal,
-channels, sampling, annotations and duration were preserved.
+The report does not contain a delete button. Start with **What to do next**, work
+on a copy and use a tool that understands the flagged format. Run the audit again
+before replacing a release candidate. JSON and TSV fields can usually be edited
+directly. FIF and EDF/BDF headers need format-aware tools, followed by a check
+that the signal, channels, sampling, annotations and duration were preserved.
 
 ## Limits
 
@@ -179,6 +180,11 @@ The full v0.2 boundary is in
 recorded in [docs/v0.2_calibration.md](docs/v0.2_calibration.md). A separate
 [50-dataset OpenNeuro calibration](docs/public_50_dataset_calibration.md) covers
 EEG, MEG, iEEG, MRI and fMRI.
+
+The [labelled leak benchmark](docs/privacy_benchmark.md) keeps failed first runs
+alongside corrected regression results instead of replacing them. Its separate
+public-format layer checks hash-pinned EEGLAB, KIT and EGI MFF fixtures, with no
+claim of privacy ground truth.
 
 ## Status
 

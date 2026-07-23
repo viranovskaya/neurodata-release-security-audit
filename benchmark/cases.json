@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "suite_name": "development",
+  "locked": false,
+  "case_files": [
+    "cases/development_core.json",
+    "cases/development_archives.json",
+    "cases/development_references.json",
+    "cases/development_formats.json",
+    "cases/development_eeg_formats.json",
+    "cases/development_realistic.json"
+  ]
+}

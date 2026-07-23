@@ -1,0 +1,259 @@
+{
+  "schema_version": "1",
+  "cases": [
+    {
+      "case_id": "dev_realistic_sleep_release",
+      "split": "development",
+      "format": "bids_sleep_release",
+      "files": {
+        "dataset_description.json": "{\"Name\": \"Synthetic sleep release\", \"BIDSVersion\": \"1.10.0\"}\n",
+        "participants.tsv": "participant_id\tcontact_email\temergency_phone\nsub-01\tsleeper@example.invalid\t+34 600 111 222\n",
+        "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.json": "{\"TaskName\": \"sleep\", \"SourceFile\": \"/Volumes/sleep-lab/private/S017.edf\"}\n"
+      },
+      "builder": {
+        "name": "edf",
+        "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+        "patient": "P017 F 01-JAN-1990 Jane_Sleeper",
+        "recording": "Startdate 02-FEB-2020 Sleep_Lab X X",
+        "start_date": "02.02.20"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "sleeper@example.invalid",
+        "+34 600 111 222",
+        "/Volumes/sleep-lab/private/S017.edf",
+        "P017 F 01-JAN-1990 Jane_Sleeper",
+        "Startdate 02-FEB-2020 Sleep_Lab X X"
+      ],
+      "expected_findings": [
+        {
+          "code": "DIRECT_EMAIL",
+          "severity": "high",
+          "path": "participants.tsv",
+          "location": "line 2"
+        },
+        {
+          "code": "DIRECT_PHONE",
+          "severity": "high",
+          "path": "participants.tsv",
+          "location": "row 2, column emergency_phone"
+        },
+        {
+          "code": "NETWORK_PATH",
+          "severity": "review",
+          "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.json",
+          "location": "JSON value <field>"
+        },
+        {
+          "code": "SUBJECT_FIELD_POPULATED",
+          "severity": "review",
+          "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+          "location": "EDF patient field"
+        },
+        {
+          "code": "BIRTH_DATE_FIELD",
+          "severity": "high",
+          "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+          "location": "EDF patient field"
+        },
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+          "location": "EDF patient field"
+        },
+        {
+          "code": "RECORDING_INFO_FIELD",
+          "severity": "review",
+          "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+          "location": "EDF recording field"
+        },
+        {
+          "code": "EXACT_RECORDING_DATE",
+          "severity": "review",
+          "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+          "location": "EDF start-date field"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sub-01/ses-01/eeg/sub-01_ses-01_task-sleep_eeg.edf",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_realistic_imaging_release",
+      "split": "development",
+      "format": "bids_imaging_release",
+      "files": {
+        "dataset_description.json": "{\"Name\": \"Synthetic imaging release\", \"BIDSVersion\": \"1.10.0\"}\n",
+        "participants.tsv": "participant_id\tgroup\nsub-01\tcontrol\n"
+      },
+      "builders": [
+        {
+          "name": "dicom",
+          "path": "sourcedata/sub-01/anat/image.dcm",
+          "fields": {
+            "PatientName": "Jane^Imaging",
+            "PatientBirthDate": "19900102",
+            "PatientID": "MRN-2002",
+            "InstitutionName": "Synthetic Hospital",
+            "DeviceSerialNumber": "SCANNER-2002",
+            "StudyDate": "20200102"
+          }
+        },
+        {
+          "name": "nifti",
+          "path": "derivatives/sub-01/anat/sub-01_T1w.nii.gz",
+          "descrip": "participant name: Jane Imaging"
+        }
+      ],
+      "sensitive_terms": [],
+      "seeded_values": [
+        "Jane^Imaging",
+        "19900102",
+        "MRN-2002",
+        "Synthetic Hospital",
+        "SCANNER-2002",
+        "20200102",
+        "participant name: Jane Imaging",
+        "Jane Imaging"
+      ],
+      "expected_findings": [
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "sourcedata/sub-01/anat/image.dcm",
+          "location": "DICOM PatientName"
+        },
+        {
+          "code": "BIRTH_DATE_FIELD",
+          "severity": "high",
+          "path": "sourcedata/sub-01/anat/image.dcm",
+          "location": "DICOM PatientBirthDate"
+        },
+        {
+          "code": "LINKED_SOURCE_ID",
+          "severity": "review",
+          "path": "sourcedata/sub-01/anat/image.dcm",
+          "location": "DICOM PatientID"
+        },
+        {
+          "code": "SITE_IDENTIFIER",
+          "severity": "review",
+          "path": "sourcedata/sub-01/anat/image.dcm",
+          "location": "DICOM InstitutionName"
+        },
+        {
+          "code": "DEVICE_IDENTIFIER",
+          "severity": "review",
+          "path": "sourcedata/sub-01/anat/image.dcm",
+          "location": "DICOM DeviceSerialNumber"
+        },
+        {
+          "code": "EXACT_RECORDING_DATE",
+          "severity": "review",
+          "path": "sourcedata/sub-01/anat/image.dcm",
+          "location": "DICOM StudyDate"
+        },
+        {
+          "code": "DICOM_UID",
+          "severity": "review",
+          "path": "sourcedata/sub-01/anat/image.dcm",
+          "location": "DICOM MediaStorageSOPInstanceUID"
+        },
+        {
+          "code": "DICOM_UID",
+          "severity": "review",
+          "path": "sourcedata/sub-01/anat/image.dcm",
+          "location": "DICOM ImplementationClassUID"
+        },
+        {
+          "code": "DICOM_UID",
+          "severity": "review",
+          "path": "sourcedata/sub-01/anat/image.dcm",
+          "location": "DICOM SOPInstanceUID"
+        },
+        {
+          "code": "DEVICE_IDENTIFIER",
+          "severity": "review",
+          "path": "sourcedata/sub-01/anat/image.dcm",
+          "location": "DICOM ImplementationVersionName"
+        },
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "derivatives/sub-01/anat/sub-01_T1w.nii.gz",
+          "location": "NIfTI header descrip"
+        },
+        {
+          "code": "FREE_TEXT_METADATA",
+          "severity": "review",
+          "path": "derivatives/sub-01/anat/sub-01_T1w.nii.gz",
+          "location": "NIfTI header descrip"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sourcedata/sub-01/anat/image.dcm",
+          "status": "header_or_structure_only"
+        },
+        {
+          "path": "derivatives/sub-01/anat/sub-01_T1w.nii.gz",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_realistic_clean_brainvision_release",
+      "split": "development",
+      "format": "bids_eeg_release_control",
+      "files": {
+        "dataset_description.json": "{\"Name\": \"Synthetic EEG release\", \"BIDSVersion\": \"1.10.0\", \"DatasetDOI\": \"doi:10.0000/example\"}\n",
+        "participants.tsv": "participant_id\tgroup\nsub-01\tcontrol\n",
+        "README.md": "Project documentation: https://example.org/neurodata\n",
+        "sub-01/eeg/sub-01_task-rest_eeg.vhdr": "Brain Vision Data Exchange Header File Version 1.0\n[Common Infos]\nDataFile=sub-01_task-rest_eeg.eeg\nMarkerFile=sub-01_task-rest_eeg.vmrk\nDataFormat=BINARY\nDataOrientation=MULTIPLEXED\nNumberOfChannels=1\nSamplingInterval=10000\n[Binary Infos]\nBinaryFormat=INT_16\n[Channel Infos]\nCh1=Fz,,1,uV\n",
+        "sub-01/eeg/sub-01_task-rest_eeg.vmrk": "Brain Vision Data Exchange Marker File, Version 1.0\n[Common Infos]\nDataFile=sub-01_task-rest_eeg.eeg\n[Marker Infos]\nMk1=Stimulus,S  1,1,1,0\n",
+        "sub-01/eeg/sub-01_task-rest_eeg.eeg": "synthetic signal payload"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [],
+      "expected_references": [
+        {
+          "source_path": "sub-01/eeg/sub-01_task-rest_eeg.vhdr",
+          "location": "line 3, DataFile",
+          "target": "sub-01/eeg/sub-01_task-rest_eeg.eeg",
+          "status": "valid_internal"
+        },
+        {
+          "source_path": "sub-01/eeg/sub-01_task-rest_eeg.vhdr",
+          "location": "line 4, MarkerFile",
+          "target": "sub-01/eeg/sub-01_task-rest_eeg.vmrk",
+          "status": "valid_internal"
+        },
+        {
+          "source_path": "sub-01/eeg/sub-01_task-rest_eeg.vmrk",
+          "location": "line 3, DataFile",
+          "target": "sub-01/eeg/sub-01_task-rest_eeg.eeg",
+          "status": "valid_internal"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sub-01/eeg/sub-01_task-rest_eeg.vhdr",
+          "status": "fully_inspected_metadata"
+        },
+        {
+          "path": "sub-01/eeg/sub-01_task-rest_eeg.vmrk",
+          "status": "fully_inspected_metadata"
+        },
+        {
+          "path": "sub-01/eeg/sub-01_task-rest_eeg.eeg",
+          "status": "payload_not_opened"
+        }
+      ]
+    }
+  ]
+}

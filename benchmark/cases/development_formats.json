@@ -1,0 +1,309 @@
+{
+  "schema_version": "1",
+  "cases": [
+    {
+      "case_id": "dev_edf_patient_header",
+      "split": "development",
+      "format": "edf",
+      "files": {},
+      "builder": {
+        "name": "edf",
+        "path": "sub-01_task-rest_eeg.edf",
+        "patient": "P001 M 01-JAN-1990 Jane_Doe",
+        "recording": "Startdate 02-FEB-2020 Lab_Room X X",
+        "start_date": "02.02.20"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "P001 M 01-JAN-1990 Jane_Doe",
+        "Startdate 02-FEB-2020 Lab_Room X X"
+      ],
+      "expected_findings": [
+        {
+          "code": "SUBJECT_FIELD_POPULATED",
+          "severity": "review",
+          "path": "sub-01_task-rest_eeg.edf",
+          "location": "EDF patient field"
+        },
+        {
+          "code": "BIRTH_DATE_FIELD",
+          "severity": "high",
+          "path": "sub-01_task-rest_eeg.edf",
+          "location": "EDF patient field"
+        },
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "sub-01_task-rest_eeg.edf",
+          "location": "EDF patient field"
+        },
+        {
+          "code": "RECORDING_INFO_FIELD",
+          "severity": "review",
+          "path": "sub-01_task-rest_eeg.edf",
+          "location": "EDF recording field"
+        },
+        {
+          "code": "EXACT_RECORDING_DATE",
+          "severity": "review",
+          "path": "sub-01_task-rest_eeg.edf",
+          "location": "EDF start-date field"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sub-01_task-rest_eeg.edf",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_edf_placeholder_control",
+      "split": "development",
+      "format": "edf_control",
+      "files": {},
+      "builder": {
+        "name": "edf",
+        "path": "sub-01_task-rest_eeg.edf"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [],
+      "expected_coverage": [
+        {
+          "path": "sub-01_task-rest_eeg.edf",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_nifti_description",
+      "split": "development",
+      "format": "nifti",
+      "files": {},
+      "builder": {
+        "name": "nifti",
+        "path": "sub-01_T1w.nii",
+        "descrip": "participant name: Jane Nifti"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["participant name: Jane Nifti", "Jane Nifti"],
+      "expected_findings": [
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "sub-01_T1w.nii",
+          "location": "NIfTI header descrip"
+        },
+        {
+          "code": "FREE_TEXT_METADATA",
+          "severity": "review",
+          "path": "sub-01_T1w.nii",
+          "location": "NIfTI header descrip"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sub-01_T1w.nii",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_nifti_empty_header_control",
+      "split": "development",
+      "format": "nifti_control",
+      "files": {},
+      "builder": {
+        "name": "nifti",
+        "path": "sub-01_T1w.nii"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [],
+      "expected_coverage": [
+        {
+          "path": "sub-01_T1w.nii",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_dicom_identity_fields",
+      "split": "development",
+      "format": "dicom",
+      "files": {},
+      "builder": {
+        "name": "dicom",
+        "path": "image.dcm",
+        "fields": {
+          "PatientName": "Jane^Dicom",
+          "PatientBirthDate": "19900102",
+          "PatientID": "MRN-1001",
+          "InstitutionName": "Benchmark Hospital",
+          "DeviceSerialNumber": "SCANNER-9001",
+          "StudyDate": "20200102"
+        }
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "Jane^Dicom",
+        "19900102",
+        "MRN-1001",
+        "Benchmark Hospital",
+        "SCANNER-9001",
+        "20200102"
+      ],
+      "expected_findings": [
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "image.dcm",
+          "location": "DICOM PatientName"
+        },
+        {
+          "code": "BIRTH_DATE_FIELD",
+          "severity": "high",
+          "path": "image.dcm",
+          "location": "DICOM PatientBirthDate"
+        },
+        {
+          "code": "LINKED_SOURCE_ID",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM PatientID"
+        },
+        {
+          "code": "SITE_IDENTIFIER",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM InstitutionName"
+        },
+        {
+          "code": "DEVICE_IDENTIFIER",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM DeviceSerialNumber"
+        },
+        {
+          "code": "EXACT_RECORDING_DATE",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM StudyDate"
+        },
+        {
+          "code": "DICOM_UID",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM MediaStorageSOPInstanceUID"
+        },
+        {
+          "code": "DICOM_UID",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM ImplementationClassUID"
+        },
+        {
+          "code": "DICOM_UID",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM SOPInstanceUID"
+        },
+        {
+          "code": "DEVICE_IDENTIFIER",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM ImplementationVersionName"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "image.dcm",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_fif_subject_info",
+      "split": "development",
+      "format": "fif",
+      "files": {},
+      "builder": {
+        "name": "fif",
+        "path": "sub-01_task-rest_eeg.fif",
+        "subject_info": {
+          "first_name": "Jane",
+          "last_name": "Fiff",
+          "his_id": "SRC-9001",
+          "birthday": "1990-01-02"
+        }
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["Jane", "Fiff", "SRC-9001", "1990-01-02"],
+      "expected_findings": [
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "sub-01_task-rest_eeg.fif",
+          "location": "MNE Info subject_info.first_name"
+        },
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "sub-01_task-rest_eeg.fif",
+          "location": "MNE Info subject_info.last_name"
+        },
+        {
+          "code": "BIRTH_DATE_FIELD",
+          "severity": "high",
+          "path": "sub-01_task-rest_eeg.fif",
+          "location": "MNE Info subject_info.birthday"
+        },
+        {
+          "code": "LINKED_SOURCE_ID",
+          "severity": "review",
+          "path": "sub-01_task-rest_eeg.fif",
+          "location": "MNE Info subject_info.his_id"
+        },
+        {
+          "code": "ACQUISITION_SYSTEM_ID",
+          "severity": "review",
+          "path": "sub-01_task-rest_eeg.fif",
+          "location": "MNE Info file_id/meas_id"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sub-01_task-rest_eeg.fif",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_fif_empty_info_control",
+      "split": "development",
+      "format": "fif_control",
+      "files": {},
+      "builder": {
+        "name": "fif",
+        "path": "sub-01_task-rest_eeg.fif"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [
+        {
+          "code": "ACQUISITION_SYSTEM_ID",
+          "severity": "review",
+          "path": "sub-01_task-rest_eeg.fif",
+          "location": "MNE Info file_id/meas_id"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sub-01_task-rest_eeg.fif",
+          "status": "header_or_structure_only"
+        }
+      ]
+    }
+  ]
+}

@@ -98,7 +98,7 @@ integration rows are listed after them.
 | Offline operation | scan with network unavailable | identical result |
 | Report write failure | output path cannot be written | concise error and exit status `2`; no traceback |
 | Report inside dataset | output path is within the audited tree | rejected before scanning or writing |
-| Visual HTML report | redacted report with findings and coverage | deterministic, self-contained document with no external resources; high findings link to a focused table and safe fix steps |
+| Visual HTML report | redacted report with findings and coverage | deterministic, self-contained document with no external resources; release decision, exact file and field, safe next steps and manual coverage gaps are visible near the top |
 | HTML escaping | report path contains markup-shaped text | markup escaped; no executable element created |
 | Private term list inside dataset | identifier list is within the audited tree | rejected before scanning |
 

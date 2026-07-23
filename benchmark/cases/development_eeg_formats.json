@@ -1,0 +1,95 @@
+{
+  "schema_version": "1",
+  "cases": [
+    {
+      "case_id": "dev_brainvision_valid_references_control",
+      "split": "development",
+      "format": "brainvision_control",
+      "files": {
+        "sub-01_task-rest_eeg.vhdr": "Brain Vision Data Exchange Header File Version 1.0\n[Common Infos]\nDataFile=sub-01_task-rest_eeg.eeg\nMarkerFile=sub-01_task-rest_eeg.vmrk\nDataFormat=BINARY\nDataOrientation=MULTIPLEXED\nNumberOfChannels=1\nSamplingInterval=10000\n[Binary Infos]\nBinaryFormat=INT_16\n[Channel Infos]\nCh1=Fz,,1,uV\n",
+        "sub-01_task-rest_eeg.vmrk": "Brain Vision Data Exchange Marker File, Version 1.0\n[Common Infos]\nDataFile=sub-01_task-rest_eeg.eeg\n[Marker Infos]\nMk1=Stimulus,S  1,1,1,0\n",
+        "sub-01_task-rest_eeg.eeg": "synthetic signal payload"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [],
+      "expected_references": [
+        {
+          "source_path": "sub-01_task-rest_eeg.vhdr",
+          "location": "line 3, DataFile",
+          "target": "sub-01_task-rest_eeg.eeg",
+          "status": "valid_internal"
+        },
+        {
+          "source_path": "sub-01_task-rest_eeg.vhdr",
+          "location": "line 4, MarkerFile",
+          "target": "sub-01_task-rest_eeg.vmrk",
+          "status": "valid_internal"
+        },
+        {
+          "source_path": "sub-01_task-rest_eeg.vmrk",
+          "location": "line 3, DataFile",
+          "target": "sub-01_task-rest_eeg.eeg",
+          "status": "valid_internal"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sub-01_task-rest_eeg.vhdr",
+          "status": "fully_inspected_metadata"
+        },
+        {
+          "path": "sub-01_task-rest_eeg.vmrk",
+          "status": "fully_inspected_metadata"
+        },
+        {
+          "path": "sub-01_task-rest_eeg.eeg",
+          "status": "payload_not_opened"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_brainvision_marker_timestamp",
+      "split": "development",
+      "format": "brainvision",
+      "files": {
+        "sub-01_task-rest_eeg.vmrk": "Brain Vision Data Exchange Marker File, Version 1.0\n[Marker Infos]\nMk1=New Segment,,1,1,0,20200102030405000000\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["20200102030405000000"],
+      "expected_findings": [
+        {
+          "code": "EXACT_RECORDING_DATE",
+          "severity": "review",
+          "path": "sub-01_task-rest_eeg.vmrk",
+          "location": "line 3"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sub-01_task-rest_eeg.vmrk",
+          "status": "fully_inspected_metadata"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_bdf_placeholder_control",
+      "split": "development",
+      "format": "bdf_control",
+      "files": {},
+      "builder": {
+        "name": "edf",
+        "path": "sub-01_task-rest_eeg.bdf"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [],
+      "expected_coverage": [
+        {
+          "path": "sub-01_task-rest_eeg.bdf",
+          "status": "header_or_structure_only"
+        }
+      ]
+    }
+  ]
+}

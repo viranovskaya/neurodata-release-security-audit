@@ -15,7 +15,18 @@ from .detectors import KnownTermMatcher, redacted, scan_text
 from .models import Finding, Severity
 
 _DOB_KEYS = {"date_of_birth", "birth_date", "birthdate", "birthday", "dob"}
-_PHONE_KEYS = {"phone", "phone_number", "telephone", "tel", "mobile"}
+_PHONE_KEYS = {
+    "phone",
+    "phone_number",
+    "telephone",
+    "tel",
+    "mobile",
+    "contact_phone",
+    "emergency_phone",
+    "participant_phone",
+    "patient_phone",
+    "subject_phone",
+}
 _NAME_KEYS = {
     "family_name",
     "first_name",
@@ -75,6 +86,21 @@ _ACCOUNT_KEYS = {"account_name", "login", "user", "username"}
 _PERSONNEL_KEYS = {"experimenter", "operator", "physician", "technician"}
 _DEVICE_IDENTIFIER_KEYS = {"device_id", "device_serial", "serial_number"}
 _FREE_TEXT_KEYS = {"comment", "comments", "patient_history", "patient_state"}
+_SECRET_KEYS = {
+    "access_token",
+    "api_key",
+    "auth_token",
+    "aws_secret_access_key",
+    "client_secret",
+    "id_token",
+    "password",
+    "passwd",
+    "private_key",
+    "refresh_token",
+    "secret_key",
+    "session_token",
+    "webhook_secret",
+}
 _RECORDING_DATE_KEYS = {
     "acq_date",
     "acq_datetime",
@@ -138,6 +164,7 @@ _SAFE_LOCATION_KEYS = (
     | _PERSONNEL_KEYS
     | _DEVICE_IDENTIFIER_KEYS
     | _FREE_TEXT_KEYS
+    | _SECRET_KEYS
     | _RECORDING_DATE_KEYS
     | _PERSON_CONTEXT_PARTS
     | {
@@ -166,9 +193,19 @@ def _normalise_key(key: object) -> str:
     return text.strip("_")
 
 
+def _is_phone_key(key: str) -> bool:
+    return key in _PHONE_KEYS or key.endswith(
+        ("_phone", "_phone_number", "_telephone", "_mobile")
+    )
+
+
 def _safe_location_key(key: object) -> str:
     normalised = _normalise_key(key)
-    return normalised if normalised in _SAFE_LOCATION_KEYS else "<field>"
+    return (
+        normalised
+        if normalised in _SAFE_LOCATION_KEYS or _is_phone_key(normalised)
+        else "<field>"
+    )
 
 
 def _safe_location_path(path: tuple[object, ...]) -> str:
@@ -199,6 +236,17 @@ def _finding_for_field(
     if text is None:
         return None
 
+    if normalised in _SECRET_KEYS:
+        return Finding(
+            code="POTENTIAL_SECRET",
+            severity="high",
+            path=relative_path,
+            location=location,
+            evidence=redacted("potential-secret", text),
+            message=(
+                "Remove this credential from the release and rotate it if it may be real."
+            ),
+        )
     if normalised in _DOB_KEYS:
         return Finding(
             code="BIRTH_DATE_FIELD",
@@ -208,7 +256,7 @@ def _finding_for_field(
             evidence=redacted("birth-date", text),
             message="Remove this date of birth or replace it according to the release policy.",
         )
-    if normalised in _PHONE_KEYS:
+    if _is_phone_key(normalised):
         return Finding(
             code="DIRECT_PHONE",
             severity="high",

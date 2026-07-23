@@ -1,0 +1,573 @@
+{
+  "by_finding_class": {
+    "coverage_or_other": {
+      "expected_findings": 4,
+      "labelled_precision": 1.0,
+      "matched_findings": 4,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "dates_and_demographics": {
+      "expected_findings": 1,
+      "labelled_precision": 1.0,
+      "matched_findings": 1,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "linked_identity": {
+      "expected_findings": 4,
+      "labelled_precision": 1.0,
+      "matched_findings": 4,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "personal_identity": {
+      "expected_findings": 11,
+      "labelled_precision": 1.0,
+      "matched_findings": 11,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "secrets_and_paths": {
+      "expected_findings": 3,
+      "labelled_precision": 1.0,
+      "matched_findings": 3,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "site_device_and_staff": {
+      "expected_findings": 2,
+      "labelled_precision": 1.0,
+      "matched_findings": 2,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    }
+  },
+  "by_format": {
+    "json": {
+      "cases": 8,
+      "clean_controls": 4,
+      "control_cases": 4,
+      "control_specificity": 1.0,
+      "duplicate_findings": 0,
+      "expected_findings": 13,
+      "labelled_precision": 1.0,
+      "matched_findings": 13,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "text": {
+      "cases": 3,
+      "clean_controls": 1,
+      "control_cases": 1,
+      "control_specificity": 1.0,
+      "duplicate_findings": 0,
+      "expected_findings": 6,
+      "labelled_precision": 1.0,
+      "matched_findings": 6,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "tsv": {
+      "cases": 2,
+      "clean_controls": 1,
+      "control_cases": 1,
+      "control_specificity": 1.0,
+      "duplicate_findings": 0,
+      "expected_findings": 3,
+      "labelled_precision": 1.0,
+      "matched_findings": 3,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    },
+    "xml": {
+      "cases": 1,
+      "clean_controls": 0,
+      "control_cases": 0,
+      "control_specificity": null,
+      "duplicate_findings": 0,
+      "expected_findings": 3,
+      "labelled_precision": 1.0,
+      "matched_findings": 3,
+      "target_recall": 1.0,
+      "unexpected_findings": 0
+    }
+  },
+  "case_files": [
+    {
+      "path": "cases/challenge_v1.json",
+      "sha256": "7825505c139c20f7b9b1370d93860ec5c979c141d9d14cfa74867418b9fa1060"
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "challenge_v1_nested_participant_contact",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "BIRTH_DATE_FIELD",
+            "location": "JSON field participant.date_of_birth",
+            "path": "participant.json",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DIRECT_PHONE",
+            "location": "JSON field participant.emergency_contact_phone",
+            "path": "participant.json",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "POSTAL_ADDRESS_FIELD",
+            "location": "JSON field participant.home_address",
+            "path": "participant.json",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DIRECT_EMAIL",
+            "location": "JSON value participant.<field>",
+            "path": "participant.json",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_table_aliases",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "DIRECT_PERSONAL_ID",
+            "location": "row 2, column medical_record_id",
+            "path": "participants.tsv",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "LINKED_SOURCE_ID",
+            "location": "row 2, column source_participant_id",
+            "path": "participants.tsv",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DIRECT_PHONE",
+            "location": "row 2, column phone_number",
+            "path": "participants.tsv",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "tsv",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_runtime_identifiers",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "LOCAL_HOSTNAME",
+            "location": "JSON field runtime.hostname",
+            "path": "runtime.json",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "NETWORK_ADDRESS",
+            "location": "JSON field runtime.ip_address",
+            "path": "runtime.json",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DEVICE_ADDRESS",
+            "location": "JSON field runtime.mac_address",
+            "path": "runtime.json",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "ACCOUNT_NAME",
+            "location": "JSON field runtime.username",
+            "path": "runtime.json",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_acquisition_metadata",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "PERSONNEL_FIELD",
+            "location": "JSON field <field>.operator",
+            "path": "acquisition.json",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DEVICE_IDENTIFIER",
+            "location": "JSON field <field>.device_serial",
+            "path": "acquisition.json",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "EXACT_RECORDING_DATE",
+            "location": "JSON field <field>.acquisition_date_time",
+            "path": "acquisition.json",
+            "severity": "review"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_namespaced_xml_attributes",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "SUBJECT_NAME_FIELD",
+            "location": "XML attribute record.participant.full_name",
+            "path": "metadata.xml",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "LINKED_SOURCE_ID",
+            "location": "XML attribute record.participant.id",
+            "path": "metadata.xml",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "BIRTH_DATE_FIELD",
+            "location": "XML attribute record.participant.date_of_birth",
+            "path": "metadata.xml",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "xml",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_mixed_text_identity",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "SUBJECT_NAME_FIELD",
+            "location": "line 1",
+            "path": "notes.txt",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "BIRTH_DATE_FIELD",
+            "location": "line 2",
+            "path": "notes.txt",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "LINKED_SOURCE_ID",
+            "location": "line 3",
+            "path": "notes.txt",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "NETWORK_PATH",
+            "location": "line 4",
+            "path": "notes.txt",
+            "severity": "review"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "DIRECT_EMAIL",
+            "location": "line 5",
+            "path": "notes.txt",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "text",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_known_term_boundary",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "KNOWN_IDENTIFIER",
+            "location": "line 1",
+            "path": "provenance.txt",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "text",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_json_secret_aliases",
+      "duplicate_findings": [],
+      "expected": [
+        {
+          "expected": {
+            "code": "POTENTIAL_SECRET",
+            "location": "JSON field runtime.client_secret",
+            "path": "private-config.json",
+            "severity": "high"
+          },
+          "matched": true
+        },
+        {
+          "expected": {
+            "code": "POTENTIAL_SECRET",
+            "location": "JSON field runtime.refresh_token",
+            "path": "private-config.json",
+            "severity": "high"
+          },
+          "matched": true
+        }
+      ],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_device_model_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_bids_description_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_participant_codes_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "tsv_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_placeholder_fields_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_technical_terms_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "json_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    },
+    {
+      "case_id": "challenge_v1_public_references_control",
+      "duplicate_findings": [],
+      "expected": [],
+      "expected_container_members": [],
+      "expected_coverage": [],
+      "expected_references": [],
+      "format": "text_control",
+      "integrity_passed": true,
+      "masking_failures": [],
+      "split": "challenge",
+      "unexpected_container_members": [],
+      "unexpected_findings": [],
+      "unexpected_references": []
+    }
+  ],
+  "locked": true,
+  "schema_version": "1",
+  "suite_name": "challenge-v1",
+  "summary": {
+    "cases": 14,
+    "cases_with_duplicates": 0,
+    "clean_controls": 6,
+    "control_cases": 6,
+    "control_specificity": 1.0,
+    "duplicate_findings": 0,
+    "expected_container_members": 0,
+    "expected_coverage": 0,
+    "expected_findings": 25,
+    "expected_references": 0,
+    "integrity_failures": 0,
+    "labelled_precision": 1.0,
+    "masking_failures": 0,
+    "matched_container_members": 0,
+    "matched_coverage": 0,
+    "matched_findings": 25,
+    "matched_references": 0,
+    "target_recall": 1.0,
+    "unexpected_container_members": 0,
+    "unexpected_findings": 0,
+    "unexpected_references": 0
+  }
+}

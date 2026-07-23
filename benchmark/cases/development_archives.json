@@ -1,0 +1,172 @@
+{
+  "schema_version": "1",
+  "cases": [
+    {
+      "case_id": "dev_zip_traversal",
+      "split": "development",
+      "format": "zip",
+      "files": {},
+      "builder": {
+        "name": "zip",
+        "path": "release.zip",
+        "members": [
+          {"path": "../outside/data.txt", "text": "synthetic"}
+        ]
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [
+        {
+          "code": "ARCHIVE_MEMBER_PATH_TRAVERSAL",
+          "severity": "high",
+          "path": "release.zip",
+          "location": "archive member 1"
+        },
+        {
+          "code": "UNEXPECTED_FILE",
+          "severity": "review",
+          "path": "release.zip",
+          "location": "filename"
+        }
+      ],
+      "expected_container_members": [
+        {
+          "container_path": "release.zip",
+          "member_path": "../outside/data.txt",
+          "member_type": "file"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "release.zip",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_zip_member_email",
+      "split": "development",
+      "format": "zip",
+      "files": {},
+      "builder": {
+        "name": "zip",
+        "path": "release.zip",
+        "members": [
+          {"path": "exports/person@example.org/notes.txt", "text": "synthetic"}
+        ]
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["person@example.org"],
+      "expected_findings": [
+        {
+          "code": "DIRECT_EMAIL",
+          "severity": "high",
+          "path": "release.zip",
+          "location": "archive member 1"
+        },
+        {
+          "code": "UNEXPECTED_FILE",
+          "severity": "review",
+          "path": "release.zip",
+          "location": "filename"
+        }
+      ],
+      "expected_container_members": [
+        {
+          "container_path": "release.zip",
+          "member_type": "file"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "release.zip",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_tar_unsafe_symlink",
+      "split": "development",
+      "format": "tar",
+      "files": {},
+      "builder": {
+        "name": "tar",
+        "path": "release.tar",
+        "members": [
+          {"path": "links/source", "type": "symlink", "target": "../../outside.txt"}
+        ]
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [
+        {
+          "code": "ARCHIVE_LINK_PATH_TRAVERSAL",
+          "severity": "high",
+          "path": "release.tar",
+          "location": "archive member 1"
+        },
+        {
+          "code": "ARCHIVE_SPECIAL_MEMBER",
+          "severity": "review",
+          "path": "release.tar",
+          "location": "archive member 1"
+        },
+        {
+          "code": "UNEXPECTED_FILE",
+          "severity": "review",
+          "path": "release.tar",
+          "location": "filename"
+        }
+      ],
+      "expected_container_members": [
+        {
+          "container_path": "release.tar",
+          "member_path": "links/source",
+          "member_type": "symlink"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "release.tar",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_zip_clean_structure",
+      "split": "development",
+      "format": "zip_control",
+      "files": {},
+      "builder": {
+        "name": "zip",
+        "path": "release.zip",
+        "members": [
+          {"path": "metadata/readme.txt", "text": "synthetic"}
+        ]
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [
+        {
+          "code": "UNEXPECTED_FILE",
+          "severity": "review",
+          "path": "release.zip",
+          "location": "filename"
+        }
+      ],
+      "expected_container_members": [
+        {
+          "container_path": "release.zip",
+          "member_path": "metadata/readme.txt",
+          "member_type": "file"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "release.zip",
+          "status": "header_or_structure_only"
+        }
+      ]
+    }
+  ]
+}

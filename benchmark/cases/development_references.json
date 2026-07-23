@@ -1,0 +1,104 @@
+{
+  "schema_version": "1",
+  "cases": [
+    {
+      "case_id": "dev_bids_reference_valid",
+      "split": "development",
+      "format": "bids_reference_control",
+      "files": {
+        "sub-01/eeg/sub-01_task-rest_eeg.json": "{\"Sources\": \"bids::sub-01/source.txt\"}\n",
+        "sub-01/source.txt": "synthetic source\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [],
+      "expected_references": [
+        {
+          "source_path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+          "location": "JSON field Sources",
+          "target": "sub-01/source.txt",
+          "status": "valid_internal"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_bids_reference_missing",
+      "split": "development",
+      "format": "bids_reference",
+      "files": {
+        "sub-01/eeg/sub-01_task-rest_eeg.json": "{\"Sources\": \"bids::sub-01/missing.txt\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["bids::sub-01/missing.txt"],
+      "expected_findings": [
+        {
+          "code": "MISSING_DATA_REFERENCE",
+          "severity": "review",
+          "path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+          "location": "JSON field Sources"
+        }
+      ],
+      "expected_references": [
+        {
+          "source_path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+          "location": "JSON field Sources",
+          "target": "<missing-reference>",
+          "status": "missing"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_bids_reference_external",
+      "split": "development",
+      "format": "bids_reference",
+      "files": {
+        "sub-01/eeg/sub-01_task-rest_eeg.json": "{\"Sources\": \"https://example.org/source\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["https://example.org/source"],
+      "expected_findings": [
+        {
+          "code": "EXTERNAL_DATA_REFERENCE",
+          "severity": "review",
+          "path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+          "location": "JSON field Sources"
+        }
+      ],
+      "expected_references": [
+        {
+          "source_path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+          "location": "JSON field Sources",
+          "target": "<external-reference>",
+          "status": "external"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_bids_reference_case_mismatch",
+      "split": "development",
+      "format": "bids_reference",
+      "files": {
+        "sub-01/eeg/sub-01_task-rest_eeg.json": "{\"Sources\": \"bids::sub-01/source.txt\"}\n",
+        "sub-01/Source.txt": "synthetic source\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["bids::sub-01/source.txt"],
+      "expected_findings": [
+        {
+          "code": "CASE_MISMATCHED_REFERENCE",
+          "severity": "review",
+          "path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+          "location": "JSON field Sources"
+        }
+      ],
+      "expected_references": [
+        {
+          "source_path": "sub-01/eeg/sub-01_task-rest_eeg.json",
+          "location": "JSON field Sources",
+          "target": "<case-mismatched-reference>",
+          "status": "case_mismatch"
+        }
+      ]
+    }
+  ]
+}

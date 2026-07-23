@@ -1,0 +1,58 @@
+{
+  "schema_version": "1",
+  "suite_name": "public-format-smoke-v2",
+  "fixtures": [
+    {
+      "fixture_id": "openneuro-ds004745-eeglab",
+      "dataset_id": "ds004745",
+      "format": "EEGLAB SET",
+      "doi": "10.18112/openneuro.ds004745.v1.0.1",
+      "source_url": "https://openneuro.org/datasets/ds004745",
+      "source_commit": "b760b2be2637b679ba82fa68e5d2fad14a6d5048",
+      "source_path": "ds004745/sub-001/eeg/sub-001_task-unnamed_eeg.set",
+      "sha256": "80624c685e5a0dec7c1cf913113a39ebf1b91a93082e657d245c558097d5c409",
+      "expected_coverage": "header_or_structure_only",
+      "forbidden_codes": [
+        "FORMAT_PRELOADED_SIGNAL",
+        "FORMAT_READER_UNAVAILABLE",
+        "FORMAT_METADATA_UNREADABLE",
+        "EEGLAB_METADATA_READER_UNAVAILABLE",
+        "EEGLAB_METADATA_UNREADABLE"
+      ]
+    },
+    {
+      "fixture_id": "openneuro-ds004738-kit",
+      "dataset_id": "ds004738",
+      "format": "KIT/Yokogawa CON",
+      "doi": "10.18112/openneuro.ds004738.v1.0.1",
+      "source_url": "https://openneuro.org/datasets/ds004738",
+      "source_commit": "3ce2d4cb0565de82e6e116ca2d0d42d217854207",
+      "source_path": "ds004738/sub-mdtpc/ses-220426/meg/sub-mdtpc_ses-220426_task-dip13_acq-StimOn_meg.con",
+      "sha256": "34863eb7d2494a35e3ea30bd6d9a596f52e5a6121b0dd45274849e56a808e779",
+      "expected_coverage": "header_or_structure_only",
+      "forbidden_codes": [
+        "FORMAT_PRELOADED_SIGNAL",
+        "FORMAT_READER_UNAVAILABLE",
+        "FORMAT_METADATA_UNREADABLE"
+      ]
+    },
+    {
+      "fixture_id": "mne-testing-data-egi-mff",
+      "dataset_id": "mne-testing-data",
+      "format": "EGI MFF",
+      "doi": "not-applicable",
+      "source_url": "https://github.com/mne-tools/mne-testing-data/tree/33ef2a6f6345a1adf8764f8f63725f0ed9e4bb92/EGI/test_egi.mff",
+      "source_commit": "33ef2a6f6345a1adf8764f8f63725f0ed9e4bb92",
+      "source_path": "EGI/test_egi.mff",
+      "source_kind": "directory",
+      "sha256": "3010213f89829b03e811be8e24fda3177fd1abedf59743887b3169fad833d666",
+      "expected_coverage": "fully_inspected_metadata",
+      "forbidden_codes": [
+        "FORMAT_PRELOADED_SIGNAL",
+        "FORMAT_READER_UNAVAILABLE",
+        "FORMAT_METADATA_UNREADABLE"
+      ]
+    }
+  ],
+  "unscored_formats": []
+}

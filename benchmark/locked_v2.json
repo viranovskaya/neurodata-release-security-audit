@@ -1,0 +1,11 @@
+{
+  "schema_version": "1",
+  "suite_name": "locked-v2",
+  "locked": true,
+  "case_files": [
+    {
+      "path": "cases/locked_v2.json",
+      "sha256": "8cf46acc992ee7b01426e6f3560f0e3e488eff135f2cbcda597e6568ad62fc42"
+    }
+  ]
+}

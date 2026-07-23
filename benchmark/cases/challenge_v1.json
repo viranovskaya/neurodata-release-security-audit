@@ -1,0 +1,352 @@
+{
+  "schema_version": "1",
+  "cases": [
+    {
+      "case_id": "challenge_v1_nested_participant_contact",
+      "split": "challenge",
+      "format": "json",
+      "files": {
+        "participant.json": "{\"participant\": {\"DateOfBirth\": \"1988-03-04\", \"EmergencyContactPhone\": \"+34 600 222 333\", \"HomeAddress\": \"14 Challenge Street\", \"email\": \"participant@example.invalid\"}}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "1988-03-04",
+        "+34 600 222 333",
+        "14 Challenge Street",
+        "participant@example.invalid"
+      ],
+      "expected_findings": [
+        {
+          "code": "BIRTH_DATE_FIELD",
+          "severity": "high",
+          "path": "participant.json",
+          "location": "JSON field participant.date_of_birth"
+        },
+        {
+          "code": "DIRECT_PHONE",
+          "severity": "high",
+          "path": "participant.json",
+          "location": "JSON field participant.emergency_contact_phone"
+        },
+        {
+          "code": "POSTAL_ADDRESS_FIELD",
+          "severity": "high",
+          "path": "participant.json",
+          "location": "JSON field participant.home_address"
+        },
+        {
+          "code": "DIRECT_EMAIL",
+          "severity": "high",
+          "path": "participant.json",
+          "location": "JSON value participant.<field>"
+        }
+      ]
+    },
+    {
+      "case_id": "challenge_v1_table_aliases",
+      "split": "challenge",
+      "format": "tsv",
+      "files": {
+        "participants.tsv": "participant_id\tMedicalRecordID\tSourceParticipantID\tPhoneNumber\nsub-11\tMRN-CH-1101\tHOSP-CH-11\t+43 660 111 2233\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "MRN-CH-1101",
+        "HOSP-CH-11",
+        "+43 660 111 2233"
+      ],
+      "expected_findings": [
+        {
+          "code": "DIRECT_PERSONAL_ID",
+          "severity": "high",
+          "path": "participants.tsv",
+          "location": "row 2, column medical_record_id"
+        },
+        {
+          "code": "LINKED_SOURCE_ID",
+          "severity": "review",
+          "path": "participants.tsv",
+          "location": "row 2, column source_participant_id"
+        },
+        {
+          "code": "DIRECT_PHONE",
+          "severity": "high",
+          "path": "participants.tsv",
+          "location": "row 2, column phone_number"
+        }
+      ]
+    },
+    {
+      "case_id": "challenge_v1_runtime_identifiers",
+      "split": "challenge",
+      "format": "json",
+      "files": {
+        "runtime.json": "{\"runtime\": {\"hostname\": \"acq-ws-17\", \"ipAddress\": \"10.20.30.40\", \"macAddress\": \"AA:BB:CC:DD:EE:FF\", \"username\": \"local.operator\"}}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "acq-ws-17",
+        "10.20.30.40",
+        "AA:BB:CC:DD:EE:FF",
+        "local.operator"
+      ],
+      "expected_findings": [
+        {
+          "code": "LOCAL_HOSTNAME",
+          "severity": "review",
+          "path": "runtime.json",
+          "location": "JSON field runtime.hostname"
+        },
+        {
+          "code": "NETWORK_ADDRESS",
+          "severity": "review",
+          "path": "runtime.json",
+          "location": "JSON field runtime.ip_address"
+        },
+        {
+          "code": "DEVICE_ADDRESS",
+          "severity": "review",
+          "path": "runtime.json",
+          "location": "JSON field runtime.mac_address"
+        },
+        {
+          "code": "ACCOUNT_NAME",
+          "severity": "review",
+          "path": "runtime.json",
+          "location": "JSON field runtime.username"
+        }
+      ]
+    },
+    {
+      "case_id": "challenge_v1_acquisition_metadata",
+      "split": "challenge",
+      "format": "json",
+      "files": {
+        "acquisition.json": "{\"acquisition\": {\"operator\": \"Case Operator\", \"DeviceSerial\": \"SN-CH-4402\", \"AcquisitionDateTime\": \"2024-01-02T03:04:05\"}}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "Case Operator",
+        "SN-CH-4402",
+        "2024-01-02T03:04:05"
+      ],
+      "expected_findings": [
+        {
+          "code": "PERSONNEL_FIELD",
+          "severity": "review",
+          "path": "acquisition.json",
+          "location": "JSON field <field>.operator"
+        },
+        {
+          "code": "DEVICE_IDENTIFIER",
+          "severity": "review",
+          "path": "acquisition.json",
+          "location": "JSON field <field>.device_serial"
+        },
+        {
+          "code": "EXACT_RECORDING_DATE",
+          "severity": "review",
+          "path": "acquisition.json",
+          "location": "JSON field <field>.acquisition_date_time"
+        }
+      ]
+    },
+    {
+      "case_id": "challenge_v1_namespaced_xml_attributes",
+      "split": "challenge",
+      "format": "xml",
+      "files": {
+        "metadata.xml": "<record xmlns:p=\"urn:challenge\"><p:participant fullName=\"Avery Stone\" id=\"HOSP-CH-22\" dateOfBirth=\"1987-06-05\" /></record>\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "Avery Stone",
+        "HOSP-CH-22",
+        "1987-06-05"
+      ],
+      "expected_findings": [
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "metadata.xml",
+          "location": "XML attribute record.participant.full_name"
+        },
+        {
+          "code": "LINKED_SOURCE_ID",
+          "severity": "review",
+          "path": "metadata.xml",
+          "location": "XML attribute record.participant.id"
+        },
+        {
+          "code": "BIRTH_DATE_FIELD",
+          "severity": "high",
+          "path": "metadata.xml",
+          "location": "XML attribute record.participant.date_of_birth"
+        }
+      ]
+    },
+    {
+      "case_id": "challenge_v1_mixed_text_identity",
+      "split": "challenge",
+      "format": "text",
+      "files": {
+        "notes.txt": "Patient name: Avery Stone\nDate of birth: 04-03-1988\nOriginal subject ID: HOSP-CH-77\nSource: /srv/private/sub-77\nContact: subject77@example.invalid\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "Avery Stone",
+        "04-03-1988",
+        "HOSP-CH-77",
+        "/srv/private/sub-77",
+        "subject77@example.invalid"
+      ],
+      "expected_findings": [
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "notes.txt",
+          "location": "line 1"
+        },
+        {
+          "code": "BIRTH_DATE_FIELD",
+          "severity": "high",
+          "path": "notes.txt",
+          "location": "line 2"
+        },
+        {
+          "code": "LINKED_SOURCE_ID",
+          "severity": "review",
+          "path": "notes.txt",
+          "location": "line 3"
+        },
+        {
+          "code": "NETWORK_PATH",
+          "severity": "review",
+          "path": "notes.txt",
+          "location": "line 4"
+        },
+        {
+          "code": "DIRECT_EMAIL",
+          "severity": "high",
+          "path": "notes.txt",
+          "location": "line 5"
+        }
+      ]
+    },
+    {
+      "case_id": "challenge_v1_known_term_boundary",
+      "split": "challenge",
+      "format": "text",
+      "files": {
+        "provenance.txt": "Research code: PAT-77\nTechnical code: COMPAT-770\n"
+      },
+      "sensitive_terms": [
+        "PAT-77"
+      ],
+      "seeded_values": [
+        "PAT-77"
+      ],
+      "expected_findings": [
+        {
+          "code": "KNOWN_IDENTIFIER",
+          "severity": "high",
+          "path": "provenance.txt",
+          "location": "line 1"
+        }
+      ]
+    },
+    {
+      "case_id": "challenge_v1_json_secret_aliases",
+      "split": "challenge",
+      "format": "json",
+      "files": {
+        "private-config.json": "{\"runtime\": {\"clientSecret\": \"alpha-bravo-charlie-delta-001\", \"refreshToken\": \"refresh-value-for-challenge-002\"}}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "alpha-bravo-charlie-delta-001",
+        "refresh-value-for-challenge-002"
+      ],
+      "expected_findings": [
+        {
+          "code": "POTENTIAL_SECRET",
+          "severity": "high",
+          "path": "private-config.json",
+          "location": "JSON field runtime.client_secret"
+        },
+        {
+          "code": "POTENTIAL_SECRET",
+          "severity": "high",
+          "path": "private-config.json",
+          "location": "JSON field runtime.refresh_token"
+        }
+      ]
+    },
+    {
+      "case_id": "challenge_v1_device_model_control",
+      "split": "challenge",
+      "format": "json_control",
+      "files": {
+        "hardware.json": "{\"microphone_model\": \"Mic-100\", \"headphone_model\": \"HP-20\", \"telephone_extension\": \"1234\", \"smartphone_model\": \"SP-3\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": []
+    },
+    {
+      "case_id": "challenge_v1_bids_description_control",
+      "split": "challenge",
+      "format": "json_control",
+      "files": {
+        "dataset_description.json": "{\"Name\": \"Challenge control dataset\", \"BIDSVersion\": \"1.10.0\", \"License\": \"CC0\", \"DatasetDOI\": \"doi:10.0000/challenge\", \"Authors\": [\"Open Data Team\"], \"Funding\": [\"Public grant 1234\"]}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": []
+    },
+    {
+      "case_id": "challenge_v1_participant_codes_control",
+      "split": "challenge",
+      "format": "tsv_control",
+      "files": {
+        "participants.tsv": "participant_id\tage\tsex\tgroup\tsession\nsub-001\t31\tF\tcontrol\tses-01\nsub-002\t42\tM\tpatient\tses-02\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": []
+    },
+    {
+      "case_id": "challenge_v1_placeholder_fields_control",
+      "split": "challenge",
+      "format": "json_control",
+      "files": {
+        "placeholder.json": "{\"clientSecret\": \"n/a\", \"password\": \"unknown\", \"phone\": \"n/a\", \"dateOfBirth\": \"unknown\", \"patientName\": \"none\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": []
+    },
+    {
+      "case_id": "challenge_v1_technical_terms_control",
+      "split": "challenge",
+      "format": "json_control",
+      "files": {
+        "analysis.json": "{\"participantCount\": 120, \"subjectArea\": \"neuroscience\", \"birthRate\": 1.4, \"phoneSamplingHz\": 1000, \"patientGroup\": \"control\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": []
+    },
+    {
+      "case_id": "challenge_v1_public_references_control",
+      "split": "challenge",
+      "format": "text_control",
+      "files": {
+        "README.md": "Documentation: https://example.org/releases/2026-07-23\nDOI: 10.0000/challenge.2026.07\nVersion: 2026.07.23\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": []
+    }
+  ]
+}

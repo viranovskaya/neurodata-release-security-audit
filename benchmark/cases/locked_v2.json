@@ -1,0 +1,354 @@
+{
+  "schema_version": "1",
+  "cases": [
+    {
+      "case_id": "locked_v2_json_mixed_identity",
+      "split": "locked",
+      "format": "json",
+      "files": {
+        "sub-03_task-rest_eeg.json": "{\"patient\": {\"medical_record_number\": \"MRN-V2-81\", \"street_address\": \"81 Holdout Street\"}, \"recording_datetime\": \"2021-04-05T06:07:08\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "MRN-V2-81",
+        "81 Holdout Street",
+        "2021-04-05T06:07:08"
+      ],
+      "expected_findings": [
+        {
+          "code": "DIRECT_PERSONAL_ID",
+          "severity": "high",
+          "path": "sub-03_task-rest_eeg.json",
+          "location": "JSON field patient.medical_record_number"
+        },
+        {
+          "code": "POSTAL_ADDRESS_FIELD",
+          "severity": "high",
+          "path": "sub-03_task-rest_eeg.json",
+          "location": "JSON field patient.street_address"
+        },
+        {
+          "code": "EXACT_RECORDING_DATE",
+          "severity": "review",
+          "path": "sub-03_task-rest_eeg.json",
+          "location": "JSON field recording_datetime"
+        }
+      ]
+    },
+    {
+      "case_id": "locked_v2_filename_email",
+      "split": "locked",
+      "format": "path",
+      "files": {
+        "holdout@example.org.txt": "Synthetic note.\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["holdout@example.org"],
+      "expected_findings": [
+        {
+          "code": "DIRECT_EMAIL",
+          "severity": "high",
+          "path": "<redacted:email-001>",
+          "location": "filename"
+        }
+      ]
+    },
+    {
+      "case_id": "locked_v2_participants_control",
+      "split": "locked",
+      "format": "tsv_control",
+      "files": {
+        "participants.tsv": "participant_id\tage\tsex\tgroup\nsub-03\t29\tF\tcontrol\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": []
+    },
+    {
+      "case_id": "locked_v2_edf_known_identifier",
+      "split": "locked",
+      "format": "edf",
+      "files": {},
+      "builder": {
+        "name": "edf",
+        "path": "sub-03_task-rest_eeg.edf",
+        "patient": "X X X SUBJ-V2-77"
+      },
+      "sensitive_terms": ["SUBJ-V2-77"],
+      "seeded_values": ["SUBJ-V2-77"],
+      "expected_findings": [
+        {
+          "code": "KNOWN_IDENTIFIER",
+          "severity": "high",
+          "path": "sub-03_task-rest_eeg.edf",
+          "location": "line 1"
+        },
+        {
+          "code": "SUBJECT_FIELD_POPULATED",
+          "severity": "review",
+          "path": "sub-03_task-rest_eeg.edf",
+          "location": "EDF patient field"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sub-03_task-rest_eeg.edf",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "locked_v2_nifti_source_path",
+      "split": "locked",
+      "format": "nifti",
+      "files": {},
+      "builder": {
+        "name": "nifti",
+        "path": "sub-03_T1w.nii",
+        "aux_file": "/Users/holdout/private/source.nii"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["/Users/holdout/private/source.nii"],
+      "expected_findings": [
+        {
+          "code": "LOCAL_PATH",
+          "severity": "review",
+          "path": "sub-03_T1w.nii",
+          "location": "NIfTI header aux_file"
+        },
+        {
+          "code": "SOURCE_FILENAME",
+          "severity": "review",
+          "path": "sub-03_T1w.nii",
+          "location": "NIfTI header aux_file"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sub-03_T1w.nii",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "locked_v2_dicom_private_and_identity_status",
+      "split": "locked",
+      "format": "dicom",
+      "files": {},
+      "builder": {
+        "name": "dicom",
+        "path": "image.dcm",
+        "fields": {
+          "PatientIdentityRemoved": "NO"
+        },
+        "private_text": "PRIVATE-V2-91"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["PRIVATE-V2-91"],
+      "expected_findings": [
+        {
+          "code": "DICOM_PRIVATE_TAG",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM private tag"
+        },
+        {
+          "code": "DICOM_IDENTITY_NOT_REMOVED",
+          "severity": "high",
+          "path": "image.dcm",
+          "location": "DICOM PatientIdentityRemoved"
+        },
+        {
+          "code": "DICOM_UID",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM MediaStorageSOPInstanceUID"
+        },
+        {
+          "code": "DICOM_UID",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM ImplementationClassUID"
+        },
+        {
+          "code": "DICOM_UID",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM SOPInstanceUID"
+        },
+        {
+          "code": "DEVICE_IDENTIFIER",
+          "severity": "review",
+          "path": "image.dcm",
+          "location": "DICOM ImplementationVersionName"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "image.dcm",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "locked_v2_fif_staff_and_device",
+      "split": "locked",
+      "format": "fif",
+      "files": {},
+      "builder": {
+        "name": "fif",
+        "path": "sub-03_task-rest_eeg.fif",
+        "experimenter": "Researcher Holdout",
+        "device_info": {
+          "serial": "DEVICE-V2-22",
+          "site": "Lab Holdout"
+        }
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "Researcher Holdout",
+        "DEVICE-V2-22",
+        "Lab Holdout"
+      ],
+      "expected_findings": [
+        {
+          "code": "PERSONNEL_FIELD",
+          "severity": "review",
+          "path": "sub-03_task-rest_eeg.fif",
+          "location": "MNE Info experimenter"
+        },
+        {
+          "code": "DEVICE_IDENTIFIER",
+          "severity": "review",
+          "path": "sub-03_task-rest_eeg.fif",
+          "location": "MNE Info device_info.serial"
+        },
+        {
+          "code": "DEVICE_IDENTIFIER",
+          "severity": "review",
+          "path": "sub-03_task-rest_eeg.fif",
+          "location": "MNE Info device_info.site"
+        },
+        {
+          "code": "ACQUISITION_SYSTEM_ID",
+          "severity": "review",
+          "path": "sub-03_task-rest_eeg.fif",
+          "location": "MNE Info file_id/meas_id"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sub-03_task-rest_eeg.fif",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "locked_v2_brainvision_missing_source",
+      "split": "locked",
+      "format": "brainvision",
+      "files": {
+        "sub-03_task-rest_eeg.vhdr": "Brain Vision Data Exchange Header File Version 1.0\n[Common Infos]\nDataFile=holdout_source.eeg\nMarkerFile=sub-03_task-rest_eeg.vmrk\n",
+        "sub-03_task-rest_eeg.vmrk": "Brain Vision Data Exchange Marker File, Version 1.0\n[Marker Infos]\nMk1=Stimulus,S  1,1,1,0\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": ["holdout_source.eeg"],
+      "expected_findings": [
+        {
+          "code": "SOURCE_FILENAME",
+          "severity": "review",
+          "path": "sub-03_task-rest_eeg.vhdr",
+          "location": "line 3, DataFile"
+        },
+        {
+          "code": "MISSING_DATA_REFERENCE",
+          "severity": "review",
+          "path": "sub-03_task-rest_eeg.vhdr",
+          "location": "line 3, DataFile"
+        }
+      ],
+      "expected_references": [
+        {
+          "source_path": "sub-03_task-rest_eeg.vhdr",
+          "location": "line 3, DataFile",
+          "target": "<missing-reference>",
+          "status": "missing"
+        },
+        {
+          "source_path": "sub-03_task-rest_eeg.vhdr",
+          "location": "line 4, MarkerFile",
+          "target": "sub-03_task-rest_eeg.vmrk",
+          "status": "valid_internal"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "sub-03_task-rest_eeg.vhdr",
+          "status": "fully_inspected_metadata"
+        },
+        {
+          "path": "sub-03_task-rest_eeg.vmrk",
+          "status": "fully_inspected_metadata"
+        }
+      ]
+    },
+    {
+      "case_id": "locked_v2_tar_regular_member",
+      "split": "locked",
+      "format": "tar",
+      "files": {},
+      "builder": {
+        "name": "tar",
+        "path": "release.tar",
+        "members": [
+          {
+            "path": "metadata/README.txt",
+            "text": "synthetic"
+          }
+        ]
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [
+        {
+          "code": "UNEXPECTED_FILE",
+          "severity": "review",
+          "path": "release.tar",
+          "location": "filename"
+        }
+      ],
+      "expected_container_members": [
+        {
+          "container_path": "release.tar",
+          "member_path": "metadata/README.txt",
+          "member_type": "file"
+        }
+      ],
+      "expected_coverage": [
+        {
+          "path": "release.tar",
+          "status": "header_or_structure_only"
+        }
+      ]
+    },
+    {
+      "case_id": "locked_v2_nifti_empty_control",
+      "split": "locked",
+      "format": "nifti_control",
+      "files": {},
+      "builder": {
+        "name": "nifti",
+        "path": "sub-04_T1w.nii"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [],
+      "expected_coverage": [
+        {
+          "path": "sub-04_T1w.nii",
+          "status": "header_or_structure_only"
+        }
+      ]
+    }
+  ]
+}
