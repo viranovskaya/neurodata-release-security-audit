@@ -23,6 +23,12 @@ class BenchmarkTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.cases_path = Path(__file__).parents[1] / "benchmark" / "cases.json"
+        cls.locked_v1_path = (
+            Path(__file__).parents[1] / "benchmark" / "locked.json"
+        )
+        cls.locked_v2_path = (
+            Path(__file__).parents[1] / "benchmark" / "locked_v2.json"
+        )
 
     @unittest.skipUnless(
         _FULL_BENCHMARK_READERS_AVAILABLE,
@@ -76,6 +82,36 @@ class BenchmarkTests(unittest.TestCase):
             render_benchmark_markdown(first),
             render_benchmark_markdown(second),
         )
+
+    def test_legacy_weak_locked_suite_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must contain exactly"):
+            run_benchmark(self.locked_v1_path)
+
+    @unittest.skipUnless(
+        _FULL_BENCHMARK_READERS_AVAILABLE,
+        "Full benchmark needs the formats and imaging extras",
+    )
+    def test_strict_locked_v2_is_fully_labelled(self) -> None:
+        result = run_benchmark(self.locked_v2_path)
+        summary = result["summary"]
+
+        self.assertEqual(result["suite_name"], "locked-v2")
+        self.assertTrue(result["locked"])
+        self.assertEqual(summary["cases"], 10)
+        self.assertEqual(summary["matched_findings"], 21)
+        self.assertEqual(summary["expected_findings"], 21)
+        self.assertEqual(summary["unexpected_findings"], 0)
+        self.assertEqual(summary["duplicate_findings"], 0)
+        self.assertEqual(summary["clean_controls"], 2)
+        self.assertEqual(summary["control_cases"], 2)
+        self.assertEqual(summary["matched_references"], 2)
+        self.assertEqual(summary["expected_references"], 2)
+        self.assertEqual(summary["matched_container_members"], 1)
+        self.assertEqual(summary["expected_container_members"], 1)
+        self.assertEqual(summary["matched_coverage"], 8)
+        self.assertEqual(summary["expected_coverage"], 8)
+        self.assertEqual(summary["masking_failures"], 0)
+        self.assertEqual(summary["integrity_failures"], 0)
 
     def test_case_files_cannot_escape_the_temporary_release(self) -> None:
         specification = {

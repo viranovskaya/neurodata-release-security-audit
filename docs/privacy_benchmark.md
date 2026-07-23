@@ -54,6 +54,11 @@ file path, even though the method required exact identities. It is not a valid
 holdout score and must not be quoted. `locked-v2` uses strict labels with exactly
 `code`, `severity`, `path` and `location`.
 
+The first strict `locked-v2` run matches 21 of 21 labels across 10 cases, with
+zero unexpected findings, masking failures or integrity failures. This result is
+stored for reproducibility but remains subject to independent review. Even
+after review, it is a small visible holdout rather than a blind validation.
+
 ## Splits
 
 The initial cases are a development pilot. They are used to check the evaluator
