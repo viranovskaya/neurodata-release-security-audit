@@ -102,6 +102,7 @@ integration rows are listed after them.
 | Integrity manifest | text and binary payload | size and SHA-256 for every regular file |
 | File changes | hash changes between manifest passes | visible review finding and failed recheck |
 | Tree changes | entry added between tree snapshots | visible review finding and failed recheck |
+| Symlink target changes | link points elsewhere between snapshots | generic review finding without exposing either target |
 | Integrity exit | failed file or tree recheck | exit status `2` and `integrity=failed` |
 | Ignored descendants | synthetic `.git` tree with secret-shaped payload | descendants inventoried and hashed, not parsed |
 | Special entry | FIFO | visible manual-review coverage without opening |

@@ -30,6 +30,7 @@ from neurodata_security_audit.readers import (
 from neurodata_security_audit.scanner import (
     ScanPolicy,
     _release_collision_findings,
+    _tree_signature,
     scan_dataset,
 )
 from neurodata_security_audit.structured import inspect_delimited
@@ -2314,8 +2315,11 @@ class ScannerTests(unittest.TestCase):
         with patch(
             "neurodata_security_audit.scanner._tree_signature",
             side_effect=[
-                {"README": "file"},
-                {"README": "file", "late-file.txt": "file"},
+                {"README": ("file", "")},
+                {
+                    "README": ("file", ""),
+                    "late-file.txt": ("file", ""),
+                },
             ],
         ):
             report = scan_dataset(self.root)
@@ -2327,6 +2331,45 @@ class ScannerTests(unittest.TestCase):
         )
         late = next(item for item in report.coverage if item.path == "late-file.txt")
         self.assertEqual("unsupported_manual_review", late.status)
+
+    def test_symlink_target_change_during_scan_is_visible(self) -> None:
+        link = self.root / "recording-link"
+        os.symlink("first-target", link)
+        with patch(
+            "neurodata_security_audit.scanner._tree_signature",
+            side_effect=[
+                {"recording-link": ("symlink", "signature-a")},
+                {"recording-link": ("symlink", "signature-b")},
+            ],
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertFalse(report.release_tree_recheck_passed)
+        finding = next(
+            item
+            for item in report.findings
+            if item.code == "RELEASE_TREE_CHANGED_DURING_SCAN"
+        )
+        self.assertEqual("<tree-entry:symlink-target-changed>", finding.evidence)
+        rendered = render_json(report) + render_markdown(report)
+        self.assertNotIn("first-target", rendered)
+        self.assertNotIn("second-target", rendered)
+
+    def test_tree_signature_reads_symlink_target_without_opening_it(self) -> None:
+        outside = Path(self.temp_dir.name) / "outside.txt"
+        outside.write_text("must not be read", encoding="utf-8")
+        link = self.root / "recording-link"
+        os.symlink(outside, link)
+
+        with patch.object(
+            Path,
+            "open",
+            side_effect=AssertionError("symlink target must not be opened"),
+        ):
+            signature = _tree_signature(self.root)
+
+        expected = hashlib.sha256(os.fsencode(str(outside))).hexdigest()
+        self.assertEqual(("symlink", expected), signature[link.name])
 
     def test_ignored_directory_descendants_are_inventoried_but_not_parsed(self) -> None:
         ignored = self.root / ".git"

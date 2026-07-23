@@ -494,8 +494,8 @@ def _walk(root: Path):
         pending.extend(reversed(subdirectories))
 
 
-def _tree_signature(root: Path) -> dict[str, str]:
-    signature: dict[str, str] = {}
+def _tree_signature(root: Path) -> dict[str, tuple[EntryType, str]]:
+    signature: dict[str, tuple[EntryType, str]] = {}
     pending = [root]
     while pending:
         directory = pending.pop()
@@ -503,23 +503,30 @@ def _tree_signature(root: Path) -> dict[str, str]:
             entries = sorted(directory.iterdir(), key=lambda item: item.name)
         except OSError:
             relative_path = directory.relative_to(root).as_posix() or "."
-            signature[relative_path] = "unreadable"
+            signature[relative_path] = ("unreadable", "")
             continue
         subdirectories: list[Path] = []
         for entry in entries:
             relative_path = entry.relative_to(root).as_posix()
             try:
                 if entry.is_symlink():
-                    signature[relative_path] = "symlink"
+                    try:
+                        link_target = os.readlink(entry)
+                        target_signature = hashlib.sha256(
+                            os.fsencode(link_target)
+                        ).hexdigest()
+                    except OSError:
+                        target_signature = "<unreadable-target>"
+                    signature[relative_path] = ("symlink", target_signature)
                 elif entry.is_dir():
-                    signature[relative_path] = "directory"
+                    signature[relative_path] = ("directory", "")
                     subdirectories.append(entry)
                 elif entry.is_file():
-                    signature[relative_path] = "file"
+                    signature[relative_path] = ("file", "")
                 else:
-                    signature[relative_path] = "other"
+                    signature[relative_path] = ("other", "")
             except OSError:
-                signature[relative_path] = "unreadable"
+                signature[relative_path] = ("unreadable", "")
         pending.extend(reversed(subdirectories))
     return signature
 
@@ -1523,33 +1530,17 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
         report.release_tree_recheck_passed = False
         if before is None:
             change = "added"
-            entry_type: EntryType = (
-                after
-                if after in {
-                    "file",
-                    "directory",
-                    "symlink",
-                    "other",
-                    "unreadable",
-                }
-                else "unreadable"
-            )
+            entry_type: EntryType = after[0] if after is not None else "unreadable"
         elif after is None:
             change = "removed"
             entry_type = "unreadable"
         else:
-            change = "type-changed"
-            entry_type = (
-                after
-                if after in {
-                    "file",
-                    "directory",
-                    "symlink",
-                    "other",
-                    "unreadable",
-                }
-                else "unreadable"
+            change = (
+                "symlink-target-changed"
+                if before[0] == after[0] == "symlink"
+                else "type-changed"
             )
+            entry_type = after[0]
         report.findings.append(
             Finding(
                 code="RELEASE_TREE_CHANGED_DURING_SCAN",

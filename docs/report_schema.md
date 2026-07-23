@@ -14,7 +14,8 @@ four release-wide records:
 The scanner calculates the manifest again after metadata inspection. A changed or
 unreadable file makes `manifest_recheck_passed` false and produces a review finding.
 It also compares the complete release tree before and after the scan. Added, removed
-or type-changed entries make `release_tree_recheck_passed` false.
+or type-changed entries and changed symlink targets make
+`release_tree_recheck_passed` false.
 Hashing is a streaming integrity check. It does not parse EEG samples, image voxels
 or DICOM pixels.
 
