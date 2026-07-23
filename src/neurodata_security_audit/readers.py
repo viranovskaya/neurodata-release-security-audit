@@ -10,7 +10,8 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 from .detectors import KnownTermMatcher, redacted, scan_text
-from .models import Finding, Severity
+from .models import Finding, ReferenceEntry, Severity
+from .references import inspect_local_reference
 
 _EDF_HEADER_BYTES = 256
 _GIT_LFS_PREFIX = b"version https://git-lfs.github.com/spec/v1"
@@ -486,6 +487,7 @@ def inspect_eeglab_metadata(
     relative_path: str,
     known_terms: KnownTermMatcher | None = None,
     dataset_root: Path | None = None,
+    reference_entries: list[ReferenceEntry] | None = None,
 ) -> list[Finding]:
     """Inspect EEGLAB fields that MNE Info does not preserve."""
 
@@ -499,7 +501,18 @@ def inspect_eeglab_metadata(
             if len(values) > 1:
                 location += f"[{index}]"
             findings.extend(scan_text(f"{field}: {value}\n", relative_path, known_terms))
-            if field in {"data", "external_reference"}:
+            if field == "data":
+                reference_inspection = inspect_local_reference(
+                    root=root,
+                    source_file=path,
+                    source_path=relative_path,
+                    value=value,
+                    location=location,
+                )
+                findings.extend(reference_inspection.findings)
+                if reference_entries is not None:
+                    reference_entries.extend(reference_inspection.entries)
+            if field == "external_reference":
                 normalised = value.replace("\\", "/")
                 windows_path = PureWindowsPath(value)
                 candidate = Path(normalised)
@@ -523,6 +536,18 @@ def inspect_eeglab_metadata(
                             ),
                         )
                     )
+                    if reference_entries is not None:
+                        reference_entries.append(
+                            ReferenceEntry(
+                                source_path=relative_path,
+                                location=location,
+                                target="<external-hdf5-reference>",
+                                status="external",
+                                reason=(
+                                    "EEGLAB metadata uses an external HDF5 reference"
+                                ),
+                            )
+                        )
             if field in {"comments", "history"}:
                 findings.append(
                     Finding(

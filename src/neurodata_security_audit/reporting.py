@@ -42,6 +42,11 @@ def render_markdown(report: ScanReport) -> str:
         f"- Entries skipped: {summary['files_skipped']}",
         f"- Release entries accounted for: {summary['entries_total']}",
         f"- Files in the SHA-256 manifest: {summary['manifest_files']}",
+        f"- Archive members inventoried: {summary['container_members']}",
+        (
+            f"- Internal references valid: {summary['references_valid']} / "
+            f"{summary['references_checked']}"
+        ),
         (
             "- Manifest recheck passed: "
             f"{'yes' if summary['manifest_recheck_passed'] else 'no'}"
@@ -84,6 +89,51 @@ def render_markdown(report: ScanReport) -> str:
         ]
         safe = [_markdown_text(value) for value in values]
         lines.append("| " + " | ".join(safe) + " |")
+
+    lines.extend(["", "## Archive members", ""])
+    container_members = data["container_members"]
+    if container_members:
+        lines.extend(
+            [
+                "| Archive | Member | Type | Bytes | Compressed bytes | Encrypted |",
+                "|---|---|---|---:|---:|---|",
+            ]
+        )
+        for item in container_members:
+            values = [
+                item["container_path"],
+                item["member_path"],
+                item["member_type"],
+                item["size_bytes"],
+                item["compressed_bytes"],
+                "yes" if item["encrypted"] else "no",
+            ]
+            safe = [_markdown_text(value) for value in values]
+            lines.append("| " + " | ".join(safe) + " |")
+    else:
+        lines.append("No supported archive members were inventoried.")
+
+    lines.extend(["", "## Cross-file references", ""])
+    references = data["references"]
+    if references:
+        lines.extend(
+            [
+                "| Source | Location | Target | Status | Reason |",
+                "|---|---|---|---|---|",
+            ]
+        )
+        for item in references:
+            values = [
+                item["source_path"],
+                item["location"],
+                item["target"],
+                item["status"],
+                item["reason"],
+            ]
+            safe = [_markdown_text(value) for value in values]
+            lines.append("| " + " | ".join(safe) + " |")
+    else:
+        lines.append("No supported cross-file references were found.")
 
     lines.extend(
         [

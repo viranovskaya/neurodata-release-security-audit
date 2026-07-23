@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from . import __version__
+from .containers import inspect_archive, is_archive_path
 from .detectors import (
     KnownTermMatcher,
     find_emails,
@@ -32,6 +33,10 @@ from .readers import (
     inspect_edf_header,
     inspect_eeglab_metadata,
     inspect_mne_format,
+)
+from .references import (
+    inspect_bids_json_references,
+    inspect_brainvision_references,
 )
 from .structured import inspect_delimited, inspect_json, inspect_xml
 
@@ -358,6 +363,10 @@ def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> S
         + [item.path for item in report.skipped_files]
         + [item.path for item in report.coverage]
         + [item.path for item in report.manifest]
+        + [item.container_path for item in report.container_members]
+        + [item.member_path for item in report.container_members]
+        + [item.source_path for item in report.references]
+        + [item.target for item in report.references]
         + [item.path for item in report.findings]
     )
     path_emails = tuple(
@@ -409,6 +418,22 @@ def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> S
         manifest=[
             replace(item, path=redact_path(item.path))
             for item in report.manifest
+        ],
+        container_members=[
+            replace(
+                item,
+                container_path=redact_path(item.container_path),
+                member_path=redact_path(item.member_path),
+            )
+            for item in report.container_members
+        ],
+        references=[
+            replace(
+                item,
+                source_path=redact_path(item.source_path),
+                target=redact_path(item.target),
+            )
+            for item in report.references
         ],
         findings=[
             replace(item, path=redact_path(item.path))
@@ -495,6 +520,58 @@ def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
         while chunk := stream.read(chunk_size):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _release_collision_findings(
+    manifest: list[ManifestEntry],
+) -> list[Finding]:
+    findings: list[Finding] = []
+    path_groups: dict[str, list[str]] = {}
+    basename_groups: dict[str, list[str]] = {}
+    for item in manifest:
+        path_groups.setdefault(item.path.casefold(), []).append(item.path)
+        basename_groups.setdefault(Path(item.path).name.casefold(), []).append(item.path)
+
+    for paths in path_groups.values():
+        if len(set(paths)) < 2:
+            continue
+        findings.append(
+            Finding(
+                code="CASE_COLLIDING_RELEASE_PATH",
+                severity="review",
+                path=sorted(paths)[0],
+                location="release inventory",
+                evidence=f"<case-colliding-paths:{len(paths)}>",
+                message=(
+                    "Rename these entries so the release is unambiguous on "
+                    "case-insensitive filesystems."
+                ),
+            )
+        )
+
+    for paths in basename_groups.values():
+        unique_paths = sorted(set(paths))
+        if len(unique_paths) < 2:
+            continue
+        exact_names = {Path(path).name for path in unique_paths}
+        findings.append(
+            Finding(
+                code=(
+                    "DUPLICATE_BASENAME"
+                    if len(exact_names) == 1
+                    else "CASE_COLLIDING_BASENAME"
+                ),
+                severity="info" if len(exact_names) == 1 else "review",
+                path=unique_paths[0],
+                location="release inventory",
+                evidence=f"<repeated-basename,count={len(unique_paths)}>",
+                message=(
+                    "Confirm these repeated filenames are intentional and all "
+                    "references use explicit relative paths."
+                ),
+            )
+        )
+    return findings
 
 
 def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> ScanReport:
@@ -883,6 +960,14 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 report.findings.extend(scan_text(text, relative_path, known_terms))
                 if suffix == ".json":
                     report.findings.extend(inspect_json(text, relative_path))
+                    references = inspect_bids_json_references(
+                        text,
+                        path,
+                        relative_path,
+                        root,
+                    )
+                    report.references.extend(references.entries)
+                    report.findings.extend(references.findings)
                 elif suffix == ".tsv":
                     report.findings.extend(inspect_delimited(text, relative_path, "\t"))
                 elif suffix == ".csv":
@@ -891,6 +976,14 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     report.findings.extend(inspect_xml(text, relative_path))
                 if suffix in {".vhdr", ".vmrk"}:
                     report.findings.extend(inspect_brainvision(text, relative_path))
+                    references = inspect_brainvision_references(
+                        text,
+                        path,
+                        relative_path,
+                        root,
+                    )
+                    report.references.extend(references.entries)
+                    report.findings.extend(references.findings)
             elif suffix in _EDF_SUFFIXES:
                 with path.open("rb") as stream:
                     header = stream.read(256)
@@ -1029,6 +1122,59 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                         "unsupported_manual_review",
                         "The DICOM metadata reader failed",
                     )
+            elif is_archive_path(path):
+                try:
+                    archive = inspect_archive(
+                        path,
+                        relative_path,
+                        known_terms,
+                    )
+                    report.findings.extend(archive.findings)
+                    report.container_members.extend(archive.members)
+                    report.files_inspected.append(relative_path)
+                    if archive.complete:
+                        record_coverage(
+                            relative_path,
+                            "file",
+                            "header_or_structure_only",
+                            archive.reason,
+                        )
+                    else:
+                        report.skipped_files.append(
+                            SkippedFile(relative_path, archive.reason)
+                        )
+                        record_coverage(
+                            relative_path,
+                            "file",
+                            "unsupported_manual_review",
+                            archive.reason,
+                        )
+                except Exception as error:
+                    report.findings.append(
+                        Finding(
+                            code="ARCHIVE_UNREADABLE",
+                            severity="review",
+                            path=relative_path,
+                            location="archive directory",
+                            evidence=f"<error:{type(error).__name__}>",
+                            message=(
+                                "Review this archive manually; its member table "
+                                "could not be read safely."
+                            ),
+                        )
+                    )
+                    report.skipped_files.append(
+                        SkippedFile(
+                            relative_path,
+                            f"Could not inspect archive directory: {type(error).__name__}",
+                        )
+                    )
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "unsupported_manual_review",
+                        "The archive member table could not be read",
+                    )
             elif mne_format is not None:
                 with path.open("rb") as stream:
                     prefix = stream.read(128)
@@ -1076,14 +1222,17 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 eeglab_metadata_reader_unavailable = False
                 eeglab_skip_mne = False
                 if mne_format == "eeglab":
+                    eeglab_references = []
                     try:
                         eeglab_findings = inspect_eeglab_metadata(
                             path,
                             relative_path,
                             known_terms,
                             root,
+                            reference_entries=eeglab_references,
                         )
                         report.findings.extend(eeglab_findings)
+                        report.references.extend(eeglab_references)
                         eeglab_skip_mne = any(
                             finding.code
                             in {
@@ -1288,4 +1437,5 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
 
     report.coverage = list(coverage_by_path.values())
     report.manifest = list(manifest_by_path.values())
+    report.findings.extend(_release_collision_findings(report.manifest))
     return _redact_report_paths(report, known_terms).normalized()

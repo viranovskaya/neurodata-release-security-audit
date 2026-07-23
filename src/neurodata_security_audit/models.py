@@ -21,6 +21,22 @@ CoverageStatus = Literal[
     "unsupported_manual_review",
     "not_traversed",
 ]
+ContainerMemberType = Literal[
+    "file",
+    "directory",
+    "symlink",
+    "hardlink",
+    "special",
+    "unknown",
+]
+ReferenceStatus = Literal[
+    "valid_internal",
+    "missing",
+    "external",
+    "through_symlink",
+    "case_mismatch",
+    "not_regular_file",
+]
 
 _SEVERITY_ORDER = {"high": 0, "review": 1, "info": 2}
 _COVERAGE_ORDER = {
@@ -97,6 +113,50 @@ class ManifestEntry:
         }
 
 
+@dataclass(frozen=True)
+class ContainerMember:
+    container_path: str
+    member_path: str
+    member_type: ContainerMemberType
+    size_bytes: int
+    compressed_bytes: int
+    encrypted: bool
+
+    def sort_key(self) -> tuple[str, str, str]:
+        return (self.container_path, self.member_path, self.member_type)
+
+    def to_dict(self) -> dict[str, str | int | bool]:
+        return {
+            "container_path": self.container_path,
+            "member_path": self.member_path,
+            "member_type": self.member_type,
+            "size_bytes": self.size_bytes,
+            "compressed_bytes": self.compressed_bytes,
+            "encrypted": self.encrypted,
+        }
+
+
+@dataclass(frozen=True)
+class ReferenceEntry:
+    source_path: str
+    location: str
+    target: str
+    status: ReferenceStatus
+    reason: str
+
+    def sort_key(self) -> tuple[str, str, str]:
+        return (self.source_path, self.location, self.target)
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "source_path": self.source_path,
+            "location": self.location,
+            "target": self.target,
+            "status": self.status,
+            "reason": self.reason,
+        }
+
+
 @dataclass
 class ScanReport:
     scanner_version: str
@@ -104,6 +164,8 @@ class ScanReport:
     skipped_files: list[SkippedFile] = field(default_factory=list)
     coverage: list[CoverageEntry] = field(default_factory=list)
     manifest: list[ManifestEntry] = field(default_factory=list)
+    container_members: list[ContainerMember] = field(default_factory=list)
+    references: list[ReferenceEntry] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
     manifest_recheck_passed: bool = True
     schema_version: str = "2"
@@ -113,12 +175,19 @@ class ScanReport:
         skipped = sorted(set(self.skipped_files), key=lambda item: (item.path, item.reason))
         coverage = sorted(set(self.coverage), key=CoverageEntry.sort_key)
         manifest = sorted(set(self.manifest), key=lambda item: item.path)
+        container_members = sorted(
+            set(self.container_members),
+            key=ContainerMember.sort_key,
+        )
+        references = sorted(set(self.references), key=ReferenceEntry.sort_key)
         return ScanReport(
             scanner_version=self.scanner_version,
             files_inspected=sorted(set(self.files_inspected)),
             skipped_files=skipped,
             coverage=coverage,
             manifest=manifest,
+            container_members=container_members,
+            references=references,
             findings=findings,
             manifest_recheck_passed=self.manifest_recheck_passed,
             schema_version=self.schema_version,
@@ -140,6 +209,11 @@ class ScanReport:
                 "files_skipped": len(report.skipped_files),
                 "entries_total": len(report.coverage),
                 "manifest_files": len(report.manifest),
+                "container_members": len(report.container_members),
+                "references_checked": len(report.references),
+                "references_valid": sum(
+                    item.status == "valid_internal" for item in report.references
+                ),
                 "manifest_recheck_passed": report.manifest_recheck_passed,
                 "fully_inspected_metadata": coverage_counts[
                     "fully_inspected_metadata"
@@ -160,5 +234,9 @@ class ScanReport:
             "skipped_files": [item.to_dict() for item in report.skipped_files],
             "coverage": [item.to_dict() for item in report.coverage],
             "manifest": [item.to_dict() for item in report.manifest],
+            "container_members": [
+                item.to_dict() for item in report.container_members
+            ],
+            "references": [item.to_dict() for item in report.references],
             "findings": [item.to_dict() for item in report.findings],
         }

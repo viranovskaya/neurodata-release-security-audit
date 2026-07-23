@@ -4,10 +4,12 @@ The JSON report is deterministic. It deliberately omits a generation timestamp a
 the absolute dataset path.
 
 Schema version 2 keeps the original findings and inspected/skipped lists, and adds
-two release-wide records:
+four release-wide records:
 
 - `coverage` contains exactly one status for every filesystem entry encountered;
-- `manifest` contains the size and SHA-256 digest of every readable regular file.
+- `manifest` contains the size and SHA-256 digest of every readable regular file;
+- `container_members` lists supported archive directory entries without extraction;
+- `references` records supported cross-file links and their resolution status.
 
 The scanner calculates the manifest again after metadata inspection. A changed or
 unreadable file makes `manifest_recheck_passed` false and produces a review finding.
@@ -24,6 +26,9 @@ or DICOM pixels.
     "entries_total": 3,
     "manifest_files": 2,
     "manifest_recheck_passed": true,
+    "container_members": 0,
+    "references_checked": 0,
+    "references_valid": 0,
     "fully_inspected_metadata": 1,
     "header_or_structure_only": 1,
     "payload_not_opened": 1,
@@ -72,12 +77,18 @@ or DICOM pixels.
       "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
     }
   ],
+  "container_members": [],
+  "references": [],
   "findings": []
 }
 ```
 
 Finding order is `severity`, `path`, `location`, then `code`. Coverage and manifest
 entries are sorted by relative POSIX path.
+
+`container_members` lists ZIP and TAR directory entries without extracting their
+payloads. `references` records supported BrainVision, EEGLAB and BIDS JSON links,
+including valid internal targets and visible failure states.
 
 Relative filenames are retained for remediation. Known terms, contact details,
 direct IDs, labelled dates, obvious credentials and detected local or network paths

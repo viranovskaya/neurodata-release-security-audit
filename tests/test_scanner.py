@@ -10,20 +10,28 @@ import json
 from numbers import Number
 import os
 import socket
+import tarfile
 import tempfile
 from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+import zipfile
 
 from neurodata_security_audit.cli import main
+from neurodata_security_audit.containers import inspect_archive
 from neurodata_security_audit.reporting import render_json, render_markdown
+from neurodata_security_audit.models import ManifestEntry
 from neurodata_security_audit.readers import (
     FormatReaderUnavailable,
     inspect_eeglab_metadata,
     inspect_mne_info,
 )
-from neurodata_security_audit.scanner import ScanPolicy, scan_dataset
+from neurodata_security_audit.scanner import (
+    ScanPolicy,
+    _release_collision_findings,
+    scan_dataset,
+)
 from neurodata_security_audit.structured import inspect_delimited
 
 
@@ -91,13 +99,16 @@ class ScannerTests(unittest.TestCase):
                 "entries_total": 9,
                 "manifest_files": 7,
                 "manifest_recheck_passed": True,
+                "container_members": 0,
+                "references_checked": 2,
+                "references_valid": 1,
                 "fully_inspected_metadata": 5,
                 "header_or_structure_only": 2,
                 "payload_not_opened": 1,
                 "unsupported_manual_review": 1,
                 "not_traversed": 0,
                 "findings_high": 6,
-                "findings_review": 4,
+                "findings_review": 5,
                 "findings_info": 0,
             },
             report.to_dict()["summary"],
@@ -315,6 +326,176 @@ class ScannerTests(unittest.TestCase):
         report = scan_dataset(self.root)
         unexpected = [item for item in report.findings if item.code == "UNEXPECTED_FILE"]
         self.assertEqual(4, len(unexpected))
+
+    def test_zip_member_table_is_checked_without_opening_payloads(self) -> None:
+        archive_path = self.root / "release.zip"
+        secret = "ghp_" + "A" * 32
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("safe/sub-01.txt", secret)
+            archive.writestr("../private/Jane Doe.txt", b"identifier")
+            archive.writestr("nested/data.tar.gz", b"nested archive payload")
+
+        with patch.object(
+            zipfile.ZipFile,
+            "open",
+            side_effect=AssertionError("archive payload must not be opened"),
+        ):
+            report = scan_dataset(
+                self.root,
+                ScanPolicy(sensitive_terms=("Jane Doe",)),
+            )
+
+        self.assertEqual(3, len(report.container_members))
+        codes = {item.code for item in report.findings}
+        self.assertTrue(
+            {
+                "ARCHIVE_MEMBER_PATH_TRAVERSAL",
+                "KNOWN_IDENTIFIER",
+                "NESTED_ARCHIVE",
+            }
+            <= codes
+        )
+        self.assertNotIn("POTENTIAL_SECRET", codes)
+        entry = next(item for item in report.coverage if item.path == "release.zip")
+        self.assertEqual("header_or_structure_only", entry.status)
+        rendered = render_json(report) + render_markdown(report)
+        self.assertNotIn(secret, rendered)
+        self.assertNotIn("Jane Doe", rendered)
+
+    def test_tar_links_are_listed_but_not_followed_or_extracted(self) -> None:
+        archive_path = self.root / "release.tar"
+        with tarfile.open(archive_path, "w") as archive:
+            directory = tarfile.TarInfo("safe")
+            directory.type = tarfile.DIRTYPE
+            archive.addfile(directory)
+            link = tarfile.TarInfo("safe/external-link")
+            link.type = tarfile.SYMTYPE
+            link.linkname = "../../private/participant.tsv"
+            archive.addfile(link)
+
+        with (
+            patch.object(
+                tarfile.TarFile,
+                "extract",
+                side_effect=AssertionError("archive members must not be extracted"),
+            ),
+            patch.object(
+                tarfile.TarFile,
+                "extractall",
+                side_effect=AssertionError("archive members must not be extracted"),
+            ),
+        ):
+            report = scan_dataset(self.root)
+
+        codes = {item.code for item in report.findings}
+        self.assertIn("ARCHIVE_SPECIAL_MEMBER", codes)
+        self.assertIn("ARCHIVE_LINK_PATH_TRAVERSAL", codes)
+        member_type = {
+            item.member_path: item.member_type for item in report.container_members
+        }
+        self.assertEqual("symlink", member_type["safe/external-link"])
+
+    def test_encrypted_zip_is_an_explicit_high_severity_boundary(self) -> None:
+        archive_path = self.root / "release.zip"
+        archive_path.write_bytes(b"synthetic-zip-placeholder")
+        info = SimpleNamespace(
+            filename="data/sub-01.txt",
+            flag_bits=1,
+            external_attr=0,
+            file_size=100,
+            compress_size=80,
+            is_dir=lambda: False,
+        )
+
+        class FakeZip:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            @staticmethod
+            def infolist():
+                return [info]
+
+        with patch(
+            "neurodata_security_audit.containers.zipfile.ZipFile",
+            return_value=FakeZip(),
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertIn(
+            "ENCRYPTED_ARCHIVE",
+            {item.code for item in report.findings},
+        )
+        entry = next(item for item in report.coverage if item.path == "release.zip")
+        self.assertEqual("unsupported_manual_review", entry.status)
+        self.assertTrue(report.container_members[0].encrypted)
+
+    def test_zip_expansion_risk_uses_member_metadata_only(self) -> None:
+        archive_path = self.root / "release.zip"
+        archive_path.write_bytes(b"synthetic-zip-placeholder")
+        info = SimpleNamespace(
+            filename="data/large.bin",
+            flag_bits=0,
+            external_attr=0,
+            file_size=200 * 1024 * 1024,
+            compress_size=1,
+            is_dir=lambda: False,
+        )
+
+        class FakeZip:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            @staticmethod
+            def infolist():
+                return [info]
+
+        with patch(
+            "neurodata_security_audit.containers.zipfile.ZipFile",
+            return_value=FakeZip(),
+        ):
+            report = scan_dataset(self.root)
+
+        self.assertIn(
+            "ARCHIVE_EXPANSION_RISK",
+            {item.code for item in report.findings},
+        )
+
+    def test_archive_member_limit_fails_visibly(self) -> None:
+        archive_path = self.root / "release.zip"
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("first.txt", b"one")
+            archive.writestr("second.txt", b"two")
+
+        result = inspect_archive(
+            archive_path,
+            "release.zip",
+            max_members=1,
+        )
+
+        self.assertFalse(result.complete)
+        self.assertEqual(1, len(result.members))
+        self.assertIn(
+            "ARCHIVE_MEMBER_LIMIT",
+            {item.code for item in result.findings},
+        )
+
+    def test_corrupt_archive_fails_visibly(self) -> None:
+        (self.root / "release.zip").write_bytes(b"not a zip")
+
+        report = scan_dataset(self.root)
+
+        self.assertIn(
+            "ARCHIVE_UNREADABLE",
+            {item.code for item in report.findings},
+        )
+        entry = next(item for item in report.coverage if item.path == "release.zip")
+        self.assertEqual("unsupported_manual_review", entry.status)
 
     def test_sensitive_configuration_directory_is_visible_and_scanned(self) -> None:
         secret = "AKIA" + "A" * 16
@@ -565,6 +746,117 @@ class ScannerTests(unittest.TestCase):
         report = scan_dataset(self.root)
         self.assertIn("SOURCE_FILENAME", {finding.code for finding in report.findings})
         self.assertNotIn(source_name, render_json(report) + render_markdown(report))
+
+    def test_brainvision_internal_references_are_checked(self) -> None:
+        header = self.root / "sub-01_task-rest_eeg.vhdr"
+        marker = self.root / "sub-01_task-rest_eeg.vmrk"
+        signal = self.root / "sub-01_task-rest_eeg.eeg"
+        header.write_text(
+            "[Common Infos]\n"
+            f"DataFile={signal.name}\n"
+            f"MarkerFile={marker.name}\n",
+            encoding="utf-8",
+        )
+        marker.write_text(
+            "[Common Infos]\n"
+            f"DataFile={signal.name}\n",
+            encoding="utf-8",
+        )
+        signal.write_bytes(b"synthetic signal")
+
+        report = scan_dataset(self.root)
+
+        self.assertEqual(3, len(report.references))
+        self.assertEqual(
+            {"valid_internal"},
+            {item.status for item in report.references},
+        )
+        self.assertNotIn(
+            "MISSING_DATA_REFERENCE",
+            {item.code for item in report.findings},
+        )
+
+    def test_brainvision_external_case_and_symlink_references_are_visible(self) -> None:
+        case_target = self.root / "Signal.EEG"
+        case_target.write_bytes(b"synthetic signal")
+        real_target = self.root / "real.eeg"
+        real_target.write_bytes(b"synthetic signal")
+        symlink = self.root / "linked.eeg"
+        symlink.symlink_to(real_target)
+        header = self.root / "recording.vhdr"
+        header.write_text(
+            "[Common Infos]\n"
+            "DataFile=signal.eeg\n"
+            "MarkerFile=linked.eeg\n"
+            "DataFile=../../private/source.eeg\n",
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+
+        statuses = {item.status for item in report.references}
+        self.assertTrue(
+            {"case_mismatch", "through_symlink", "external"} <= statuses
+        )
+        codes = {item.code for item in report.findings}
+        self.assertTrue(
+            {
+                "CASE_MISMATCHED_REFERENCE",
+                "REFERENCE_THROUGH_SYMLINK",
+                "EXTERNAL_DATA_REFERENCE",
+            }
+            <= codes
+        )
+
+    def test_bids_intended_for_reference_is_resolved_from_dataset_root(self) -> None:
+        target = self.root / "sub-01" / "func" / "sub-01_task-rest_bold.nii.gz"
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b"synthetic image")
+        sidecar = self.root / "sub-01" / "fmap" / "sub-01_phasediff.json"
+        sidecar.parent.mkdir(parents=True)
+        sidecar.write_text(
+            json.dumps(
+                {
+                    "IntendedFor": [
+                        "bids::sub-01/func/sub-01_task-rest_bold.nii.gz"
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch(
+            "neurodata_security_audit.scanner.inspect_nifti_metadata",
+            return_value=[],
+        ):
+            report = scan_dataset(self.root)
+
+        reference = next(
+            item for item in report.references if item.source_path.endswith(".json")
+        )
+        self.assertEqual("valid_internal", reference.status)
+        self.assertEqual(
+            "sub-01/func/sub-01_task-rest_bold.nii.gz",
+            reference.target,
+        )
+
+    def test_missing_bids_intended_for_reference_is_visible(self) -> None:
+        sidecar = self.root / "sub-01" / "fmap" / "sub-01_phasediff.json"
+        sidecar.parent.mkdir(parents=True)
+        sidecar.write_text(
+            json.dumps({"IntendedFor": ["bids::sub-01/func/missing.nii.gz"]}),
+            encoding="utf-8",
+        )
+
+        report = scan_dataset(self.root)
+
+        self.assertIn(
+            "MISSING_DATA_REFERENCE",
+            {item.code for item in report.findings},
+        )
+        reference = report.references[0]
+        self.assertEqual("missing", reference.status)
+        self.assertEqual("<missing-reference>", reference.target)
 
     def test_structured_json_fields_are_detected_and_masked(self) -> None:
         values = {
@@ -1512,6 +1804,29 @@ class ScannerTests(unittest.TestCase):
         ):
             self.assertNotIn(value, rendered)
 
+    def test_eeglab_external_data_file_reference_is_checked(self) -> None:
+        set_file = self.root / "recording.set"
+        fdt_file = self.root / "recording.fdt"
+        set_file.write_bytes(b"synthetic-format-placeholder")
+        fdt_file.write_bytes(b"synthetic signal")
+        references = []
+
+        with patch(
+            "neurodata_security_audit.readers._read_eeglab_metadata",
+            return_value=({"data": [fdt_file.name]}, True),
+        ):
+            findings = inspect_eeglab_metadata(
+                set_file,
+                set_file.name,
+                dataset_root=self.root,
+                reference_entries=references,
+            )
+
+        self.assertEqual([], findings)
+        self.assertEqual(1, len(references))
+        self.assertEqual("valid_internal", references[0].status)
+        self.assertEqual(fdt_file.name, references[0].target)
+
     def test_nested_eeglab_metadata_gap_is_visible(self) -> None:
         with patch(
             "neurodata_security_audit.readers._read_eeglab_metadata",
@@ -2004,6 +2319,30 @@ class ScannerTests(unittest.TestCase):
             {item.code for item in report.findings},
         )
         self.assertNotIn(fifo.name, {item.path for item in report.manifest})
+
+    def test_release_filename_collisions_are_visible(self) -> None:
+        manifest = [
+            ManifestEntry("sub-01/eeg/data.edf", 1, "0" * 64),
+            ManifestEntry("sub-02/eeg/data.edf", 1, "1" * 64),
+            ManifestEntry("sub-03/eeg/Data.EDF", 1, "2" * 64),
+            ManifestEntry("Sub-04/eeg/file.txt", 1, "3" * 64),
+            ManifestEntry("sub-04/eeg/file.txt", 1, "4" * 64),
+            ManifestEntry("sub-05/notes.txt", 1, "5" * 64),
+            ManifestEntry("sub-06/notes.txt", 1, "6" * 64),
+        ]
+
+        codes = {
+            item.code for item in _release_collision_findings(manifest)
+        }
+
+        self.assertTrue(
+            {
+                "CASE_COLLIDING_RELEASE_PATH",
+                "DUPLICATE_BASENAME",
+                "CASE_COLLIDING_BASENAME",
+            }
+            <= codes
+        )
 
     def test_scan_does_not_open_network_connections(self) -> None:
         (self.root / "dataset_description.json").write_text(
