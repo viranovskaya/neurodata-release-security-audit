@@ -87,6 +87,16 @@ p { margin: 0; }
   font-weight: 650;
   text-decoration: none;
 }
+.decision {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border-left: 4px solid var(--line);
+  border-radius: 8px;
+}
+.decision.high { border-color: var(--high); background: var(--high-soft); }
+.decision.review { border-color: var(--review); background: var(--review-soft); }
+.decision.ok { border-color: var(--ok); background: var(--ok-soft); }
+.decision strong { display: block; margin-bottom: 3px; }
 .privacy-warning {
   margin: 0 0 22px;
   padding: 12px 14px;
@@ -185,6 +195,20 @@ code {
 .note { margin-top: 12px; font-size: .86rem; }
 .fix-list { margin: 0; padding-left: 22px; }
 .fix-list li + li { margin-top: 8px; }
+.section-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.section-links a {
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: .84rem;
+  text-decoration: none;
+}
 footer {
   color: var(--muted);
   font-size: .82rem;
@@ -278,6 +302,78 @@ def _severity(value: object) -> str:
     return f'<span class="severity {css_class}">{_text(severity)}</span>'
 
 
+def _remediation_content(
+    findings: list[tuple[str, str, str, str, str, str]],
+    *,
+    high_count: int,
+    review_count: int,
+) -> tuple[str, str]:
+    if high_count:
+        selected = [row for row in findings if row[0] == "high"]
+        decision = (
+            '<div class="decision high"><strong>Do not release this copy yet.</strong>'
+            f"Resolve the {high_count} high-priority "
+            f'finding{"s" if high_count != 1 else ""} below first.</div>'
+        )
+        queue_note = (
+            f"{review_count} additional review "
+            f'item{"s" if review_count != 1 else ""} remain in the full findings '
+            "table."
+            if review_count
+            else "No additional review findings remain."
+        )
+    elif review_count:
+        selected = [row for row in findings if row[0] == "review"]
+        decision = (
+            '<div class="decision review"><strong>Review before release.</strong>'
+            f"The scanner found {review_count} "
+            f'item{"s" if review_count != 1 else ""} that need a curator decision.'
+            "</div>"
+        )
+        queue_note = "Work through each item below before making the release decision."
+    else:
+        selected = []
+        decision = (
+            '<div class="decision ok"><strong>No high or review findings in the '
+            "areas checked.</strong>This is not proof of anonymity. Check the "
+            "coverage gaps and the stated format limits before release.</div>"
+        )
+        queue_note = "No immediate remediation tasks were generated."
+
+    rows = (
+        (severity, path, location, message)
+        for severity, _, path, location, _, message in selected
+    )
+    table = _table(
+        ("Priority", "File", "Field or location", "What to do"),
+        rows,
+        empty="No immediate remediation tasks.",
+        renderers={0: _severity},
+    )
+    content = f"""
+    {decision}
+    {table}
+    <p class="note">{_text(queue_note)}</p>
+    <h3>After each correction</h3>
+    <ol class="fix-list">
+      <li>Work on a private copy. Keep the original dataset unchanged.</li>
+      <li>Use a format-aware tool for FIF, EDF/BDF, DICOM, NIfTI and EEGLAB
+      files. Edit JSON and TSV only when their schema permits it.</li>
+      <li>Run the audit again and confirm the item is gone and both integrity
+      checks pass.</li>
+      <li>Verify that channels, sampling, annotations, duration and other
+      scientific properties did not change unexpectedly.</li>
+    </ol>
+    <p class="note">The audit never deletes or rewrites research data
+    automatically.</p>
+    <div class="section-links">
+      <a href="#all-findings">Open the full findings table</a>
+      <a href="#coverage-gaps">Check files needing manual review</a>
+    </div>
+"""
+    return content, "What to do next"
+
+
 def render_html(report: ScanReport) -> str:
     """Render one deterministic standalone HTML report."""
     data = report.to_dict()
@@ -311,13 +407,10 @@ def render_html(report: ScanReport) -> str:
         code_columns=frozenset({1}),
         renderers={0: _severity},
     )
-    high_findings = [row for row in findings if row[0] == "high"]
-    high_findings_table = _table(
-        ("Severity", "Code", "File", "Location", "Evidence", "What to check"),
-        high_findings,
-        empty="No high-priority findings.",
-        code_columns=frozenset({1}),
-        renderers={0: _severity},
+    remediation_content, remediation_title = _remediation_content(
+        findings,
+        high_count=summary["findings_high"],
+        review_count=summary["findings_review"],
     )
 
     coverage_table = _table(
@@ -332,6 +425,16 @@ def render_html(report: ScanReport) -> str:
             for item in data["coverage"]
         ),
         empty="No release entries were recorded.",
+        code_columns=frozenset({0}),
+    )
+    coverage_gap_table = _table(
+        ("Status", "Entry", "Why manual review is needed"),
+        (
+            (item["status"], item["path"], item["reason"])
+            for item in data["coverage"]
+            if item["status"] in {"unsupported_manual_review", "not_traversed"}
+        ),
+        empty="No unsupported or untraversed release entries.",
         code_columns=frozenset({0}),
     )
     references_table = _table(
@@ -422,35 +525,9 @@ def render_html(report: ScanReport) -> str:
     high_count = summary["findings_high"]
     high_action = (
         '<div class="report-actions">'
-        f'<a class="report-action" href="#high-findings">Review {high_count} '
+        f'<a class="report-action" href="#what-to-do">Review {high_count} '
         f'high-priority finding{"s" if high_count != 1 else ""}</a>'
         "</div>"
-        if high_count
-        else ""
-    )
-    high_section = (
-        f"""
-  <section id="high-findings">
-    <h2>High-priority findings</h2>
-    {high_findings_table}
-    <p class="note">The sensitive value stays redacted. Use the file and location
-    columns to find the field in a private working copy.</p>
-  </section>
-
-  <section>
-    <h2>How to fix safely</h2>
-    <ol class="fix-list">
-      <li>Keep the source dataset unchanged and make a working copy.</li>
-      <li>Remove or replace only the flagged field with a tool that understands
-      its format. JSON and TSV fields can be edited directly; FIF and EDF/BDF
-      headers need format-aware tools.</li>
-      <li>Run the audit again, then verify the signal, channels, sampling,
-      annotations and duration before replacing a release candidate.</li>
-    </ol>
-    <p class="note">The audit is read-only. It never deletes or rewrites research
-    data automatically.</p>
-  </section>
-"""
         if high_count
         else ""
     )
@@ -510,7 +587,10 @@ def render_html(report: ScanReport) -> str:
     {severity_bars}
   </section>
 
-  {high_section}
+  <section id="what-to-do">
+    <h2>{remediation_title}</h2>
+    {remediation_content}
+  </section>
 
   <section>
     <h2>Coverage</h2>
@@ -519,7 +599,15 @@ def render_html(report: ScanReport) -> str:
     findings. Signal samples, image voxels and DICOM pixels are not interpreted.</p>
   </section>
 
-  <section>
+  <section id="coverage-gaps">
+    <h2>Files needing manual review</h2>
+    {coverage_gap_table}
+    <p class="note">These entries were accounted for but not fully parsed. Review
+    them with a suitable format-aware tool or document why the remaining coverage
+    gap is acceptable for this release.</p>
+  </section>
+
+  <section id="all-findings">
     <h2>All findings</h2>
     {findings_table}
   </section>

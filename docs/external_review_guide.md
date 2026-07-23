@@ -35,7 +35,8 @@ entries=9 manifest=7 references=1/2 inspected=5 skipped=2 high=5 review=6 info=0
 
 Exit status `1` is expected because the demo deliberately contains high-severity findings.
 
-Open `reports/reviewer_demo.html`. The high-priority section should point to:
+Open `reports/reviewer_demo.html`. The **What to do next** section should stop
+the release and point to:
 
 - an unexpected participant-key spreadsheet;
 - the known name and source ID from the private term list;

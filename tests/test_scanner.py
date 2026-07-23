@@ -2816,12 +2816,61 @@ class ScannerTests(unittest.TestCase):
 
         rendered = render_html(scan_dataset(self.root))
 
-        self.assertIn('href="#high-findings"', rendered)
-        self.assertIn('<section id="high-findings">', rendered)
-        self.assertIn("How to fix safely", rendered)
-        self.assertIn("make a working copy", rendered)
-        self.assertIn("The audit is read-only", rendered)
+        self.assertIn('href="#what-to-do"', rendered)
+        self.assertIn('<section id="what-to-do">', rendered)
+        self.assertIn("Do not release this copy yet.", rendered)
+        self.assertIn("<th>File</th>", rendered)
+        self.assertIn("<th>Field or location</th>", rendered)
+        self.assertIn("Work on a private copy", rendered)
+        self.assertIn("The audit never deletes", rendered)
+        self.assertIn('<section id="coverage-gaps">', rendered)
         self.assertNotIn("private.person@example.org", rendered)
+
+    def test_markdown_report_has_a_human_remediation_checklist(self) -> None:
+        (self.root / "notes.txt").write_text(
+            "Participant: private.person@example.org\n",
+            encoding="utf-8",
+        )
+
+        rendered = render_markdown(scan_dataset(self.root))
+
+        self.assertIn("## What to do next", rendered)
+        self.assertIn("**Do not release this copy yet.**", rendered)
+        self.assertIn("| Priority | File | Field or location | What to do |", rendered)
+        self.assertIn("After each correction:", rendered)
+        self.assertIn("## Places needing manual review", rendered)
+        self.assertNotIn("private.person@example.org", rendered)
+
+    def test_review_only_report_asks_for_a_curator_decision(self) -> None:
+        report = ScanReport(
+            scanner_version="test",
+            findings=[
+                Finding(
+                    code="FREE_TEXT_METADATA",
+                    severity="review",
+                    path="sub-01/eeg/sub-01_task-rest_eeg.set",
+                    location="EEGLAB field comments",
+                    evidence="<redacted:free-text,length=14>",
+                    message="Review free text before release.",
+                )
+            ],
+        )
+
+        rendered = render_html(report)
+
+        self.assertIn("Review before release.", rendered)
+        self.assertIn("need a curator decision", rendered)
+        self.assertIn("sub-01/eeg/sub-01_task-rest_eeg.set", rendered)
+        self.assertIn("EEGLAB field comments", rendered)
+
+    def test_clean_html_report_keeps_coverage_limits_visible(self) -> None:
+        (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+
+        rendered = render_html(scan_dataset(self.root))
+
+        self.assertIn("No high or review findings in the", rendered)
+        self.assertIn("This is not proof of anonymity.", rendered)
+        self.assertIn("No immediate remediation tasks.", rendered)
 
     def test_cli_writes_reports_and_returns_finding_status(self) -> None:
         (self.root / "notes.txt").write_text("Contact: alice@example.org\n", encoding="utf-8")

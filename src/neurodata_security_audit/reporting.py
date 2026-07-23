@@ -59,31 +59,124 @@ def render_markdown(report: ScanReport) -> str:
         f"- Review findings: {summary['findings_review']}",
         f"- Informational findings: {summary['findings_info']}",
         "",
-        "## Coverage",
+        "## What to do next",
         "",
-        (
-            "- Fully inspected metadata: "
-            f"{summary['fully_inspected_metadata']}"
-        ),
-        (
-            "- Header or structure only: "
-            f"{summary['header_or_structure_only']}"
-        ),
-        f"- Signal or image payload not opened: {summary['payload_not_opened']}",
-        (
-            "- Unsupported and needs manual review: "
-            f"{summary['unsupported_manual_review']}"
-        ),
-        f"- Inventoried but not parsed: {summary['not_traversed']}",
-        "",
-        (
-            "Coverage describes what the scanner read. It is separate from the "
-            "privacy findings below."
-        ),
-        "",
-        "| Status | Type | Entry | Reason |",
-        "|---|---|---|---|",
     ]
+    findings = data["findings"]
+    if summary["findings_high"]:
+        lines.extend(
+            [
+                (
+                    "**Do not release this copy yet.** Resolve the "
+                    f"{summary['findings_high']} high-priority finding"
+                    f"{'s' if summary['findings_high'] != 1 else ''} below first."
+                ),
+                "",
+            ]
+        )
+        remediation = [
+            item for item in findings if item["severity"] == "high"
+        ]
+    elif summary["findings_review"]:
+        lines.extend(
+            [
+                (
+                    "**Review before release.** The scanner found "
+                    f"{summary['findings_review']} item"
+                    f"{'s' if summary['findings_review'] != 1 else ''} "
+                    "that need a curator decision."
+                ),
+                "",
+            ]
+        )
+        remediation = [
+            item for item in findings if item["severity"] == "review"
+        ]
+    else:
+        lines.extend(
+            [
+                (
+                    "**No high or review findings in the areas checked.** "
+                    "This is not proof of anonymity. Check the coverage gaps "
+                    "and format limits before release."
+                ),
+                "",
+            ]
+        )
+        remediation = []
+
+    if remediation:
+        lines.extend(
+            [
+                "| Priority | File | Field or location | What to do |",
+                "|---|---|---|---|",
+            ]
+        )
+        for finding in remediation:
+            values = [
+                finding["severity"],
+                finding["path"],
+                finding["location"],
+                finding["message"],
+            ]
+            lines.append(
+                "| "
+                + " | ".join(_markdown_text(value) for value in values)
+                + " |"
+            )
+    else:
+        lines.append("No immediate remediation tasks.")
+
+    lines.extend(
+        [
+            "",
+            "After each correction:",
+            "",
+            "1. Work on a private copy and keep the original dataset unchanged.",
+            (
+                "2. Use a format-aware tool for FIF, EDF/BDF, DICOM, NIfTI and "
+                "EEGLAB files."
+            ),
+            (
+                "3. Run the audit again and confirm the item is gone and both "
+                "integrity checks pass."
+            ),
+            (
+                "4. Verify that channels, sampling, annotations, duration and "
+                "other scientific properties did not change unexpectedly."
+            ),
+            "",
+            "The audit never deletes or rewrites research data automatically.",
+            "",
+            "## Coverage",
+            "",
+            (
+                "- Fully inspected metadata: "
+                f"{summary['fully_inspected_metadata']}"
+            ),
+            (
+                "- Header or structure only: "
+                f"{summary['header_or_structure_only']}"
+            ),
+            (
+                "- Signal or image payload not opened: "
+                f"{summary['payload_not_opened']}"
+            ),
+            (
+                "- Unsupported and needs manual review: "
+                f"{summary['unsupported_manual_review']}"
+            ),
+            f"- Inventoried but not parsed: {summary['not_traversed']}",
+            "",
+            (
+                "Coverage describes what the scanner read. It is separate from "
+                "the privacy findings below."
+            ),
+            "",
+            "| Status | Type | Entry | Reason |",
+            "|---|---|---|---|",
+        ]
+    )
     for entry in data["coverage"]:
         values = [
             entry["status"],
@@ -93,6 +186,29 @@ def render_markdown(report: ScanReport) -> str:
         ]
         safe = [_markdown_text(value) for value in values]
         lines.append("| " + " | ".join(safe) + " |")
+
+    lines.extend(["", "## Places needing manual review", ""])
+    coverage_gaps = [
+        entry
+        for entry in data["coverage"]
+        if entry["status"] in {"unsupported_manual_review", "not_traversed"}
+    ]
+    if coverage_gaps:
+        lines.extend(
+            [
+                "| Status | Entry | Why manual review is needed |",
+                "|---|---|---|",
+            ]
+        )
+        for entry in coverage_gaps:
+            values = [entry["status"], entry["path"], entry["reason"]]
+            lines.append(
+                "| "
+                + " | ".join(_markdown_text(value) for value in values)
+                + " |"
+            )
+    else:
+        lines.append("No unsupported or untraversed release entries.")
 
     lines.extend(["", "## Archive members", ""])
     container_members = data["container_members"]
@@ -146,7 +262,6 @@ def render_markdown(report: ScanReport) -> str:
             "",
         ]
     )
-    findings = data["findings"]
     if findings:
         lines.extend(
             [
