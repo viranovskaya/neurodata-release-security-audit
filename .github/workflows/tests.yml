@@ -111,29 +111,29 @@ jobs:
             neurodata-usability-build-bundle \
               --output-dir "${RUNNER_TEMP}/participant-bundle"
             python - "${package_dir}/spec.json" "${RUNNER_TEMP}/reviewer-01.json" <<'PY'
-            import json
-            from pathlib import Path
-            import sys
+          import json
+          from pathlib import Path
+          import sys
 
-            specification = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-            response = {
-                "schema_version": "1",
-                "participant_id": "reviewer-01",
-                "responses": [
-                    {
-                        "task_id": task["task_id"],
-                        "answer": task["expected"],
-                        "elapsed_seconds": 1,
-                        "confidence": 5,
-                    }
-                    for task in specification["tasks"]
-                ],
-            }
-            Path(sys.argv[2]).write_text(
-                json.dumps(response, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            PY
+          specification = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          response = {
+              "schema_version": "1",
+              "participant_id": "reviewer-01",
+              "responses": [
+                  {
+                      "task_id": task["task_id"],
+                      "answer": task["expected"],
+                      "elapsed_seconds": 1,
+                      "confidence": 5,
+                  }
+                  for task in specification["tasks"]
+              ],
+          }
+          Path(sys.argv[2]).write_text(
+              json.dumps(response, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
             neurodata-usability-score \
               "${RUNNER_TEMP}/reviewer-01.json" \
               --json "${RUNNER_TEMP}/usability-result.json" \
