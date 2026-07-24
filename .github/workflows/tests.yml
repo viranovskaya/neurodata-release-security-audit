@@ -29,6 +29,45 @@ jobs:
           neurodata-security-audit --version
           neurodata-security-audit scan tests/fixtures/clean_bids
 
+  exact-wheel:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Build and install the exact wheel
+        env:
+          SOURCE_DATE_EPOCH: "315532800"
+        run: |
+          python -m pip install build
+          python -m build --wheel --outdir dist
+          wheel="$(find dist -name '*.whl' -print -quit)"
+          python -m pip install "${wheel}[formats,imaging]"
+      - name: Run copied tests outside the checkout
+        run: |
+          isolated="${RUNNER_TEMP}/exact-wheel"
+          mkdir -p "${isolated}/examples"
+          cp -R tests "${isolated}/tests"
+          cp -R benchmark "${isolated}/benchmark"
+          cp -R examples/reviewer_demo "${isolated}/examples/reviewer_demo"
+          cd "${isolated}"
+          python - <<'PY'
+          from pathlib import Path
+          import neurodata_security_audit
+          import usability
+
+          for module in (neurodata_security_audit, usability):
+              path = Path(module.__file__).resolve()
+              print(path)
+              assert "site-packages" in path.parts
+          PY
+          python -m unittest discover -s tests -v
+
   package:
     runs-on: ubuntu-latest
     steps:
@@ -47,6 +86,8 @@ jobs:
           cmp \
             dist-a/neurodata_release_security_audit-0.2.0.dev0-py3-none-any.whl \
             dist-b/neurodata_release_security_audit-0.2.0.dev0-py3-none-any.whl
+          python tools/check_usability_wheel.py \
+            dist-a/neurodata_release_security_audit-0.2.0.dev0-py3-none-any.whl
       - name: Validate a generated report
         run: |
           python -m pip install \
@@ -55,6 +96,64 @@ jobs:
             --json "${RUNNER_TEMP}/audit.json" \
             --html "${RUNNER_TEMP}/audit.html"
           test -s "${RUNNER_TEMP}/audit.html"
+          (
+            cd "${RUNNER_TEMP}"
+            package_dir="$(
+              python -c 'import pathlib, usability; print(pathlib.Path(usability.__file__).parent)'
+            )"
+            before="$(
+              find "${package_dir}" -type f -print0 |
+                sort -z |
+                xargs -0 shasum -a 256 |
+                shasum -a 256
+            )"
+            chmod -R a-w "${package_dir}"
+            neurodata-usability-build-bundle \
+              --output-dir "${RUNNER_TEMP}/participant-bundle"
+            python - "${package_dir}/spec.json" "${RUNNER_TEMP}/reviewer-01.json" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          specification = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          response = {
+              "schema_version": "1",
+              "participant_id": "reviewer-01",
+              "responses": [
+                  {
+                      "task_id": task["task_id"],
+                      "answer": task["expected"],
+                      "elapsed_seconds": 1,
+                      "confidence": 5,
+                  }
+                  for task in specification["tasks"]
+              ],
+          }
+          Path(sys.argv[2]).write_text(
+              json.dumps(response, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+            neurodata-usability-score \
+              "${RUNNER_TEMP}/reviewer-01.json" \
+              --json "${RUNNER_TEMP}/usability-result.json" \
+              --markdown "${RUNNER_TEMP}/usability-result.md"
+            after="$(
+              find "${package_dir}" -type f -print0 |
+                sort -z |
+                xargs -0 shasum -a 256 |
+                shasum -a 256
+            )"
+            test "${before}" = "${after}"
+            test ! -e "${RUNNER_TEMP}/participant-bundle/spec.json"
+            test -s "${RUNNER_TEMP}/participant-bundle/reviewer_packet.md"
+            test -s "${RUNNER_TEMP}/participant-bundle/response_template.json"
+            test -s "${RUNNER_TEMP}/usability-result.json"
+            test -s "${RUNNER_TEMP}/usability-result.md"
+            if neurodata-usability-score --help | grep -q -- "--specification"; then
+              exit 1
+            fi
+          )
           python - "${RUNNER_TEMP}/audit.json" <<'PY'
           import json
           from pathlib import Path

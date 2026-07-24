@@ -12,10 +12,7 @@ from neurodata_security_audit.models import (
     ManifestEntry,
     ScanReport,
 )
-
-ROOT = Path(__file__).resolve().parent
-REPORTS = ROOT / "reports"
-
+from usability._io import write_text_new
 
 def _manifest(path: str) -> ManifestEntry:
     digest = hashlib.sha256(f"synthetic:{path}".encode()).hexdigest()
@@ -179,7 +176,7 @@ def _large_report() -> ScanReport:
     )
 
 
-def build_reports(output_dir: Path = REPORTS) -> dict[str, Path]:
+def build_reports(output_dir: Path) -> dict[str, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     reports = {
         "report-a": _clean_report(),
@@ -205,11 +202,21 @@ def build_reports(output_dir: Path = REPORTS) -> dict[str, Path]:
     paths = {}
     for name, report in reports.items():
         path = output_dir / f"{name}.html"
-        path.write_text(render_html(report), encoding="utf-8")
+        write_text_new(path, render_html(report))
         paths[name] = path
     return paths
 
 
-if __name__ == "__main__":
-    for report_path in build_reports().values():
+def main() -> None:
+    """Build reports in an explicit directory without replacing existing files."""
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output-dir", type=Path, required=True)
+    args = parser.parse_args()
+    for report_path in build_reports(args.output_dir).values():
         print(report_path)
+
+
+if __name__ == "__main__":
+    main()

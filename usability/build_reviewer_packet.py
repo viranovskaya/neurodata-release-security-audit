@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 from neurodata_security_audit.usability import render_reviewer_packet
 
-ROOT = Path(__file__).resolve().parent
+from usability._io import packaged_specification, write_text_new
 
 
 def main() -> None:
-    output = ROOT / "reviewer_packet.md"
-    output.write_text(
-        render_reviewer_packet(ROOT / "spec.json"),
-        encoding="utf-8",
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    with packaged_specification() as specification:
+        write_text_new(args.output, render_reviewer_packet(specification))
+    output = args.output
     print(output)
 
 

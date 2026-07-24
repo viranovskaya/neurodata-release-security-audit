@@ -11,27 +11,72 @@ from neurodata_security_audit.usability import (
     score_usability,
 )
 
+from usability._io import (
+    packaged_specification,
+    release_owned_file,
+    unlink_if_owned,
+    write_text_new,
+    write_text_new_owned,
+)
 
-def main() -> None:
+PACKAGE_ROOT = Path(__file__).resolve().parent
+
+
+def _reject_package_output(path: Path) -> None:
+    resolved = path.resolve()
+    if resolved == PACKAGE_ROOT or PACKAGE_ROOT in resolved.parents:
+        raise ValueError("Scorer outputs must be outside the installed package")
+
+
+def write_score_outputs(
+    response_paths: list[Path],
+    json_output: Path,
+    markdown_output: Path,
+    specification: Path | None = None,
+) -> None:
+    """Score responses and create two outputs without replacing either file."""
+    _reject_package_output(json_output)
+    _reject_package_output(markdown_output)
+    if json_output.resolve() == markdown_output.resolve():
+        raise ValueError("JSON and Markdown outputs must be different files")
+    if json_output.exists() or markdown_output.exists():
+        raise FileExistsError("Scorer outputs already exist")
+
+    if specification is None:
+        with packaged_specification() as packaged:
+            result = score_usability(packaged, response_paths)
+    else:
+        result = score_usability(specification, response_paths)
+    json_identity = write_text_new_owned(
+        json_output,
+        json.dumps(result, indent=2, sort_keys=True) + "\n",
+    )
+    try:
+        write_text_new(
+            markdown_output,
+            render_usability_markdown(result),
+        )
+    except BaseException:
+        unlink_if_owned(json_output, json_identity)
+        raise
+    else:
+        release_owned_file(json_identity)
+
+
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("responses", nargs="+", type=Path)
-    parser.add_argument(
-        "--specification",
-        type=Path,
-        default=Path(__file__).with_name("spec.json"),
-    )
     parser.add_argument("--json", type=Path, required=True)
     parser.add_argument("--markdown", type=Path, required=True)
-    args = parser.parse_args()
+    return parser
 
-    result = score_usability(args.specification, args.responses)
-    args.json.write_text(
-        json.dumps(result, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    args.markdown.write_text(
-        render_usability_markdown(result),
-        encoding="utf-8",
+
+def main() -> None:
+    args = _build_parser().parse_args()
+    write_score_outputs(
+        args.responses,
+        args.json,
+        args.markdown,
     )
 
 

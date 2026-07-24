@@ -3,16 +3,26 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+import usability
 from neurodata_security_audit.usability import (
+    build_response_template,
     render_reviewer_packet,
     render_usability_markdown,
     score_usability,
 )
+from usability._io import packaged_specification, write_text_new, write_text_new_owned
+from usability.build_participant_bundle import build_participant_bundle
 from usability.build_reports import build_reports
+from usability.score_responses import (
+    _build_parser,
+    write_score_outputs,
+)
 
 
 def _task(task_id: str, expected: str) -> dict[str, object]:
@@ -297,14 +307,9 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                 score_usability(spec, [])
 
     def test_response_template_matches_precommitted_tasks(self) -> None:
-        spec = json.loads(
-            (self.project_root / "usability" / "spec.json").read_text(encoding="utf-8")
-        )
-        template = json.loads(
-            (self.project_root / "usability" / "response_template.json").read_text(
-                encoding="utf-8"
-            )
-        )
+        with packaged_specification() as specification:
+            spec = json.loads(specification.read_text(encoding="utf-8"))
+            template = build_response_template(specification)
 
         self.assertEqual(
             [task["task_id"] for task in spec["tasks"]],
@@ -315,51 +320,69 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             len({response["task_id"] for response in template["responses"]}),
         )
 
+    def test_installed_usability_package_contains_runtime_materials(self) -> None:
+        package_root = Path(usability.__file__).resolve().parent
+        required = ("README.md", "spec.json")
+
+        for relative_path in required:
+            with self.subTest(relative_path=relative_path):
+                self.assertTrue((package_root / relative_path).is_file())
+
+        if package_root != self.project_root / "usability":
+            excluded = (
+                "response_template.json",
+                "reviewer_packet.md",
+                "reports/report-a.html",
+                "results/README.md",
+            )
+            for relative_path in excluded:
+                with self.subTest(excluded=relative_path):
+                    self.assertFalse((package_root / relative_path).exists())
+
     def test_precommitted_spec_and_reports_are_deterministic(self) -> None:
-        spec = json.loads(
-            (self.project_root / "usability" / "spec.json").read_text(encoding="utf-8")
-        )
-        with (
-            tempfile.TemporaryDirectory() as first_dir,
-            tempfile.TemporaryDirectory() as second_dir,
-        ):
-            first = build_reports(Path(first_dir))
-            second = build_reports(Path(second_dir))
+        with packaged_specification() as specification:
+            spec = json.loads(specification.read_text(encoding="utf-8"))
+            with (
+                tempfile.TemporaryDirectory() as first_dir,
+                tempfile.TemporaryDirectory() as second_dir,
+            ):
+                first = build_reports(Path(first_dir))
+                second = build_reports(Path(second_dir))
 
-            self.assertEqual(set(first), set(second))
-            self.assertEqual(
-                {Path(task["report"]).name for task in spec["tasks"]},
-                {path.name for path in first.values()},
-            )
-            for name in first:
                 self.assertEqual(
-                    first[name].read_bytes(),
-                    second[name].read_bytes(),
+                    set(first),
+                    set(second),
                 )
+                self.assertEqual(
+                    {Path(task["report"]).name for task in spec["tasks"]},
+                    {path.name for path in first.values()},
+                )
+                for name in first:
+                    self.assertEqual(
+                        first[name].read_bytes(),
+                        second[name].read_bytes(),
+                    )
 
-            response_path = Path(first_dir) / "reviewer.json"
-            response_path.write_text(
-                json.dumps(
-                    {
-                        "schema_version": "1",
-                        "participant_id": "reviewer-99",
-                        "responses": [
-                            {
-                                "task_id": task["task_id"],
-                                "answer": task["expected"],
-                                "elapsed_seconds": 1,
-                                "confidence": 5,
-                            }
-                            for task in spec["tasks"]
-                        ],
-                    }
-                ),
-                encoding="utf-8",
-            )
-            result = score_usability(
-                self.project_root / "usability" / "spec.json",
-                [response_path],
-            )
+                response_path = Path(first_dir) / "reviewer.json"
+                response_path.write_text(
+                    json.dumps(
+                        {
+                            "schema_version": "1",
+                            "participant_id": "reviewer-99",
+                            "responses": [
+                                {
+                                    "task_id": task["task_id"],
+                                    "answer": task["expected"],
+                                    "elapsed_seconds": 1,
+                                    "confidence": 5,
+                                }
+                                for task in spec["tasks"]
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                result = score_usability(specification, [response_path])
 
         self.assertEqual(result["summary"]["tasks_per_participant"], 12)
         self.assertEqual(result["summary"]["overall_accuracy"], 1.0)
@@ -390,7 +413,8 @@ class UsabilityBenchmarkTests(unittest.TestCase):
         self.assertNotIn("<script", rendered.lower())
 
     def test_reviewer_packet_does_not_contain_the_answer_key(self) -> None:
-        rendered = render_reviewer_packet(self.project_root / "usability" / "spec.json")
+        with packaged_specification() as specification:
+            rendered = render_reviewer_packet(specification)
 
         self.assertIn("task_01", rendered)
         self.assertIn("[Report C](reports/report-c.html)", rendered)
@@ -400,3 +424,182 @@ class UsabilityBenchmarkTests(unittest.TestCase):
         )
         self.assertNotIn('"expected"', rendered)
         self.assertNotIn("Expected answer", rendered)
+
+    def test_participant_bundle_is_separate_and_has_no_answer_key(self) -> None:
+        package_root = Path(usability.__file__).resolve().parent
+        before = sorted(
+            (path.relative_to(package_root).as_posix(), path.read_bytes())
+            for path in package_root.rglob("*")
+            if path.is_file() and "__pycache__" not in path.parts
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            destination = (Path(directory) / "participant").resolve()
+            paths = build_participant_bundle(destination)
+            self.assertTrue(all(path.is_absolute() for path in paths))
+            self.assertTrue(all(destination in path.parents for path in paths))
+            combined = "\n".join(
+                path.read_text(encoding="utf-8") for path in paths
+            )
+            names = {path.relative_to(destination).as_posix() for path in paths}
+
+            self.assertEqual(len(paths), 11)
+            self.assertIn("reviewer_packet.md", names)
+            self.assertIn("response_template.json", names)
+            self.assertNotIn("spec.json", names)
+            self.assertNotIn('"expected"', combined)
+            self.assertNotIn("spec.json", combined)
+            with packaged_specification() as specification:
+                private_spec = json.loads(
+                    specification.read_text(encoding="utf-8")
+                )
+            answer_key = {
+                str(task["task_id"]): str(task["expected"])
+                for task in private_spec["tasks"]
+            }
+            serialized = json.dumps(
+                answer_key,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            fingerprint = hashlib.sha256(serialized.encode()).hexdigest()
+            self.assertNotIn(serialized, combined)
+            self.assertNotIn(fingerprint, combined)
+            with self.assertRaises(FileExistsError):
+                build_participant_bundle(destination)
+
+        after = sorted(
+            (path.relative_to(package_root).as_posix(), path.read_bytes())
+            for path in package_root.rglob("*")
+            if path.is_file() and "__pycache__" not in path.parts
+        )
+        self.assertEqual(before, after)
+
+    def test_participant_bundle_refuses_existing_foreign_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            destination = (Path(directory) / "participant").resolve()
+            destination.mkdir()
+            foreign = destination / "keep.txt"
+            foreign.write_text("do not replace\n", encoding="utf-8")
+
+            with self.assertRaises(FileExistsError):
+                build_participant_bundle(destination)
+            self.assertEqual("do not replace\n", foreign.read_text(encoding="utf-8"))
+            self.assertEqual([foreign], list(destination.iterdir()))
+
+    def test_scorer_outputs_are_no_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with packaged_specification() as specification:
+                spec = json.loads(specification.read_text(encoding="utf-8"))
+                response = root / "reviewer-01.json"
+                response.write_text(
+                    json.dumps(
+                        {
+                            "schema_version": "1",
+                            "participant_id": "reviewer-01",
+                            "responses": [
+                                {
+                                    "task_id": task["task_id"],
+                                    "answer": task["expected"],
+                                    "elapsed_seconds": 1,
+                                    "confidence": 5,
+                                }
+                                for task in spec["tasks"]
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+            json_output = root / "result.json"
+            markdown_output = root / "result.md"
+            write_score_outputs([response], json_output, markdown_output)
+            first_json = json_output.read_bytes()
+            first_markdown = markdown_output.read_bytes()
+            self.assertEqual(
+                sorted([json_output, markdown_output, response]),
+                sorted(root.iterdir()),
+            )
+
+            with self.assertRaises(FileExistsError):
+                write_score_outputs([response], json_output, markdown_output)
+            self.assertEqual(first_json, json_output.read_bytes())
+            self.assertEqual(first_markdown, markdown_output.read_bytes())
+
+    def test_scorer_rejects_outputs_inside_installed_package(self) -> None:
+        package_root = Path(usability.__file__).resolve().parent
+        with self.assertRaisesRegex(ValueError, "outside the installed package"):
+            write_score_outputs(
+                [],
+                package_root / "result.json",
+                package_root / "result.md",
+            )
+        self.assertFalse((package_root / "result.json").exists())
+        self.assertFalse((package_root / "result.md").exists())
+
+    def test_scorer_cli_has_no_specification_override(self) -> None:
+        parser = _build_parser()
+        with self.assertRaises(SystemExit):
+            parser.parse_args(
+                [
+                    "reviewer-01.json",
+                    "--specification",
+                    "other.json",
+                    "--json",
+                    "result.json",
+                    "--markdown",
+                    "result.md",
+                ]
+            )
+
+    def test_scorer_rollback_preserves_substituted_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with packaged_specification() as specification:
+                spec = json.loads(specification.read_text(encoding="utf-8"))
+            response = root / "reviewer-01.json"
+            response.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "1",
+                        "participant_id": "reviewer-01",
+                        "responses": [
+                            {
+                                "task_id": task["task_id"],
+                                "answer": task["expected"],
+                                "elapsed_seconds": 1,
+                                "confidence": 5,
+                            }
+                            for task in spec["tasks"]
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            json_output = root / "result.json"
+            markdown_output = root / "result.md"
+            original_owned_write = write_text_new_owned
+
+            def replace_json_output(path: Path, text: str):
+                identity = original_owned_write(path, text)
+                path.unlink()
+                path.write_text("foreign object\n", encoding="utf-8")
+                return identity
+
+            with (
+                mock.patch(
+                    "usability.score_responses.write_text_new_owned",
+                    side_effect=replace_json_output,
+                ),
+                mock.patch(
+                    "usability.score_responses.write_text_new",
+                    side_effect=OSError("simulated Markdown failure"),
+                ),
+                self.assertRaisesRegex(OSError, "simulated Markdown failure"),
+            ):
+                write_score_outputs([response], json_output, markdown_output)
+
+            self.assertEqual(
+                "foreign object\n",
+                json_output.read_text(encoding="utf-8"),
+            )
+            self.assertFalse(markdown_output.exists())
