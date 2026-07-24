@@ -37,10 +37,11 @@ The installed package is treated as read-only and is hashed before and after
 the CLI integration test.
 
 Scored JSON and Markdown files use no-overwrite links. If the second output
-fails, rollback removes the first output only when its device and inode still
-match the file created by that invocation. A malicious same-user process can
-still race a final path check and unlink; resisting an adversarial local account
-is outside this tool's threat model.
+fails, rollback removes the first output only while it still shares a private
+hard link retained by that invocation. The ownership link also prevents the
+original inode from being recycled during a path substitution. A malicious
+same-user process that can inspect and alter the private link remains outside
+this tool's threat model.
 
 ## Remaining limits
 

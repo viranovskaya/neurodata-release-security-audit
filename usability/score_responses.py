@@ -11,7 +11,13 @@ from neurodata_security_audit.usability import (
     score_usability,
 )
 
-from usability._io import packaged_specification, unlink_if_owned, write_text_new
+from usability._io import (
+    packaged_specification,
+    release_owned_file,
+    unlink_if_owned,
+    write_text_new,
+    write_text_new_owned,
+)
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 
@@ -41,7 +47,7 @@ def write_score_outputs(
             result = score_usability(packaged, response_paths)
     else:
         result = score_usability(specification, response_paths)
-    json_identity = write_text_new(
+    json_identity = write_text_new_owned(
         json_output,
         json.dumps(result, indent=2, sort_keys=True) + "\n",
     )
@@ -53,6 +59,8 @@ def write_score_outputs(
     except BaseException:
         unlink_if_owned(json_output, json_identity)
         raise
+    else:
+        release_owned_file(json_identity)
 
 
 def _build_parser() -> argparse.ArgumentParser:

@@ -16,7 +16,7 @@ from neurodata_security_audit.usability import (
     render_usability_markdown,
     score_usability,
 )
-from usability._io import packaged_specification, write_text_new
+from usability._io import packaged_specification, write_text_new, write_text_new_owned
 from usability.build_participant_bundle import build_participant_bundle
 from usability.build_reports import build_reports
 from usability.score_responses import (
@@ -515,6 +515,10 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             write_score_outputs([response], json_output, markdown_output)
             first_json = json_output.read_bytes()
             first_markdown = markdown_output.read_bytes()
+            self.assertEqual(
+                sorted([json_output, markdown_output, response]),
+                sorted(root.iterdir()),
+            )
 
             with self.assertRaises(FileExistsError):
                 write_score_outputs([response], json_output, markdown_output)
@@ -573,23 +577,22 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             )
             json_output = root / "result.json"
             markdown_output = root / "result.md"
-            original_write = write_text_new
-            calls = 0
+            original_owned_write = write_text_new_owned
 
-            def replace_between_outputs(path: Path, text: str):
-                nonlocal calls
-                calls += 1
-                if calls == 1:
-                    identity = original_write(path, text)
-                    path.unlink()
-                    path.write_text("foreign object\n", encoding="utf-8")
-                    return identity
-                raise OSError("simulated Markdown failure")
+            def replace_json_output(path: Path, text: str):
+                identity = original_owned_write(path, text)
+                path.unlink()
+                path.write_text("foreign object\n", encoding="utf-8")
+                return identity
 
             with (
                 mock.patch(
+                    "usability.score_responses.write_text_new_owned",
+                    side_effect=replace_json_output,
+                ),
+                mock.patch(
                     "usability.score_responses.write_text_new",
-                    side_effect=replace_between_outputs,
+                    side_effect=OSError("simulated Markdown failure"),
                 ),
                 self.assertRaisesRegex(OSError, "simulated Markdown failure"),
             ):
