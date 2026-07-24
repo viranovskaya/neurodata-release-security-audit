@@ -546,3 +546,22 @@ def render_reviewer_packet(specification_path: str | Path) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def build_response_template(specification_path: str | Path) -> dict[str, object]:
+    """Build a blank participant response form without expected answers."""
+    spec = _load_json(Path(specification_path))
+    tasks = _validate_spec(spec)
+    return {
+        "schema_version": "1",
+        "participant_id": "reviewer-XX",
+        "responses": [
+            {
+                "task_id": task["task_id"],
+                "answer": "",
+                "elapsed_seconds": 0,
+                "confidence": 1,
+            }
+            for task in tasks
+        ],
+    }

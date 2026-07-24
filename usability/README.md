@@ -14,20 +14,30 @@ The task set covers five practical questions:
 The large-report case adds 121 review items. It checks whether one distinct
 item can still be found among repeated rows.
 
-## Run the pilot
+## Administrator and participant files
 
-Build the synthetic reports from the installed package:
+The installed wheel is an administrator tool. It contains the validated private
+specification and scoring code. Do not give the wheel, `spec.json` or the source
+checkout to a reviewer.
+
+Build a new participant bundle in an explicit directory:
 
 ```bash
-python usability/build_reports.py
-python usability/build_reviewer_packet.py
+neurodata-usability-build-bundle \
+  --output-dir ./participant-bundle
 ```
 
 Give the reviewer only:
 
-- `reports/`;
-- `reviewer_packet.md`;
-- a fresh copy of `response_template.json`.
+- `participant-bundle/reports/`;
+- `participant-bundle/reviewer_packet.md`;
+- a fresh copy of `participant-bundle/response_template.json`.
+
+The command refuses to reuse an existing directory. It never writes into the
+installed package. Returned paths are resolved absolute paths, so macOS
+`/var` and `/private/var` aliases do not create two identities for one output.
+The bundle is checked for the private answer-key serialization and fingerprint
+before the command returns.
 
 Record one pseudonymous participant ID, the selected answer, elapsed seconds
 and confidence from 1 to 5. Do not collect names, emails or free-text personal
@@ -53,12 +63,17 @@ the answer to an earlier critical task. The validator rejects any overlap.
 Score complete response files:
 
 ```bash
-python usability/score_responses.py \
-  usability/responses/reviewer-01.json \
-  usability/responses/reviewer-02.json \
-  --json usability/results/result.json \
-  --markdown usability/results/result.md
+neurodata-usability-score \
+  responses/reviewer-01.json \
+  responses/reviewer-02.json \
+  --json results/result.json \
+  --markdown results/result.md
 ```
+
+The scorer always uses the packaged frozen specification; the public CLI has no
+specification override. It rejects outputs inside the installed package and
+refuses to replace either output. Both files are created using same-directory
+temporary files and no-overwrite links.
 
 ## Precommitted engineering gate
 
