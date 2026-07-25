@@ -763,6 +763,11 @@ def render_html(report: ScanReport) -> str:
     valid_references = (
         f"{summary['references_valid']} / {summary['references_checked']}"
     )
+    manifest_label = (
+        "regular file"
+        if summary["manifest_files"] == 1
+        else "regular files"
+    )
 
     return f"""<!doctype html>
 <html lang="en">
@@ -790,9 +795,10 @@ def render_html(report: ScanReport) -> str:
 
   <div class="grid" aria-label="Audit summary">
     <div class="card">
-      <div class="label">Release entries</div>
+      <div class="label">Files and folders accounted for</div>
       <div class="value">{summary["entries_total"]}</div>
-      <div class="context">{summary["manifest_files"]} regular files in the manifest</div>
+      <div class="context">{summary["manifest_files"]} {manifest_label} in the manifest.
+      The total also includes folders, symlinks and unsupported filesystem entries.</div>
     </div>
     <div class="card">
       <div class="label">Findings</div>
@@ -842,8 +848,11 @@ def render_html(report: ScanReport) -> str:
   </section>
 
   <section>
-    <h2>Release entries</h2>
+    <h2>Files and folders accounted for</h2>
     {coverage_table}
+    <p class="note">This inventory includes files, folders, symlinks and
+    unsupported filesystem entries. The manifest below contains regular files
+    only.</p>
   </section>
 
   <section>

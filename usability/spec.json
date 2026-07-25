@@ -285,6 +285,28 @@
       ],
       "expected": "sub17",
       "critical": false
+    },
+    {
+      "task_id": "task_13",
+      "report": "reports/report-j.html",
+      "capability": "inventory_comprehension",
+      "prompt": "What does “3 files and folders accounted for” mean in this report?",
+      "choices": [
+        {
+          "value": "all_entries",
+          "label": "Three filesystem entries were inventoried: one regular file and two folders."
+        },
+        {
+          "value": "three_files",
+          "label": "Three regular files were fully inspected."
+        },
+        {
+          "value": "three_findings",
+          "label": "Three privacy findings need correction."
+        }
+      ],
+      "expected": "all_entries",
+      "critical": false
     }
   ]
 }

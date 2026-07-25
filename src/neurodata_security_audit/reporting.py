@@ -40,8 +40,13 @@ def render_markdown(report: ScanReport) -> str:
         "",
         f"- Files inspected: {summary['files_inspected']}",
         f"- Entries skipped: {summary['files_skipped']}",
-        f"- Release entries accounted for: {summary['entries_total']}",
+        f"- Files and folders accounted for: {summary['entries_total']}",
         f"- Files in the SHA-256 manifest: {summary['manifest_files']}",
+        (
+            "- The accounted total includes files, folders, symlinks and "
+            "unsupported filesystem entries. The manifest contains regular "
+            "files only."
+        ),
         f"- Archive members inventoried: {summary['container_members']}",
         (
             f"- Internal references valid: {summary['references_valid']} / "

@@ -14,6 +14,10 @@ The task set covers five practical questions:
 The large-report case adds 121 review items. It checks whether one distinct
 item can still be found among repeated rows.
 
+One inventory task checks that the summary count is understood correctly:
+files and folders accounted for is the number of filesystem entries in the
+release tree, while the SHA-256 manifest contains regular files only.
+
 ## Administrator and participant files
 
 The installed wheel is an administrator tool. It contains the validated private
