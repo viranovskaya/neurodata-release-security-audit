@@ -110,6 +110,9 @@ jobs:
             chmod -R a-w "${package_dir}"
             neurodata-usability-build-bundle \
               --output-dir "${RUNNER_TEMP}/participant-bundle"
+            neurodata-usability-build-response \
+              --participant-id reviewer-01 \
+              --output "${RUNNER_TEMP}/reviewer-01.json"
             python - "${package_dir}/spec.json" "${RUNNER_TEMP}/reviewer-01.json" <<'PY'
           import json
           from pathlib import Path
@@ -147,7 +150,7 @@ jobs:
             test "${before}" = "${after}"
             test ! -e "${RUNNER_TEMP}/participant-bundle/spec.json"
             test -s "${RUNNER_TEMP}/participant-bundle/reviewer_packet.md"
-            test -s "${RUNNER_TEMP}/participant-bundle/response_template.json"
+            test ! -e "${RUNNER_TEMP}/participant-bundle/response_template.json"
             test -s "${RUNNER_TEMP}/usability-result.json"
             test -s "${RUNNER_TEMP}/usability-result.md"
             if neurodata-usability-score --help | grep -q -- "--specification"; then

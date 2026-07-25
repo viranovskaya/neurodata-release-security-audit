@@ -14,6 +14,7 @@ def check_wheel(path: Path) -> None:
             "usability/__init__.py",
             "usability/_io.py",
             "usability/build_participant_bundle.py",
+            "usability/build_response.py",
             "usability/build_reports.py",
             "usability/build_reviewer_packet.py",
             "usability/score_responses.py",
@@ -48,6 +49,7 @@ def check_wheel(path: Path) -> None:
         text = archive.read(entry_points).decode()
         for command in (
             "neurodata-usability-build-bundle",
+            "neurodata-usability-build-response",
             "neurodata-usability-score",
         ):
             if command not in text:

@@ -8,10 +8,7 @@ import json
 import shutil
 from pathlib import Path
 
-from neurodata_security_audit.usability import (
-    build_response_template,
-    render_reviewer_packet,
-)
+from neurodata_security_audit.usability import render_reviewer_packet
 
 from usability._io import packaged_specification, write_text_new
 from usability.build_reports import build_reports
@@ -87,14 +84,6 @@ def build_participant_bundle(destination: Path) -> list[Path]:
             write_text_new(
                 destination / "reviewer_packet.md",
                 render_reviewer_packet(specification_path),
-            )
-            write_text_new(
-                destination / "response_template.json",
-                json.dumps(
-                    build_response_template(specification_path),
-                    indent=2,
-                )
-                + "\n",
             )
         _check_bundle(destination, specification)
     except BaseException:

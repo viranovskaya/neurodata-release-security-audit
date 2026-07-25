@@ -18,6 +18,7 @@ from neurodata_security_audit.usability import (
 )
 from usability._io import packaged_specification, write_text_new, write_text_new_owned
 from usability.build_participant_bundle import build_participant_bundle
+from usability.build_response import build_response_file
 from usability.build_reports import build_reports
 from usability.score_responses import (
     _build_parser,
@@ -309,8 +310,9 @@ class UsabilityBenchmarkTests(unittest.TestCase):
     def test_response_template_matches_precommitted_tasks(self) -> None:
         with packaged_specification() as specification:
             spec = json.loads(specification.read_text(encoding="utf-8"))
-            template = build_response_template(specification)
+            template = build_response_template(specification, "reviewer-07")
 
+        self.assertEqual("reviewer-07", template["participant_id"])
         self.assertEqual(
             [task["task_id"] for task in spec["tasks"]],
             [response["task_id"] for response in template["responses"]],
@@ -362,6 +364,10 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                         first[name].read_bytes(),
                         second[name].read_bytes(),
                     )
+                self.assertEqual(
+                    len(first),
+                    len({path.read_bytes() for path in first.values()}),
+                )
 
                 response_path = Path(first_dir) / "reviewer.json"
                 response_path.write_text(
@@ -403,14 +409,36 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             rendered = reports["report-i"].read_text(encoding="utf-8")
 
         self.assertIn(
-            "121 individual items are summarized in 5 action groups",
+            "124 individual items are summarized in 4 action groups",
             rendered,
         )
         self.assertIn('aria-label="Filter findings"', rendered)
-        self.assertIn("Review 121", rendered)
-        self.assertIn("Recording.TechnicianContact", rendered)
-        self.assertEqual(121, rendered.count('class="finding-row finding-review"'))
+        self.assertIn("Review 124", rendered)
+        self.assertEqual(124, rendered.count('class="finding-row finding-review"'))
+        action_summary, individual_findings = rendered.split(
+            '<section id="all-findings">',
+            maxsplit=1,
+        )
+        self.assertNotIn("&lt;masked-review:length=17&gt;", action_summary)
+        self.assertIn("&lt;masked-review:length=17&gt;", individual_findings)
         self.assertNotIn("<script", rendered.lower())
+
+    def test_single_finding_uses_singular_grammar(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            reports = build_reports(Path(directory))
+            rendered = reports["report-b"].read_text(encoding="utf-8")
+
+        self.assertIn("1 individual item is summarized", rendered)
+        self.assertNotIn("1 individual item are summarized", rendered)
+
+    def test_summary_points_partial_checks_to_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            reports = build_reports(Path(directory))
+            rendered = reports["report-c"].read_text(encoding="utf-8")
+        normalized = " ".join(rendered.split())
+
+        self.assertNotIn("skipped or partially covered", normalized)
+        self.assertIn("See Coverage for partial and manual checks.", normalized)
 
     def test_inventory_report_explains_files_and_folders_count(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -432,6 +460,13 @@ class UsabilityBenchmarkTests(unittest.TestCase):
 
         self.assertIn("task_01", rendered)
         self.assertIn("[Report C](reports/report-c.html)", rendered)
+        self.assertIn(
+            "keep this file inside the supplied participant folder",
+            rendered,
+        )
+        self.assertIn("Markdown editor with clickable links", rendered)
+        self.assertIn("Do not move this file", rendered)
+        self.assertIn("return the completed Markdown packet", rendered)
         self.assertNotRegex(
             rendered,
             r"\[(clean|high|coverage|integrity)",
@@ -456,9 +491,9 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             )
             names = {path.relative_to(destination).as_posix() for path in paths}
 
-            self.assertEqual(len(paths), 12)
+            self.assertEqual(len(paths), 11)
             self.assertIn("reviewer_packet.md", names)
-            self.assertIn("response_template.json", names)
+            self.assertNotIn("response_template.json", names)
             self.assertNotIn("spec.json", names)
             self.assertNotIn('"expected"', combined)
             self.assertNotIn("spec.json", combined)
@@ -487,6 +522,33 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             if path.is_file() and "__pycache__" not in path.parts
         )
         self.assertEqual(before, after)
+
+    def test_administrator_builds_response_outside_participant_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "responses" / "reviewer-01.json"
+            created = build_response_file("reviewer-01", output)
+            response = json.loads(created.read_text(encoding="utf-8"))
+
+            self.assertEqual(output.resolve(), created)
+            self.assertEqual("reviewer-01", response["participant_id"])
+            self.assertNotIn("expected", created.read_text(encoding="utf-8"))
+            with self.assertRaises(FileExistsError):
+                build_response_file("reviewer-01", output)
+
+    def test_administrator_response_rejects_bad_id_and_package_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, "reviewer-XX"):
+                build_response_file(
+                    "daria@example.org",
+                    Path(directory) / "response.json",
+                )
+
+        package_root = Path(usability.__file__).resolve().parent
+        package_output = package_root / "response.json"
+        with self.assertRaisesRegex(ValueError, "outside the installed package"):
+            build_response_file("reviewer-01", package_output)
+        self.assertFalse(package_output.exists())
 
     def test_participant_bundle_refuses_existing_foreign_directory(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

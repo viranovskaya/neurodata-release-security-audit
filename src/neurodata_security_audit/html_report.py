@@ -560,9 +560,10 @@ def _remediation_content(
 
     if selected:
         table, group_count = _action_groups_table(selected)
+        item_verb = "is" if len(selected) == 1 else "are"
         grouping_note = (
             f"{len(selected)} individual item"
-            f"{'s' if len(selected) != 1 else ''} are summarized in "
+            f"{'s' if len(selected) != 1 else ''} {item_verb} summarized in "
             f"{group_count} action group"
             f"{'s' if group_count != 1 else ''}. Grouping uses the finding "
             "code, field or location, and recommended action."
@@ -647,7 +648,7 @@ def render_html(report: ScanReport) -> str:
             )
             for item in data["coverage"]
         ),
-        empty="No release entries were recorded.",
+        empty="No files or folders were recorded.",
         code_columns=frozenset({0}),
     )
     coverage_gap_table = _table(
@@ -657,7 +658,7 @@ def render_html(report: ScanReport) -> str:
             for item in data["coverage"]
             if item["status"] in {"unsupported_manual_review", "not_traversed"}
         ),
-        empty="No unsupported or untraversed release entries.",
+        empty="No unsupported or untraversed files or folders.",
         code_columns=frozenset({0}),
     )
     references_table = _table(
@@ -808,7 +809,8 @@ def render_html(report: ScanReport) -> str:
     <div class="card">
       <div class="label">Files inspected</div>
       <div class="value">{summary["files_inspected"]}</div>
-      <div class="context">{summary["files_skipped"]} skipped or partially covered</div>
+      <div class="context">{summary["files_skipped"]} files skipped. See Coverage
+      for partial and manual checks.</div>
     </div>
     <div class="card">
       <div class="label">Valid references</div>

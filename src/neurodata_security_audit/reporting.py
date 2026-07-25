@@ -267,7 +267,7 @@ def render_markdown(report: ScanReport) -> str:
                 + " |"
             )
     else:
-        lines.append("No unsupported or untraversed release entries.")
+        lines.append("No unsupported or untraversed files or folders.")
 
     lines.extend(["", "## Archive members", ""])
     container_members = data["container_members"]

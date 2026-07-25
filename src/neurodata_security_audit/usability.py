@@ -488,15 +488,25 @@ def render_reviewer_packet(specification_path: str | Path) -> str:
         "",
         "For each task:",
         "",
-        "1. start a timer before opening the report;",
-        "2. choose one answer;",
-        "3. record elapsed seconds and confidence from 1 to 5;",
-        "4. close the report before moving to the next task.",
+        "1. keep this file inside the supplied participant folder;",
+        (
+            "2. open it on a laptop or desktop in a Markdown editor with "
+            "clickable links;"
+        ),
+        "3. start a timer before opening the report;",
+        "4. mark one answer by replacing `[ ]` with `[x]`;",
+        "5. record elapsed seconds and confidence from 1 to 5;",
+        "6. close the report before moving to the next task.",
         "",
         (
-            "Complete the tasks in the order shown. Some reports are used more "
-            "than once, so elapsed time is descriptive and is not part of the "
-            "pass threshold."
+            "Complete the tasks in the order shown. Every report file is "
+            "different, but some related questions use the same report. "
+            "Elapsed time is descriptive and is not part of the pass threshold."
+        ),
+        "",
+        (
+            "If a report link does not open, stop and tell the administrator. "
+            "Do not move this file or browse the reports folder manually."
         ),
         "",
         (
@@ -538,9 +548,10 @@ def render_reviewer_packet(specification_path: str | Path) -> str:
         [
             "",
             (
-                "Return the completed packet to the study administrator. The "
-                "administrator records only the answer code, elapsed seconds "
-                "and confidence in the pseudonymous response file."
+                "Save this file in the same folder and return the completed "
+                "Markdown packet to the study administrator. The administrator "
+                "records the answer code, elapsed seconds and confidence in a "
+                "separate pseudonymous response file."
             ),
             "",
         ]
@@ -548,13 +559,18 @@ def render_reviewer_packet(specification_path: str | Path) -> str:
     return "\n".join(lines)
 
 
-def build_response_template(specification_path: str | Path) -> dict[str, object]:
-    """Build a blank participant response form without expected answers."""
+def build_response_template(
+    specification_path: str | Path,
+    participant_id: str,
+) -> dict[str, object]:
+    """Build a blank administrator response form without expected answers."""
+    if not _PARTICIPANT_ID.fullmatch(participant_id):
+        raise ValueError("participant_id must use the reviewer-XX format")
     spec = _load_json(Path(specification_path))
     tasks = _validate_spec(spec)
     return {
         "schema_version": "1",
-        "participant_id": "reviewer-XX",
+        "participant_id": participant_id,
         "responses": [
             {
                 "task_id": task["task_id"],

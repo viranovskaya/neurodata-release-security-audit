@@ -44,7 +44,7 @@ in the private independent-review handoff rather than the repository.
 | Datasets completed | 50 / 50 |
 | Real-payload slices | 39 |
 | Metadata-only slices | 11 |
-| Release entries | 31,472 |
+| Files and folders accounted for | 31,472 |
 | Regular files in the integrity manifest | 24,442 |
 | Files inspected | 24,434 |
 | Deliberately skipped payload or legacy structures | 11 |

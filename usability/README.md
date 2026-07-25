@@ -11,7 +11,7 @@ The task set covers five practical questions:
 - which coverage gap still needs manual review;
 - does an integrity failure make the finding list provisional.
 
-The large-report case adds 121 review items. It checks whether one distinct
+The large-report case adds 124 review items. It checks whether one distinct
 item can still be found among repeated rows.
 
 One inventory task checks that the summary count is understood correctly:
@@ -24,18 +24,17 @@ The installed wheel is an administrator tool. It contains the validated private
 specification and scoring code. Do not give the wheel, `spec.json` or the source
 checkout to a reviewer.
 
-Build a new participant bundle in an explicit directory:
+Build a separate participant bundle for each reviewer:
 
 ```bash
 neurodata-usability-build-bundle \
-  --output-dir ./participant-bundle
+  --output-dir ./participant-bundle-01
 ```
 
-Give the reviewer only:
+Give the reviewer that complete folder. It contains only:
 
-- `participant-bundle/reports/`;
-- `participant-bundle/reviewer_packet.md`;
-- a fresh copy of `participant-bundle/response_template.json`.
+- `reports/`;
+- `reviewer_packet.md`.
 
 The command refuses to reuse an existing directory. It never writes into the
 installed package. Returned paths are resolved absolute paths, so macOS
@@ -43,14 +42,40 @@ installed package. Returned paths are resolved absolute paths, so macOS
 The bundle is checked for the private answer-key serialization and fingerprint
 before the command returns.
 
-Record one pseudonymous participant ID, the selected answer, elapsed seconds
-and confidence from 1 to 5. Do not collect names, emails or free-text personal
-details. The administrator assigns IDs in the form `reviewer-01`; the scorer
+Ask the reviewer to mark the Markdown packet and return that file. Do not ask
+them to edit JSON. After the packet is returned, create the administrator
+response file:
+
+```bash
+neurodata-usability-build-response \
+  --participant-id reviewer-01 \
+  --output responses/reviewer-01.json
+```
+
+Transcribe only the selected answer, elapsed seconds and confidence from 1 to
+5. Do not collect names, emails or free-text personal details. The scorer
 rejects other ID formats and any extra response fields.
 
-Keep the task order fixed. Some reports are opened more than once, so elapsed
-time is descriptive only: later answers may be faster because the reviewer has
-already seen the report. The pass gate uses accuracy, not time.
+Keep the task order fixed. Every report file is different, but some related
+questions use the same report. Elapsed time is descriptive only: later answers
+may be faster because the reviewer has already seen the report. The pass gate
+uses accuracy, not time.
+
+## Reviewer group
+
+Use at least five independent reviewers who did not develop the report. The
+intended group is research-data staff, neurodata curators or researchers who
+have prepared EEG, MEG, MRI or related research data for sharing. They should
+be comfortable opening local HTML files and editing the supplied `.md`
+checklist in a plain-text editor.
+
+Use a current desktop or laptop version of Chrome, Firefox or Safari. Mobile is
+not part of this pilot. Use a Markdown-capable editor that keeps relative links
+clickable. Before handing over the folder, confirm that every report link opens.
+Record the browser and editor versions with the administrative study notes.
+
+Tell reviewers not to move or rename `reviewer_packet.md`. Do not guide them
+while they complete the tasks; collect questions after they return the packet.
 
 The report and task names are deliberately opaque. Every critical task belongs
 to a balanced choice group: the same prompt and choices are reused across
@@ -60,9 +85,10 @@ collected. Task order is also deliberately different from answer order. These
 checks prevent the packet structure from revealing which critical answer is
 expected.
 
-Each critical task also has its own opaque report. Noncritical file, field and
-remediation questions use separate report copies, so later prompts cannot reveal
-the answer to an earlier critical task. The validator rejects any overlap.
+Each critical task also has its own opaque report. Noncritical questions may
+share a report with one another, but they never reuse a critical report, so a
+later prompt cannot reveal an earlier critical answer. The validator rejects
+any overlap.
 
 Score complete response files:
 
