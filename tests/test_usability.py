@@ -384,7 +384,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                 )
                 result = score_usability(specification, [response_path])
 
-        self.assertEqual(result["summary"]["tasks_per_participant"], 12)
+        self.assertEqual(result["summary"]["tasks_per_participant"], 13)
         self.assertEqual(result["summary"]["overall_accuracy"], 1.0)
         self.assertEqual(result["summary"]["status"], "pilot_incomplete")
         self.assertFalse(result["summary"]["thresholds_met"])
@@ -411,6 +411,20 @@ class UsabilityBenchmarkTests(unittest.TestCase):
         self.assertIn("Recording.TechnicianContact", rendered)
         self.assertEqual(121, rendered.count('class="finding-row finding-review"'))
         self.assertNotIn("<script", rendered.lower())
+
+    def test_inventory_report_explains_files_and_folders_count(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            reports = build_reports(Path(directory))
+            rendered = reports["report-j"].read_text(encoding="utf-8")
+
+        self.assertIn("Files and folders accounted for", rendered)
+        self.assertIn(
+            "The total also includes folders, symlinks and unsupported "
+            "filesystem entries.",
+            rendered,
+        )
+        self.assertIn('<div class="value">3</div>', rendered)
+        self.assertIn("1 regular file in the manifest", rendered)
 
     def test_reviewer_packet_does_not_contain_the_answer_key(self) -> None:
         with packaged_specification() as specification:
@@ -442,7 +456,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             )
             names = {path.relative_to(destination).as_posix() for path in paths}
 
-            self.assertEqual(len(paths), 11)
+            self.assertEqual(len(paths), 12)
             self.assertIn("reviewer_packet.md", names)
             self.assertIn("response_template.json", names)
             self.assertNotIn("spec.json", names)

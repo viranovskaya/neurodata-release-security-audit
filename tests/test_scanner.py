@@ -2852,6 +2852,13 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("| Priority | File | Field or location | What to do |", rendered)
         self.assertIn("After each correction:", rendered)
         self.assertIn("## Places needing manual review", rendered)
+        self.assertIn("Files and folders accounted for:", rendered)
+        self.assertIn(
+            "The accounted total includes files, folders, symlinks and "
+            "unsupported filesystem entries. The manifest contains regular "
+            "files only.",
+            rendered,
+        )
         self.assertNotIn("private.person@example.org", rendered)
 
     def test_review_only_report_asks_for_a_curator_decision(self) -> None:

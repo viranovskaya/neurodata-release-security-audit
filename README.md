@@ -138,7 +138,8 @@ The list must stay outside the dataset and should not be committed to Git.
 
 `findings` says what may be sensitive or unsafe.
 
-`coverage` says how each release entry was handled:
+`coverage` says how each file, folder, symlink or other filesystem entry was
+handled:
 
 - `fully_inspected_metadata`;
 - `header_or_structure_only`;

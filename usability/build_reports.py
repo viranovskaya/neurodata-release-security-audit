@@ -14,6 +14,7 @@ from neurodata_security_audit.models import (
 )
 from usability._io import write_text_new
 
+
 def _manifest(path: str) -> ManifestEntry:
     digest = hashlib.sha256(f"synthetic:{path}".encode()).hexdigest()
     return ManifestEntry(path=path, size_bytes=512, sha256=digest)
@@ -176,6 +177,35 @@ def _large_report() -> ScanReport:
     )
 
 
+def _inventory_report() -> ScanReport:
+    path = "sub-01/eeg/sub-01_task-rest_eeg.vhdr"
+    return ScanReport(
+        scanner_version="0.2.0.dev0",
+        files_inspected=[path],
+        coverage=[
+            CoverageEntry(
+                path="sub-01",
+                entry_type="directory",
+                status="header_or_structure_only",
+                reason="Directory name and release-tree position were inspected",
+            ),
+            CoverageEntry(
+                path="sub-01/eeg",
+                entry_type="directory",
+                status="header_or_structure_only",
+                reason="Directory name and release-tree position were inspected",
+            ),
+            CoverageEntry(
+                path=path,
+                entry_type="file",
+                status="fully_inspected_metadata",
+                reason="BrainVision metadata was inspected",
+            ),
+        ],
+        manifest=[_manifest(path)],
+    )
+
+
 def build_reports(output_dir: Path) -> dict[str, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     reports = {
@@ -188,6 +218,7 @@ def build_reports(output_dir: Path) -> dict[str, Path]:
         "report-g": _clean_report(),
         "report-h": _integrity_report(),
         "report-i": _large_report(),
+        "report-j": _inventory_report(),
     }
     expected_names = {f"{name}.html" for name in reports}
     unexpected = sorted(
