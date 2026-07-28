@@ -7,6 +7,15 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .curator import (
+    compare_reports,
+    load_report,
+    render_checklist_tsv,
+    render_comparison_json,
+    render_comparison_markdown,
+    write_text_new,
+    write_texts_new,
+)
 from .html_report import render_html
 from .reporting import render_json, render_markdown
 from .scanner import ScanPolicy, scan_dataset
@@ -33,6 +42,31 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         help="private text file with one known name or identifier per line",
     )
+    checklist = subparsers.add_parser(
+        "checklist",
+        help="create a curator checklist from one JSON audit report",
+    )
+    checklist.add_argument("report", type=Path)
+    checklist.add_argument("--tsv", type=Path, required=True, dest="tsv_path")
+    compare = subparsers.add_parser(
+        "compare",
+        help="compare review items in two JSON audit reports",
+    )
+    compare.add_argument("baseline", type=Path)
+    compare.add_argument("current", type=Path)
+    compare.add_argument(
+        "--confirm-same-dataset",
+        action="store_true",
+        required=True,
+        help="confirm that both reports describe versions of the same dataset",
+    )
+    compare.add_argument("--json", type=Path, required=True, dest="json_path")
+    compare.add_argument(
+        "--markdown",
+        type=Path,
+        required=True,
+        dest="markdown_path",
+    )
     return parser
 
 
@@ -58,8 +92,7 @@ def _is_inside_dataset(path: Path, dataset: Path) -> bool:
     return candidate == dataset_root or dataset_root in candidate.parents
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+def _scan(args: argparse.Namespace) -> int:
     try:
         output_paths = (args.json_path, args.markdown_path, args.html_path)
         if any(
@@ -113,3 +146,67 @@ def main(argv: list[str] | None = None) -> int:
     if not integrity_ok:
         return 2
     return 1 if summary["findings_high"] else 0
+
+
+def _checklist(args: argparse.Namespace) -> int:
+    try:
+        report = load_report(args.report)
+        checklist = render_checklist_tsv(report)
+        write_text_new(args.tsv_path, checklist)
+    except (
+        OSError,
+        RuntimeError,
+        UnicodeError,
+        ValueError,
+    ) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    item_count = max(0, checklist.count("\n") - 1)
+    print(f"checklist_items={item_count}")
+    return 0
+
+
+def _compare(args: argparse.Namespace) -> int:
+    try:
+        if args.json_path.resolve(strict=False) == args.markdown_path.resolve(
+            strict=False
+        ):
+            raise ValueError("JSON and Markdown outputs must be different files")
+        baseline = load_report(args.baseline)
+        current = load_report(args.current)
+        comparison = compare_reports(
+            baseline,
+            current,
+            same_dataset_confirmed=args.confirm_same_dataset,
+        )
+        write_texts_new(
+            {
+                args.json_path: render_comparison_json(comparison),
+                args.markdown_path: render_comparison_markdown(comparison),
+            }
+        )
+    except (
+        OSError,
+        RuntimeError,
+        UnicodeError,
+        ValueError,
+    ) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    summary = comparison["summary"]
+    print(
+        f"new={summary['new']} remaining={summary['remaining']} "
+        f"resolved={summary['resolved']}"
+    )
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    if args.command == "scan":
+        return _scan(args)
+    if args.command == "checklist":
+        return _checklist(args)
+    if args.command == "compare":
+        return _compare(args)
+    raise AssertionError(f"Unhandled command: {args.command}")

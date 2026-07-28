@@ -107,3 +107,13 @@ automatically safe to publish.
 
 The machine-readable contract is
 [`schema/report.schema.json`](../schema/report.schema.json).
+
+The curator comparison is a separate derived artifact. It compares exact masked
+review records from two reports and binds both canonical report hashes. Its
+machine-readable contract is
+[`schema/comparison.schema.json`](../schema/comparison.schema.json). A changed
+severity, message, location or masked evidence is treated as one resolved record
+and one new record rather than silently matching the two. The comparison also
+records an explicit curator confirmation that both reports describe the same
+dataset and the number of release paths shared by the two reports. Neither field
+proves dataset identity.

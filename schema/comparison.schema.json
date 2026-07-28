@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:neurodata-release-security-audit:comparison:1",
+  "title": "NeuroData audit comparison",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "comparison_schema_version",
+    "baseline",
+    "current",
+    "dataset_identity",
+    "summary",
+    "items"
+  ],
+  "properties": {
+    "comparison_schema_version": {"const": "1"},
+    "baseline": {"$ref": "#/$defs/reportIdentity"},
+    "current": {"$ref": "#/$defs/reportIdentity"},
+    "dataset_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "curator_confirmed_same_dataset",
+        "baseline_entries",
+        "current_entries",
+        "shared_entries"
+      ],
+      "properties": {
+        "curator_confirmed_same_dataset": {"const": true},
+        "baseline_entries": {"type": "integer", "minimum": 1},
+        "current_entries": {"type": "integer", "minimum": 1},
+        "shared_entries": {"type": "integer", "minimum": 1}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["new", "remaining", "resolved"],
+      "properties": {
+        "new": {"type": "integer", "minimum": 0},
+        "remaining": {"type": "integer", "minimum": 0},
+        "resolved": {"type": "integer", "minimum": 0}
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/comparisonItem"}
+    }
+  },
+  "$defs": {
+    "reportIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "report_schema_version",
+        "scanner_version",
+        "report_sha256",
+        "release_state"
+      ],
+      "properties": {
+        "report_schema_version": {"type": "string"},
+        "scanner_version": {"type": "string"},
+        "report_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "release_state": {
+          "enum": [
+            "stop_integrity",
+            "hold_high",
+            "hold_review",
+            "hold_coverage",
+            "no_automated_hold"
+          ]
+        }
+      }
+    },
+    "comparisonItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "item_id",
+        "kind",
+        "priority",
+        "code_or_status",
+        "path",
+        "location",
+        "required_action"
+      ],
+      "properties": {
+        "state": {"enum": ["new", "remaining", "resolved"]},
+        "item_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "kind": {"enum": ["finding", "coverage_gap"]},
+        "priority": {"enum": ["high", "review", "info"]},
+        "code_or_status": {"type": "string"},
+        "path": {"type": "string"},
+        "location": {"type": "string"},
+        "required_action": {"type": "string"}
+      }
+    }
+  }
+}

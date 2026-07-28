@@ -166,6 +166,33 @@ that the signal, channels, sampling, annotations and duration were preserved.
 The [format remediation guide](docs/remediation_guide.md) gives a short checklist
 for FIF, EEGLAB, EDF/BDF, MFF, DICOM, NIfTI, JSON and TSV.
 
+## Keep track of a private review
+
+Create a TSV checklist from the first JSON report:
+
+```bash
+neurodata-security-audit checklist reports/audit.json \
+  --tsv review/audit-checklist.tsv
+```
+
+After correcting a private copy and scanning it again, compare the two reports:
+
+```bash
+neurodata-security-audit compare \
+  reports/baseline.json reports/current.json \
+  --confirm-same-dataset \
+  --json review/comparison.json \
+  --markdown review/comparison.md
+```
+
+The comparison separates new, remaining and resolved review items. A resolved
+item only means that the same masked record is no longer reported. It is not
+proof that the dataset is anonymous or ready to share. Use
+`--confirm-same-dataset` only after checking that both reports describe versions
+of the same release. The
+[curator workflow](docs/curator_workflow.md) explains the checklist fields and
+the checks that still need a format-aware tool.
+
 ## Limits
 
 This is a practical release check for an honest curator. It is not proof that a
@@ -184,8 +211,9 @@ The current version does not:
 
 The full v0.2 boundary is in
 [docs/v0.2_scope.md](docs/v0.2_scope.md). The report contract is in
-[docs/report_schema.md](docs/report_schema.md). Public and real-reader checks are
-recorded in [docs/v0.2_calibration.md](docs/v0.2_calibration.md). A separate
+[docs/report_schema.md](docs/report_schema.md). The private review workflow is in
+[docs/curator_workflow.md](docs/curator_workflow.md). Public and real-reader
+checks are recorded in [docs/v0.2_calibration.md](docs/v0.2_calibration.md). A separate
 [50-dataset OpenNeuro calibration](docs/public_50_dataset_calibration.md) covers
 EEG, MEG, iEEG, MRI and fMRI.
 
