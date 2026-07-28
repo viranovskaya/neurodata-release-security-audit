@@ -29,6 +29,12 @@ class BenchmarkTests(unittest.TestCase):
         cls.locked_v2_path = (
             Path(__file__).parents[1] / "benchmark" / "locked_v2.json"
         )
+        cls.privacy_adversarial_path = (
+            Path(__file__).parents[1]
+            / "benchmark"
+            / "cases"
+            / "development_privacy_adversarial.json"
+        )
 
     @unittest.skipUnless(
         _FULL_BENCHMARK_READERS_AVAILABLE,
@@ -40,14 +46,14 @@ class BenchmarkTests(unittest.TestCase):
 
         self.assertEqual(result["suite_name"], "development")
         self.assertFalse(result["locked"])
-        self.assertEqual(len(result["case_files"]), 6)
-        self.assertEqual(summary["cases"], 40)
-        self.assertEqual(summary["matched_findings"], 71)
-        self.assertEqual(summary["expected_findings"], 71)
+        self.assertEqual(len(result["case_files"]), 7)
+        self.assertEqual(summary["cases"], 50)
+        self.assertEqual(summary["matched_findings"], 103)
+        self.assertEqual(summary["expected_findings"], 103)
         self.assertEqual(summary["unexpected_findings"], 0)
         self.assertEqual(summary["duplicate_findings"], 1)
-        self.assertEqual(summary["clean_controls"], 10)
-        self.assertEqual(summary["control_cases"], 10)
+        self.assertEqual(summary["clean_controls"], 12)
+        self.assertEqual(summary["control_cases"], 12)
         self.assertEqual(summary["matched_references"], 10)
         self.assertEqual(summary["expected_references"], 10)
         self.assertEqual(summary["unexpected_references"], 0)
@@ -64,6 +70,37 @@ class BenchmarkTests(unittest.TestCase):
                 group["expected_findings"]
                 for group in result["by_finding_class"].values()
             ),
+        )
+
+    def test_privacy_adversarial_layer_is_fully_labelled(self) -> None:
+        result = run_benchmark(self.privacy_adversarial_path)
+        summary = result["summary"]
+
+        self.assertEqual(summary["cases"], 10)
+        self.assertEqual(summary["matched_findings"], 32)
+        self.assertEqual(summary["expected_findings"], 32)
+        self.assertEqual(summary["unexpected_findings"], 0)
+        self.assertEqual(summary["duplicate_findings"], 0)
+        self.assertEqual(summary["clean_controls"], 2)
+        self.assertEqual(summary["control_cases"], 2)
+        self.assertEqual(summary["masking_failures"], 0)
+        self.assertEqual(summary["integrity_failures"], 0)
+        self.assertNotIn("coverage_or_other", result["by_finding_class"])
+        self.assertEqual(
+            {
+                "dates_and_demographics": 1,
+                "free_text_and_sources": 1,
+                "linked_identity": 3,
+                "operational_metadata": 4,
+                "personal_identity": 11,
+                "release_structure": 1,
+                "secrets_and_paths": 9,
+                "site_device_and_staff": 2,
+            },
+            {
+                name: metrics["expected_findings"]
+                for name, metrics in result["by_finding_class"].items()
+            },
         )
 
     @unittest.skipUnless(

@@ -41,6 +41,12 @@ _FINDING_CLASSES = {
         "RECORDING_INFO_FIELD",
         "SITE_IDENTIFIER",
     },
+    "operational_metadata": {
+        "ACCOUNT_NAME",
+        "DEVICE_ADDRESS",
+        "LOCAL_HOSTNAME",
+        "NETWORK_ADDRESS",
+    },
     "secrets_and_paths": {
         "LOCAL_PATH",
         "NETWORK_PATH",
@@ -62,6 +68,7 @@ _FINDING_CLASSES = {
         "CASE_MISMATCHED_REFERENCE",
         "EXTERNAL_DATA_REFERENCE",
         "MISSING_DATA_REFERENCE",
+        "OS_METADATA_FILE",
         "SPECIAL_FILESYSTEM_ENTRY",
         "UNEXPECTED_DIRECTORY",
         "UNEXPECTED_FILE",

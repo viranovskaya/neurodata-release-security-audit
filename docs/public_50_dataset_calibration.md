@@ -82,6 +82,12 @@ After these corrections, only eight signal or image payloads and three legacy
 EEGLAB structures remained deliberately unparsed. There was no optional-reader
 failure in the final run.
 
+The format-selection record for the next candidate is in
+[`format_selection_v0.2.1.md`](format_selection_v0.2.1.md). The calibration does
+not justify adding a new general reader. It points instead to one explicit
+boundary: legacy nested EEGLAB metadata remains a manual-review case because a
+safe metadata-only parse has not been demonstrated.
+
 ## Interpretation limits
 
 This is an engineering robustness and field-sensitivity calibration. It is not:

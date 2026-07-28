@@ -216,6 +216,9 @@ The full v0.2 boundary is in
 checks are recorded in [docs/v0.2_calibration.md](docs/v0.2_calibration.md). A separate
 [50-dataset OpenNeuro calibration](docs/public_50_dataset_calibration.md) covers
 EEG, MEG, iEEG, MRI and fMRI.
+The [v0.2.1 format-selection record](docs/format_selection_v0.2.1.md) explains
+why the calibration supports a visible manual-review boundary for legacy
+EEGLAB files rather than a new general reader.
 
 The [labelled leak benchmark](docs/privacy_benchmark.md) keeps failed first runs
 alongside corrected regression results instead of replacing them. Its separate

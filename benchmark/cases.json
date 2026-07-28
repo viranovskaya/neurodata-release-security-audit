@@ -8,6 +8,7 @@
     "cases/development_references.json",
     "cases/development_formats.json",
     "cases/development_eeg_formats.json",
-    "cases/development_realistic.json"
+    "cases/development_realistic.json",
+    "cases/development_privacy_adversarial.json"
   ]
 }
