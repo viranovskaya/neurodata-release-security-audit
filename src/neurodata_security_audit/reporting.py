@@ -72,6 +72,9 @@ def render_markdown(report: ScanReport) -> str:
         summary["manifest_recheck_passed"]
         and summary["release_tree_recheck_passed"]
     )
+    coverage_gap_count = (
+        summary["unsupported_manual_review"] + summary["not_traversed"]
+    )
     if not integrity_ok:
         manifest_status = (
             "passed" if summary["manifest_recheck_passed"] else "failed"
@@ -123,6 +126,20 @@ def render_markdown(report: ScanReport) -> str:
         remediation = [
             item for item in findings if item["severity"] == "review"
         ]
+    elif coverage_gap_count:
+        lines.extend(
+            [
+                (
+                    "**No automated findings, but release remains on hold.** "
+                    f"{coverage_gap_count} unsupported or untraversed "
+                    f"{'entry' if coverage_gap_count == 1 else 'entries'} "
+                    f"{'needs' if coverage_gap_count == 1 else 'need'} "
+                    "a documented manual review."
+                ),
+                "",
+            ]
+        )
+        remediation = []
     elif integrity_ok:
         lines.extend(
             [
@@ -156,11 +173,17 @@ def render_markdown(report: ScanReport) -> str:
                 + " |"
             )
     else:
-        lines.append(
-            "Individual remediation is deferred until integrity passes."
-            if not integrity_ok
-            else "No immediate remediation tasks."
-        )
+        if not integrity_ok:
+            lines.append(
+                "Individual remediation is deferred until integrity passes."
+            )
+        elif coverage_gap_count:
+            lines.append(
+                "No automated remediation tasks. Review every coverage gap "
+                "before making the release decision."
+            )
+        else:
+            lines.append("No immediate remediation tasks.")
 
     if integrity_ok:
         lines.extend(

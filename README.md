@@ -101,6 +101,11 @@ review an item or continue to the coverage check. It lists the exact file, field
 location and next step without exposing the matched value. Unsupported and
 untraversed entries are repeated in a separate manual-review list.
 
+The status at the top is the release decision: `STOP`, `HOLD` or no automated
+hold. Scan integrity is shown separately and is never presented as release
+clearance. Finding filters help with long reports, while printing always includes
+the complete finding table.
+
 Treat every report as private working material. Detected values are masked, but
 an identifier that no rule recognized may still appear in a relative filename or
 field location. Review the report before sharing or publishing it.

@@ -413,8 +413,26 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             rendered,
         )
         self.assertIn('aria-label="Filter findings"', rendered)
+        self.assertIn("Find a file, field or value:", rendered)
+        self.assertIn("Distinct evidence", rendered)
+        self.assertIn("finding-code-", rendered)
         self.assertIn("Review 124", rendered)
-        self.assertEqual(124, rendered.count('class="finding-row finding-review"'))
+        self.assertNotIn('id="findings-high"', rendered)
+        self.assertNotIn('id="findings-info"', rendered)
+        self.assertIn('role="status" aria-live="polite"', rendered)
+        self.assertIn('role="region" tabindex="0"', rendered)
+        self.assertIn('<caption class="sr-only">All findings</caption>', rendered)
+        self.assertIn(
+            ".finding-row:not(.finding-code-0) { display: none; }",
+            rendered,
+        )
+        self.assertNotIn("display: none; }}", rendered)
+        self.assertIn(".finding-row { display: table-row !important; }", rendered)
+        self.assertIn(
+            ".provisional-section details > * { display: block !important; }",
+            rendered,
+        )
+        self.assertEqual(124, rendered.count('class="finding-row finding-review '))
         action_summary, individual_findings = rendered.split(
             '<section id="all-findings">',
             maxsplit=1,
@@ -430,6 +448,8 @@ class UsabilityBenchmarkTests(unittest.TestCase):
 
         self.assertIn("1 individual item is summarized", rendered)
         self.assertNotIn("1 individual item are summarized", rendered)
+        self.assertIn("1 finding\n           shown.", rendered)
+        self.assertNotIn("1 findings shown.", rendered)
 
     def test_summary_points_partial_checks_to_coverage(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -438,18 +458,23 @@ class UsabilityBenchmarkTests(unittest.TestCase):
         normalized = " ".join(rendered.split())
 
         self.assertNotIn("skipped or partially covered", normalized)
-        self.assertIn("See Coverage for partial and manual checks.", normalized)
+        self.assertIn(
+            "This count excludes folders and differs from the inventory total.",
+            normalized,
+        )
+        self.assertIn('href="#coverage"', rendered)
 
     def test_inventory_report_explains_files_and_folders_count(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             reports = build_reports(Path(directory))
             rendered = reports["report-j"].read_text(encoding="utf-8")
+        normalized = " ".join(rendered.split())
 
         self.assertIn("Files and folders accounted for", rendered)
         self.assertIn(
-            "The total also includes folders, symlinks and unsupported "
+            "This broader total also includes folders, symlinks and unsupported "
             "filesystem entries.",
-            rendered,
+            normalized,
         )
         self.assertIn('<div class="value">3</div>', rendered)
         self.assertIn("1 regular file in the manifest", rendered)

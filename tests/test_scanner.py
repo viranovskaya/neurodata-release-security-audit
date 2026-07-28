@@ -22,7 +22,13 @@ import zipfile
 from neurodata_security_audit.cli import main
 from neurodata_security_audit.containers import inspect_archive
 from neurodata_security_audit.html_report import render_html
-from neurodata_security_audit.models import Finding, ManifestEntry, ScanReport
+from neurodata_security_audit.models import (
+    CoverageEntry,
+    Finding,
+    ManifestEntry,
+    ReferenceEntry,
+    ScanReport,
+)
 from neurodata_security_audit.readers import (
     FormatReaderUnavailable,
     inspect_eeglab_metadata,
@@ -2882,6 +2888,8 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("need a curator decision", rendered)
         self.assertIn("sub-01/eeg/sub-01_task-rest_eeg.set", rendered)
         self.assertIn("EEGLAB field comments", rendered)
+        self.assertIn("HOLD — curator review required", rendered)
+        self.assertIn("Scan integrity passed — not release clearance", rendered)
 
     def test_clean_html_report_keeps_coverage_limits_visible(self) -> None:
         (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
@@ -2891,6 +2899,38 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("No high or review findings in the", rendered)
         self.assertIn("This is not proof of anonymity.", rendered)
         self.assertIn("No immediate remediation tasks.", rendered)
+        self.assertIn("No automated release hold", rendered)
+        self.assertIn("Scan integrity passed — not proof of anonymity", rendered)
+
+    def test_zero_findings_with_coverage_gap_stays_on_hold(self) -> None:
+        report = ScanReport(
+            scanner_version="test",
+            coverage=[
+                CoverageEntry(
+                    path="sub-01/unknown.bin",
+                    entry_type="file",
+                    status="unsupported_manual_review",
+                    reason="No supported metadata reader.",
+                )
+            ],
+        )
+
+        rendered = render_html(report)
+        markdown = render_markdown(report)
+
+        for report_text in (rendered, markdown):
+            self.assertIn(
+                "No automated findings, but release remains on hold.",
+                report_text,
+            )
+            self.assertIn("1 unsupported or untraversed entry", report_text)
+            self.assertNotIn("No immediate remediation tasks.", report_text)
+            self.assertNotIn(
+                "No high or review findings in the areas checked.",
+                report_text,
+            )
+        self.assertIn('href="#coverage-gaps"', rendered)
+        self.assertIn("HOLD — coverage review required", rendered)
 
     def test_integrity_failure_overrides_all_remediation_states(self) -> None:
         cases = (
@@ -2934,6 +2974,101 @@ class ScannerTests(unittest.TestCase):
                     self.assertIn("only after both integrity checks pass", rendered)
                     self.assertNotIn("No immediate remediation tasks", rendered)
                 self.assertIn("Resolve integrity failure", html)
+                self.assertIn("STOP — scan integrity failed", html)
+                self.assertIn("<h2>Provisional findings</h2>", html)
+                self.assertIn(
+                    "Do not act on individual findings",
+                    html,
+                )
+
+    def test_html_summary_links_to_explanations_and_hides_empty_reference_card(
+        self,
+    ) -> None:
+        report = ScanReport(
+            scanner_version="test",
+            files_inspected=["README"],
+            coverage=[
+                CoverageEntry(
+                    path="README",
+                    entry_type="file",
+                    status="fully_inspected_metadata",
+                    reason="Text inspected.",
+                )
+            ],
+        )
+
+        rendered = render_html(report)
+
+        self.assertIn('href="#inventory"', rendered)
+        self.assertIn('href="#all-findings"', rendered)
+        self.assertIn('href="#coverage"', rendered)
+        self.assertIn("Files inspected by the scanner", rendered)
+        self.assertNotIn("Cross-file references checked", rendered)
+        self.assertNotIn("Valid cross-file references", rendered)
+        self.assertIn("1 / 1", rendered)
+        self.assertIn(
+            "Coverage categories are mutually exclusive and use the same",
+            rendered,
+        )
+
+    def test_html_reference_card_states_valid_and_checked_counts(self) -> None:
+        report = ScanReport(
+            scanner_version="test",
+            references=[
+                ReferenceEntry(
+                    source_path="sub-01/eeg/header.vhdr",
+                    location="DataFile",
+                    target="signal.eeg",
+                    status="valid_internal",
+                    reason="Internal file exists.",
+                ),
+                ReferenceEntry(
+                    source_path="sub-01/eeg/header.vhdr",
+                    location="MarkerFile",
+                    target="events.vmrk",
+                    status="missing",
+                    reason="Target is missing.",
+                ),
+            ],
+        )
+
+        rendered = render_html(report)
+
+        self.assertIn("Valid cross-file references", rendered)
+        self.assertIn("1 valid of 2 checked", rendered)
+        self.assertNotIn("Cross-file references checked", rendered)
+
+    def test_html_bars_use_one_denominator_for_mixed_counts(self) -> None:
+        report = ScanReport(
+            scanner_version="test",
+            coverage=[
+                CoverageEntry(
+                    path="README",
+                    entry_type="file",
+                    status="fully_inspected_metadata",
+                    reason="Text inspected.",
+                ),
+                CoverageEntry(
+                    path="sub-01",
+                    entry_type="directory",
+                    status="header_or_structure_only",
+                    reason="Directory inspected.",
+                ),
+                CoverageEntry(
+                    path="sub-01/eeg",
+                    entry_type="directory",
+                    status="header_or_structure_only",
+                    reason="Directory inspected.",
+                ),
+            ],
+        )
+
+        rendered = render_html(report)
+
+        self.assertIn('style="width:33.333%"', rendered)
+        self.assertIn('style="width:66.667%"', rendered)
+        self.assertIn('<span class="count">1 / 3</span>', rendered)
+        self.assertIn('<span class="count">2 / 3</span>', rendered)
 
     def test_html_decision_sentences_have_visible_spaces(self) -> None:
         high = Finding(
