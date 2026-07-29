@@ -472,12 +472,10 @@ class UsabilityBenchmarkTests(unittest.TestCase):
 
         self.assertIn("Files and folders accounted for", rendered)
         self.assertIn(
-            "This broader total also includes folders, symlinks and unsupported "
-            "filesystem entries.",
+            "3 total entries = 1 regular file + 2 folders.",
             normalized,
         )
         self.assertIn('<div class="value">3</div>', rendered)
-        self.assertIn("1 regular file in the manifest", rendered)
 
     def test_reviewer_packet_does_not_contain_the_answer_key(self) -> None:
         with packaged_specification() as specification:

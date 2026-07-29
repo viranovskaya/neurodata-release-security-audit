@@ -12,23 +12,23 @@
       "task_id": "task_01",
       "report": "reports/report-c.html",
       "capability": "release_decision",
-      "prompt": "What should happen next?",
+      "prompt": "Which action does this report recommend?",
       "choices": [
         {
           "value": "continue_scope_review",
-          "label": "Continue to the remaining coverage and format checks."
+          "label": "No listed file needs action. Review the general coverage and format limits before deciding whether to share."
         },
         {
           "value": "hold_high",
-          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+          "label": "Fix the listed high-priority finding in a private copy, then run the audit again."
         },
         {
           "value": "hold_coverage",
-          "label": "Hold the release decision and manually review an unsupported entry."
+          "label": "Manually review the listed file before making a release decision."
         },
         {
           "value": "invalidate_integrity",
-          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+          "label": "The report is unreliable because the dataset changed during scanning. Keep the dataset unchanged and run the audit again."
         }
       ],
       "expected": "hold_coverage",
@@ -39,23 +39,23 @@
       "task_id": "task_02",
       "report": "reports/report-a.html",
       "capability": "release_decision",
-      "prompt": "What should happen next?",
+      "prompt": "Which action does this report recommend?",
       "choices": [
         {
           "value": "continue_scope_review",
-          "label": "Continue to the remaining coverage and format checks."
+          "label": "No listed file needs action. Review the general coverage and format limits before deciding whether to share."
         },
         {
           "value": "hold_high",
-          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+          "label": "Fix the listed high-priority finding in a private copy, then run the audit again."
         },
         {
           "value": "hold_coverage",
-          "label": "Hold the release decision and manually review an unsupported entry."
+          "label": "Manually review the listed file before making a release decision."
         },
         {
           "value": "invalidate_integrity",
-          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+          "label": "The report is unreliable because the dataset changed during scanning. Keep the dataset unchanged and run the audit again."
         }
       ],
       "expected": "continue_scope_review",
@@ -66,23 +66,23 @@
       "task_id": "task_03",
       "report": "reports/report-d.html",
       "capability": "release_decision",
-      "prompt": "What should happen next?",
+      "prompt": "Which action does this report recommend?",
       "choices": [
         {
           "value": "continue_scope_review",
-          "label": "Continue to the remaining coverage and format checks."
+          "label": "No listed file needs action. Review the general coverage and format limits before deciding whether to share."
         },
         {
           "value": "hold_high",
-          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+          "label": "Fix the listed high-priority finding in a private copy, then run the audit again."
         },
         {
           "value": "hold_coverage",
-          "label": "Hold the release decision and manually review an unsupported entry."
+          "label": "Manually review the listed file before making a release decision."
         },
         {
           "value": "invalidate_integrity",
-          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+          "label": "The report is unreliable because the dataset changed during scanning. Keep the dataset unchanged and run the audit again."
         }
       ],
       "expected": "invalidate_integrity",
@@ -93,23 +93,23 @@
       "task_id": "task_04",
       "report": "reports/report-b.html",
       "capability": "release_decision",
-      "prompt": "What should happen next?",
+      "prompt": "Which action does this report recommend?",
       "choices": [
         {
           "value": "continue_scope_review",
-          "label": "Continue to the remaining coverage and format checks."
+          "label": "No listed file needs action. Review the general coverage and format limits before deciding whether to share."
         },
         {
           "value": "hold_high",
-          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+          "label": "Fix the listed high-priority finding in a private copy, then run the audit again."
         },
         {
           "value": "hold_coverage",
-          "label": "Hold the release decision and manually review an unsupported entry."
+          "label": "Manually review the listed file before making a release decision."
         },
         {
           "value": "invalidate_integrity",
-          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+          "label": "The report is unreliable because the dataset changed during scanning. Keep the dataset unchanged and run the audit again."
         }
       ],
       "expected": "hold_high",
@@ -212,11 +212,11 @@
       "choices": [
         {
           "value": "usable_with_limits",
-          "label": "Yes, with the stated coverage and format limits."
+          "label": "Yes. The scan stayed stable, so use the list for the next review step — not as release approval."
         },
         {
           "value": "provisional",
-          "label": "No, it is provisional until a new scan passes both integrity checks."
+          "label": "No. The dataset changed during scanning, so ignore the list until a new scan passes both integrity checks."
         }
       ],
       "expected": "provisional",
@@ -231,11 +231,11 @@
       "choices": [
         {
           "value": "usable_with_limits",
-          "label": "Yes, with the stated coverage and format limits."
+          "label": "Yes. The scan stayed stable, so use the list for the next review step — not as release approval."
         },
         {
           "value": "provisional",
-          "label": "No, it is provisional until a new scan passes both integrity checks."
+          "label": "No. The dataset changed during scanning, so ignore the list until a new scan passes both integrity checks."
         }
       ],
       "expected": "usable_with_limits",

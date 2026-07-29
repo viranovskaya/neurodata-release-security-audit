@@ -128,6 +128,66 @@ p { margin: 0; }
   font-size: .78rem;
   text-align: right;
 }
+.share-decision {
+  display: grid;
+  grid-template-columns: minmax(210px, .8fr) minmax(220px, 1fr)
+    minmax(220px, 1fr);
+  gap: 18px;
+  margin: 0 0 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.share-decision.failed {
+  border-left-color: var(--high);
+  background: var(--high-soft);
+}
+.share-decision.hold {
+  border-left-color: var(--review);
+  background: var(--review-soft);
+}
+.share-decision.ok {
+  border-left-color: var(--ok);
+  background: var(--ok-soft);
+}
+.share-question {
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 650;
+}
+.share-answer {
+  margin-top: 3px;
+  font-size: 1.45rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+.share-detail {
+  align-self: center;
+  font-size: .92rem;
+}
+.share-detail strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+.finding-list-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: -4px 0 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: .9rem;
+}
+.finding-list-status strong {
+  color: var(--muted);
+}
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -353,6 +413,7 @@ footer {
   .top { display: grid; }
   .status-stack { justify-items: start; }
   .integrity-note { text-align: left; }
+  .share-decision { grid-template-columns: 1fr; gap: 12px; }
   .bar-row { grid-template-columns: minmax(0, 1fr) 70px; }
   .track { grid-column: 1 / -1; grid-row: 2; }
   section { padding: 16px; }
@@ -826,6 +887,33 @@ def render_html(report: ScanReport) -> str:
     coverage_gap_count = (
         summary["unsupported_manual_review"] + summary["not_traversed"]
     )
+    entry_type_counts: dict[str, int] = {}
+    for item in data["coverage"]:
+        entry_type = item["entry_type"]
+        entry_type_counts[entry_type] = entry_type_counts.get(entry_type, 0) + 1
+    entry_type_labels = {
+        "file": ("regular file", "regular files"),
+        "directory": ("folder", "folders"),
+        "symlink": ("symlink", "symlinks"),
+    }
+    entry_parts = []
+    for entry_type in ("file", "directory", "symlink"):
+        count = entry_type_counts.pop(entry_type, 0)
+        if count:
+            labels = entry_type_labels[entry_type]
+            entry_parts.append(f"{count} {labels[0 if count == 1 else 1]}")
+    other_count = sum(entry_type_counts.values())
+    if other_count:
+        entry_parts.append(
+            f"{other_count} other entr{'y' if other_count == 1 else 'ies'}"
+        )
+    entry_breakdown = (
+        f"{summary['entries_total']} total "
+        f"entr{'y' if summary['entries_total'] == 1 else 'ies'} = "
+        + " + ".join(entry_parts)
+        if entry_parts
+        else "Open the inventory to review the accounted entries."
+    )
 
     findings = []
     for item in data["findings"]:
@@ -962,7 +1050,20 @@ def render_html(report: ScanReport) -> str:
     if not integrity_ok:
         release_status_class = "failed"
         release_status_text = "STOP — scan integrity failed"
-        integrity_text = "Scan integrity failed — rerun before using this report"
+        integrity_text = "The dataset changed during this scan"
+        share_answer = "No."
+        share_reason = (
+            "The dataset changed while it was being checked, so this report "
+            "may be incomplete."
+        )
+        share_next = (
+            "Do not use this report for a release decision. Keep the dataset "
+            "unchanged and run the audit again."
+        )
+        finding_list_status = (
+            "No. This finding list is provisional until a new scan passes "
+            "both integrity checks."
+        )
         high_action = (
             '<div class="report-actions"><a class="report-action" '
             'href="#what-to-do">Resolve integrity failure</a></div>'
@@ -970,7 +1071,23 @@ def render_html(report: ScanReport) -> str:
     elif high_count:
         release_status_class = "failed"
         release_status_text = "HOLD — high-priority findings"
-        integrity_text = "Scan integrity passed — not release clearance"
+        integrity_text = (
+            "The dataset stayed unchanged during this scan — not release clearance"
+        )
+        finding_list_status = (
+            "Yes — for the next review step, with the stated coverage and format "
+            "limits. This is not permission to share the dataset."
+        )
+        share_answer = "No."
+        share_reason = (
+            f"{high_count} high-priority "
+            f'issue{"s" if high_count != 1 else ""} must be fixed first.'
+        )
+        share_next = (
+            "Open What to do next, fix the "
+            f'issue{"s" if high_count != 1 else ""} on a private copy, and '
+            "run the audit again."
+        )
         high_action = (
             '<div class="report-actions">'
             f'<a class="report-action" href="#what-to-do">Review {high_count} '
@@ -980,8 +1097,26 @@ def render_html(report: ScanReport) -> str:
     elif summary["findings_review"]:
         release_status_class = "hold"
         release_status_text = "HOLD — curator review required"
-        integrity_text = "Scan integrity passed — not release clearance"
+        integrity_text = (
+            "The dataset stayed unchanged during this scan — not release clearance"
+        )
+        finding_list_status = (
+            "Yes — for the next review step, with the stated coverage and format "
+            "limits. This is not permission to share the dataset."
+        )
         review_count = summary["findings_review"]
+        share_answer = "Not yet."
+        share_reason = (
+            f"{review_count} "
+            f'item{"s" if review_count != 1 else ""} still '
+            f'{"needs" if review_count == 1 else "need"} a person to decide '
+            f'whether {"it is" if review_count == 1 else "they are"} safe to '
+            "share."
+        )
+        share_next = (
+            "Review every item, record the decision, and run the audit again "
+            "after any change."
+        )
         high_action = (
             '<div class="report-actions">'
             f'<a class="report-action hold" href="#what-to-do">Review {review_count} '
@@ -990,16 +1125,51 @@ def render_html(report: ScanReport) -> str:
         )
     elif coverage_gap_count:
         release_status_class = "hold"
-        release_status_text = "HOLD — coverage review required"
-        integrity_text = "Scan integrity passed — not release clearance"
+        release_status_text = (
+            f"HOLD — {coverage_gap_count} "
+            f'item{"s" if coverage_gap_count != 1 else ""} '
+            f'{"need" if coverage_gap_count != 1 else "needs"} manual review'
+        )
+        integrity_text = (
+            "The dataset stayed unchanged during this scan — not release clearance"
+        )
+        share_answer = "Not yet."
+        share_reason = (
+            f"{coverage_gap_count} "
+            f'item{"s were" if coverage_gap_count != 1 else " was"} found '
+            "but not fully checked."
+        )
+        share_next = (
+            "Open Files needing manual review and check every listed item before "
+            "making a release decision."
+        )
+        finding_list_status = (
+            "Yes — for the next review step, with the stated coverage and format "
+            "limits. This is not permission to share the dataset."
+        )
         high_action = (
             '<div class="report-actions"><a class="report-action hold" '
             'href="#coverage-gaps">Review coverage gaps</a></div>'
         )
     else:
         release_status_class = "ok"
-        release_status_text = "No automated release hold"
-        integrity_text = "Scan integrity passed — not proof of anonymity"
+        release_status_text = "No automated blocker found"
+        integrity_text = (
+            "The dataset stayed unchanged during this scan — not proof of anonymity"
+        )
+        share_answer = "Not confirmed yet."
+        share_reason = (
+            "The automated checks found no blocker, but the coverage and "
+            "format limits still need review before sharing."
+        )
+        share_next = (
+            "Review the coverage and format limits before release. This report "
+            "is not approval to share."
+        )
+        finding_list_status = (
+            "Yes — for the next review step, with the stated coverage and format "
+            "limits. This is not permission to share the dataset."
+        )
         high_action = ""
     reference_summary = (
         f"{summary['references_valid']} valid of "
@@ -1016,11 +1186,6 @@ def render_html(report: ScanReport) -> str:
 """
         if summary["references_checked"]
         else ""
-    )
-    manifest_label = (
-        "regular file"
-        if summary["manifest_files"] == 1
-        else "regular files"
     )
     if integrity_ok:
         findings_section = f"""
@@ -1044,7 +1209,7 @@ def render_html(report: ScanReport) -> str:
   </section>
 """
 
-    return f"""<!doctype html>
+    html = f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -1067,6 +1232,22 @@ def render_html(report: ScanReport) -> str:
     </div>
   </header>
 
+  <div class="share-decision {release_status_class}" role="region"
+  aria-labelledby="share-decision-title">
+    <div>
+      <div class="share-question" id="share-decision-title">Can this dataset be
+      shared now?</div>
+      <div class="share-answer">{_text(share_answer)}</div>
+    </div>
+    <div class="share-detail"><strong>Why</strong>{_text(share_reason)}</div>
+    <div class="share-detail"><strong>Next step</strong>{_text(share_next)}</div>
+  </div>
+
+  <div class="finding-list-status" role="note">
+    <strong>Can this finding list be used for the next review step?</strong>
+    <span>{_text(finding_list_status)}</span>
+  </div>
+
   <p class="privacy-warning" role="note"><strong>Keep this report private.</strong>
   Detected values are masked, but unrecognized identifying text may remain in
   relative paths or locations. Review the report before sharing or publishing it.</p>
@@ -1075,9 +1256,7 @@ def render_html(report: ScanReport) -> str:
     <a class="card card-link" href="#inventory">
       <div class="label">Files and folders accounted for</div>
       <div class="value">{summary["entries_total"]}</div>
-      <div class="context">{summary["manifest_files"]} {manifest_label} in the manifest.
-      This broader total also includes folders, symlinks and unsupported
-      filesystem entries. Open the inventory.</div>
+      <div class="context">{_text(entry_breakdown)}. Open the inventory.</div>
     </a>
     <a class="card card-link" href="#all-findings">
       <div class="label">Findings</div>
@@ -1161,3 +1340,4 @@ def render_html(report: ScanReport) -> str:
 </body>
 </html>
 """
+    return "\n".join(line.rstrip() for line in html.splitlines()) + "\n"

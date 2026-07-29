@@ -133,3 +133,13 @@ The aggregate findings, sensitivity check and resulting changes are described
 in [prolific_pilot1_results.md](prolific_pilot1_results.md). Row-level responses
 remain private. The corrected reports have not yet been tested with a second
 participant sample.
+
+## Synthetic wording check
+
+Before the second paid sample, I used a separate low-reasoning model stress
+test to find overlapping wording in four tasks. The method, aggregate results,
+changes and limitations are recorded in
+[synthetic_usability_stress_test.md](synthetic_usability_stress_test.md).
+
+This check is development evidence only. Raw model responses remain outside
+Git, and the results do not count toward the human usability thresholds.
