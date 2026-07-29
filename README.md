@@ -229,6 +229,9 @@ The separate [report usability pilot](usability/README.md) tests whether an
 independent curator can understand the release decision, locate the file and
 field, choose a safe next step, notice a coverage gap and treat an integrity
 failure correctly. It does not repeat the leak-detection benchmark.
+The [first web-pilot results](usability/prolific_pilot1_results.md) record the
+aggregate five-person findings, the failed critical gate and the report changes
+made before a second pilot.
 
 ## Status
 
