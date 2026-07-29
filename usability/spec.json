@@ -16,19 +16,19 @@
       "choices": [
         {
           "value": "continue_scope_review",
-          "label": "Keep reviewing the remaining files and format limits before deciding whether to share."
+          "label": "No listed file needs action. Review the general coverage and format limits before deciding whether to share."
         },
         {
           "value": "hold_high",
-          "label": "Do not share this copy. Fix the high-priority problem, then run the audit again."
+          "label": "Fix the listed high-priority finding in a private copy, then run the audit again."
         },
         {
           "value": "hold_coverage",
-          "label": "Do not decide yet. Manually check the file that the audit could not inspect."
+          "label": "Manually review the listed file before making a release decision."
         },
         {
           "value": "invalidate_integrity",
-          "label": "Do not use this report. Keep the dataset unchanged, then run the audit again."
+          "label": "The report is unreliable because the dataset changed during scanning. Keep the dataset unchanged and run the audit again."
         }
       ],
       "expected": "hold_coverage",
@@ -43,19 +43,19 @@
       "choices": [
         {
           "value": "continue_scope_review",
-          "label": "Keep reviewing the remaining files and format limits before deciding whether to share."
+          "label": "No listed file needs action. Review the general coverage and format limits before deciding whether to share."
         },
         {
           "value": "hold_high",
-          "label": "Do not share this copy. Fix the high-priority problem, then run the audit again."
+          "label": "Fix the listed high-priority finding in a private copy, then run the audit again."
         },
         {
           "value": "hold_coverage",
-          "label": "Do not decide yet. Manually check the file that the audit could not inspect."
+          "label": "Manually review the listed file before making a release decision."
         },
         {
           "value": "invalidate_integrity",
-          "label": "Do not use this report. Keep the dataset unchanged, then run the audit again."
+          "label": "The report is unreliable because the dataset changed during scanning. Keep the dataset unchanged and run the audit again."
         }
       ],
       "expected": "continue_scope_review",
@@ -70,19 +70,19 @@
       "choices": [
         {
           "value": "continue_scope_review",
-          "label": "Keep reviewing the remaining files and format limits before deciding whether to share."
+          "label": "No listed file needs action. Review the general coverage and format limits before deciding whether to share."
         },
         {
           "value": "hold_high",
-          "label": "Do not share this copy. Fix the high-priority problem, then run the audit again."
+          "label": "Fix the listed high-priority finding in a private copy, then run the audit again."
         },
         {
           "value": "hold_coverage",
-          "label": "Do not decide yet. Manually check the file that the audit could not inspect."
+          "label": "Manually review the listed file before making a release decision."
         },
         {
           "value": "invalidate_integrity",
-          "label": "Do not use this report. Keep the dataset unchanged, then run the audit again."
+          "label": "The report is unreliable because the dataset changed during scanning. Keep the dataset unchanged and run the audit again."
         }
       ],
       "expected": "invalidate_integrity",
@@ -97,19 +97,19 @@
       "choices": [
         {
           "value": "continue_scope_review",
-          "label": "Keep reviewing the remaining files and format limits before deciding whether to share."
+          "label": "No listed file needs action. Review the general coverage and format limits before deciding whether to share."
         },
         {
           "value": "hold_high",
-          "label": "Do not share this copy. Fix the high-priority problem, then run the audit again."
+          "label": "Fix the listed high-priority finding in a private copy, then run the audit again."
         },
         {
           "value": "hold_coverage",
-          "label": "Do not decide yet. Manually check the file that the audit could not inspect."
+          "label": "Manually review the listed file before making a release decision."
         },
         {
           "value": "invalidate_integrity",
-          "label": "Do not use this report. Keep the dataset unchanged, then run the audit again."
+          "label": "The report is unreliable because the dataset changed during scanning. Keep the dataset unchanged and run the audit again."
         }
       ],
       "expected": "hold_high",
@@ -212,11 +212,11 @@
       "choices": [
         {
           "value": "usable_with_limits",
-          "label": "Yes, with the stated coverage and format limits."
+          "label": "Yes. The scan stayed stable, so use the list for the next review step — not as release approval."
         },
         {
           "value": "provisional",
-          "label": "No, it is provisional until a new scan passes both integrity checks."
+          "label": "No. The dataset changed during scanning, so ignore the list until a new scan passes both integrity checks."
         }
       ],
       "expected": "provisional",
@@ -231,11 +231,11 @@
       "choices": [
         {
           "value": "usable_with_limits",
-          "label": "Yes, with the stated coverage and format limits."
+          "label": "Yes. The scan stayed stable, so use the list for the next review step — not as release approval."
         },
         {
           "value": "provisional",
-          "label": "No, it is provisional until a new scan passes both integrity checks."
+          "label": "No. The dataset changed during scanning, so ignore the list until a new scan passes both integrity checks."
         }
       ],
       "expected": "usable_with_limits",
