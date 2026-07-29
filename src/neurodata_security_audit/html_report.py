@@ -128,6 +128,52 @@ p { margin: 0; }
   font-size: .78rem;
   text-align: right;
 }
+.share-decision {
+  display: grid;
+  grid-template-columns: minmax(210px, .8fr) minmax(220px, 1fr)
+    minmax(220px, 1fr);
+  gap: 18px;
+  margin: 0 0 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.share-decision.failed {
+  border-left-color: var(--high);
+  background: var(--high-soft);
+}
+.share-decision.hold {
+  border-left-color: var(--review);
+  background: var(--review-soft);
+}
+.share-decision.ok {
+  border-left-color: var(--ok);
+  background: var(--ok-soft);
+}
+.share-question {
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 650;
+}
+.share-answer {
+  margin-top: 3px;
+  font-size: 1.45rem;
+  font-weight: 750;
+  line-height: 1.2;
+}
+.share-detail {
+  align-self: center;
+  font-size: .92rem;
+}
+.share-detail strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -353,6 +399,7 @@ footer {
   .top { display: grid; }
   .status-stack { justify-items: start; }
   .integrity-note { text-align: left; }
+  .share-decision { grid-template-columns: 1fr; gap: 12px; }
   .bar-row { grid-template-columns: minmax(0, 1fr) 70px; }
   .track { grid-column: 1 / -1; grid-row: 2; }
   section { padding: 16px; }
@@ -963,6 +1010,12 @@ def render_html(report: ScanReport) -> str:
         release_status_class = "failed"
         release_status_text = "STOP — scan integrity failed"
         integrity_text = "Scan integrity failed — rerun before using this report"
+        share_answer = "No."
+        share_reason = (
+            "The dataset changed while it was being checked, so this report "
+            "may be incomplete."
+        )
+        share_next = "Stop changes to the dataset and run the audit again."
         high_action = (
             '<div class="report-actions"><a class="report-action" '
             'href="#what-to-do">Resolve integrity failure</a></div>'
@@ -971,6 +1024,16 @@ def render_html(report: ScanReport) -> str:
         release_status_class = "failed"
         release_status_text = "HOLD — high-priority findings"
         integrity_text = "Scan integrity passed — not release clearance"
+        share_answer = "No."
+        share_reason = (
+            f"{high_count} high-priority "
+            f'issue{"s" if high_count != 1 else ""} must be fixed first.'
+        )
+        share_next = (
+            "Open What to do next, fix the "
+            f'issue{"s" if high_count != 1 else ""} on a private copy, and '
+            "run the audit again."
+        )
         high_action = (
             '<div class="report-actions">'
             f'<a class="report-action" href="#what-to-do">Review {high_count} '
@@ -982,6 +1045,18 @@ def render_html(report: ScanReport) -> str:
         release_status_text = "HOLD — curator review required"
         integrity_text = "Scan integrity passed — not release clearance"
         review_count = summary["findings_review"]
+        share_answer = "Not yet."
+        share_reason = (
+            f"{review_count} "
+            f'item{"s" if review_count != 1 else ""} still '
+            f'{"needs" if review_count == 1 else "need"} a person to decide '
+            f'whether {"it is" if review_count == 1 else "they are"} safe to '
+            "share."
+        )
+        share_next = (
+            "Review every item, record the decision, and run the audit again "
+            "after any change."
+        )
         high_action = (
             '<div class="report-actions">'
             f'<a class="report-action hold" href="#what-to-do">Review {review_count} '
@@ -992,14 +1067,32 @@ def render_html(report: ScanReport) -> str:
         release_status_class = "hold"
         release_status_text = "HOLD — coverage review required"
         integrity_text = "Scan integrity passed — not release clearance"
+        share_answer = "Not yet."
+        share_reason = (
+            f"{coverage_gap_count} "
+            f'item{"s were" if coverage_gap_count != 1 else " was"} found '
+            "but not fully checked."
+        )
+        share_next = (
+            "Open Files needing manual review and check every remaining item."
+        )
         high_action = (
             '<div class="report-actions"><a class="report-action hold" '
             'href="#coverage-gaps">Review coverage gaps</a></div>'
         )
     else:
         release_status_class = "ok"
-        release_status_text = "No automated release hold"
+        release_status_text = "No automated blocker found"
         integrity_text = "Scan integrity passed — not proof of anonymity"
+        share_answer = "Not confirmed yet."
+        share_reason = (
+            "The automated checks found no blocker, but the coverage and "
+            "format limits still need review before sharing."
+        )
+        share_next = (
+            "Review the coverage and format limits before release. This report "
+            "is not approval to share."
+        )
         high_action = ""
     reference_summary = (
         f"{summary['references_valid']} valid of "
@@ -1044,7 +1137,7 @@ def render_html(report: ScanReport) -> str:
   </section>
 """
 
-    return f"""<!doctype html>
+    html = f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -1066,6 +1159,17 @@ def render_html(report: ScanReport) -> str:
       <span class="integrity-note">{integrity_text}</span>
     </div>
   </header>
+
+  <div class="share-decision {release_status_class}" role="region"
+  aria-labelledby="share-decision-title">
+    <div>
+      <div class="share-question" id="share-decision-title">Can this dataset be
+      shared now?</div>
+      <div class="share-answer">{_text(share_answer)}</div>
+    </div>
+    <div class="share-detail"><strong>Why</strong>{_text(share_reason)}</div>
+    <div class="share-detail"><strong>Next step</strong>{_text(share_next)}</div>
+  </div>
 
   <p class="privacy-warning" role="note"><strong>Keep this report private.</strong>
   Detected values are masked, but unrecognized identifying text may remain in
@@ -1161,3 +1265,4 @@ def render_html(report: ScanReport) -> str:
 </body>
 </html>
 """
+    return "\n".join(line.rstrip() for line in html.splitlines()) + "\n"
