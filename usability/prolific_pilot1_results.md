@@ -10,9 +10,17 @@ release decision and made the supporting evidence easy to find.
 - 13 fixed-choice questions per participant
 - 65 answers in total
 
+Curator experience was not required or measured in this first web sample. It
+was a basic comprehension check, not the intended formal evaluation with
+research-data staff or neurodata curators.
+
 The analysis used a private pseudonymous export. It contained numbered study
 slots, answers, confidence and task time, but no Prolific IDs, session IDs or
 stored identifier hashes. Row-level responses are not published.
+
+The participant-facing reports exactly match the deterministic report builder
+at repository commit `e67fae1`. All ten regenerated report SHA-256 values
+matched the copies used in the web study.
 
 ## Main result
 
@@ -39,13 +47,15 @@ and, to a lesser extent, Report D.
 
 ## Gate result
 
-**Pilot 1 did not pass the precommitted engineering gate.**
+This general-comprehension sample was not the intended formal reviewer group,
+so it is not a complete gate evaluation. Even as an exploratory comparison
+against the precommitted thresholds, **pilot 1 did not pass**.
 
-The overall score was above 80%, but the critical release and integrity
-decisions were not unanimous. Report C reached 1/5 and Report D reached 3/5.
-The gate does not allow a good average on other tasks to compensate for a wrong
-decision that could release a blocked copy or treat provisional findings as
-stable.
+The overall score was above 80%, but release-decision accuracy was 12/20 (60%)
+and critical-task accuracy was 22/30 (73.3%). Report C reached 1/5 and Report D
+reached 3/5. The gate does not allow a good average on other tasks to compensate
+for a wrong decision that could release a blocked copy or treat provisional
+findings as stable.
 
 ## What the pilot found
 
@@ -54,8 +64,10 @@ pilot did not say clearly enough that the release should remain on hold while an
 unsupported entry was reviewed. Only one participant selected the intended
 decision.
 
-Report D also needed clearer wording around an integrity failure. Three of five
-participants identified that its findings were provisional.
+Report D also needed clearer wording about the next action after an integrity
+failure. Three of five participants selected the intended action. The separate
+integrity-reliability pair reached 10/10, so the weakness was specific to Report
+D rather than a general failure to understand provisional findings.
 
 The more concrete evidence-location and correction tasks worked well. This
 suggests that people could usually find a named file, field or next action once
@@ -82,8 +94,9 @@ participant sample.
 
 ## Limits
 
-This was a five-person usability pilot, not an efficacy study. Multiple-choice
-answers can overestimate unaided understanding, and the sample is too small for
-population-level inference. The result supports report revision and a second
-pilot; it does not establish anonymity, legal compliance, scientific validity
-or security certification.
+This was a five-person basic-comprehension pilot, not a formal curator study or
+an efficacy study. Multiple-choice answers can overestimate unaided
+understanding, curator experience was not measured, and the sample is too small
+for population-level inference. The result supports report revision and a
+second pilot with the intended reviewer group; it does not establish anonymity,
+legal compliance, scientific validity or security certification.

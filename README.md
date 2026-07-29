@@ -229,18 +229,20 @@ The separate [report usability pilot](usability/README.md) tests whether an
 independent curator can understand the release decision, locate the file and
 field, choose a safe next step, notice a coverage gap and treat an integrity
 failure correctly. It does not repeat the leak-detection benchmark.
-The [first web-pilot results](usability/prolific_pilot1_results.md) record the
-aggregate five-person findings, the failed critical gate and the report changes
-made before a second pilot.
+The [first web-pilot results](usability/prolific_pilot1_results.md) record an
+exploratory five-person basic-comprehension check, its failed threshold
+comparison and the report changes made before a second pilot with the intended
+reviewer group.
 
 ## Status
 
 The private v0.1 snapshot was independently reviewed before it was merged.
 
-The v0.2 work adds complete release inventory, NIfTI and DICOM metadata checks,
-archive and cross-file reference checks, stronger integrity checks, an offline
-HTML report and calibration on 50 public OpenNeuro datasets. Each frozen
-candidate is independently checked before it can be merged.
+Private `main` now includes complete release inventory, NIfTI and DICOM metadata
+checks, archive and cross-file reference checks, stronger integrity checks, an
+offline HTML report and calibration on 50 public OpenNeuro datasets. The
+implementation merged as `10b2192` was independently checked before merge.
+Later documentation or code changes do not inherit that review.
 
 The project remains private. There is no public release or PyPI package.
 

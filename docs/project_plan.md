@@ -59,7 +59,7 @@ Status: implemented.
 
 ### M5 — integrated local candidate
 
-Status: implemented for the current v0.2 candidate.
+Status: implemented and merged into private `main`.
 
 - update CLI, schema, documentation and version;
 - run the full suite in base, EEG-format and imaging environments;
@@ -72,19 +72,21 @@ Status: implemented for the current v0.2 candidate.
 
 ### M6 — independent review
 
-Status: required for every frozen candidate before merge.
+Status: completed for private `main` at `10b2192`; required again for every
+later frozen candidate before merge.
 
 The reviewer receives one exact commit and package with hashes, test evidence,
 claim boundaries and known limitations. A previous PASS is not reused.
 
-No push, pull request, merge, tag, release or public publication is part of this
-stage without separate approval.
+The review of one exact snapshot does not authorize a later push, pull request,
+merge, tag, release or public publication.
 
-## Later decisions
+## Next decisions
 
-After independent review:
+After the current private validation:
 
 - decide whether the project should remain a small utility or be extended;
+- run the corrected report pilot with the intended reviewer group;
 - consider a public repository or software paper only if the validation supports it;
 - keep statistical disclosure analysis, MRI defacing and signal-based
   re-identification as separate workflows.
