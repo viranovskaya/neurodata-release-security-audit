@@ -95,7 +95,17 @@ jobs:
           neurodata-security-audit scan tests/fixtures/clean_bids \
             --json "${RUNNER_TEMP}/audit.json" \
             --html "${RUNNER_TEMP}/audit.html"
+          neurodata-security-audit checklist "${RUNNER_TEMP}/audit.json" \
+            --tsv "${RUNNER_TEMP}/audit-checklist.tsv"
+          neurodata-security-audit compare \
+            "${RUNNER_TEMP}/audit.json" "${RUNNER_TEMP}/audit.json" \
+            --confirm-same-dataset \
+            --json "${RUNNER_TEMP}/comparison.json" \
+            --markdown "${RUNNER_TEMP}/comparison.md"
           test -s "${RUNNER_TEMP}/audit.html"
+          test -s "${RUNNER_TEMP}/audit-checklist.tsv"
+          test -s "${RUNNER_TEMP}/comparison.json"
+          test -s "${RUNNER_TEMP}/comparison.md"
           (
             cd "${RUNNER_TEMP}"
             package_dir="$(
@@ -110,6 +120,9 @@ jobs:
             chmod -R a-w "${package_dir}"
             neurodata-usability-build-bundle \
               --output-dir "${RUNNER_TEMP}/participant-bundle"
+            neurodata-usability-build-response \
+              --participant-id reviewer-01 \
+              --output "${RUNNER_TEMP}/reviewer-01.json"
             python - "${package_dir}/spec.json" "${RUNNER_TEMP}/reviewer-01.json" <<'PY'
           import json
           from pathlib import Path
@@ -147,14 +160,15 @@ jobs:
             test "${before}" = "${after}"
             test ! -e "${RUNNER_TEMP}/participant-bundle/spec.json"
             test -s "${RUNNER_TEMP}/participant-bundle/reviewer_packet.md"
-            test -s "${RUNNER_TEMP}/participant-bundle/response_template.json"
+            test ! -e "${RUNNER_TEMP}/participant-bundle/response_template.json"
             test -s "${RUNNER_TEMP}/usability-result.json"
             test -s "${RUNNER_TEMP}/usability-result.md"
             if neurodata-usability-score --help | grep -q -- "--specification"; then
               exit 1
             fi
           )
-          python - "${RUNNER_TEMP}/audit.json" <<'PY'
+          python - "${RUNNER_TEMP}/audit.json" \
+            "${RUNNER_TEMP}/comparison.json" <<'PY'
           import json
           from pathlib import Path
           import sys
@@ -166,4 +180,9 @@ jobs:
               Path("schema/report.schema.json").read_text(encoding="utf-8")
           )
           jsonschema.validate(report, schema)
+          comparison = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          comparison_schema = json.loads(
+              Path("schema/comparison.schema.json").read_text(encoding="utf-8")
+          )
+          jsonschema.validate(comparison, comparison_schema)
           PY

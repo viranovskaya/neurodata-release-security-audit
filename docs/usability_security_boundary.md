@@ -22,17 +22,18 @@ Both output paths must be outside the installed package.
 `neurodata-usability-build-bundle --output-dir PATH` creates a new external
 directory containing only:
 
-- nine synthetic HTML reports;
-- `reviewer_packet.md`;
-- `response_template.json`.
+- ten synthetic HTML reports;
+- `reviewer_packet.md`.
 
 The destination must not already exist and must be outside the installed
 package. The builder returns resolved absolute paths; this is intentional on
 macOS, where `/var` and `/private/var` can identify the same directory.
 
 The bundle contains no private specification, expected-answer field, serialized
-answer map or answer-map SHA-256 fingerprint. Generated reports, participant
-templates, reviewer responses and scored results are not wheel package data.
+answer map or answer-map SHA-256 fingerprint. The participant returns only a
+completed Markdown packet. The administrator creates a separate pseudonymous
+JSON response with `neurodata-usability-build-response`. Generated reports,
+reviewer responses and scored results are not wheel package data.
 The installed package is treated as read-only and is hashed before and after
 the CLI integration test.
 

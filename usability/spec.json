@@ -124,7 +124,7 @@
       "choices": [
         {
           "value": "fif",
-          "label": "sub-01/eeg/sub-01_task-rest_eeg.fif"
+          "label": "sub-02/eeg/sub-02_task-rest_eeg.fif"
         },
         {
           "value": "participants",
@@ -249,38 +249,38 @@
       "prompt": "How many review items need a curator decision?",
       "choices": [
         {
+          "value": "124",
+          "label": "124"
+        },
+        {
           "value": "121",
           "label": "121"
         },
         {
-          "value": "120",
-          "label": "120"
-        },
-        {
-          "value": "30",
-          "label": "30"
+          "value": "31",
+          "label": "31"
         }
       ],
-      "expected": "121",
+      "expected": "124",
       "critical": false
     },
     {
       "task_id": "task_12",
       "report": "reports/report-i.html",
       "capability": "large_report",
-      "prompt": "Where is the unique technician-contact item?",
+      "prompt": "Which file contains the distinct evidence marker `<masked-review:length=17>`?",
       "choices": [
         {
           "value": "sub17",
-          "label": "sub-17/eeg/sub-17_task-rest_eeg.vhdr — Recording.TechnicianContact"
+          "label": "sub-17/eeg/sub-17_task-rest_eeg.vhdr — experimenter_comment"
         },
         {
           "value": "sub07",
           "label": "sub-07/eeg/sub-07_task-rest_eeg.vhdr — experimenter_comment"
         },
         {
-          "value": "sub30",
-          "label": "sub-30/eeg/sub-30_task-rest_eeg.vhdr — device.serial_number"
+          "value": "sub31",
+          "label": "sub-31/eeg/sub-31_task-rest_eeg.vhdr — experimenter_comment"
         }
       ],
       "expected": "sub17",

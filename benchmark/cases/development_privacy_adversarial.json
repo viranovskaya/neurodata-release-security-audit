@@ -1,0 +1,349 @@
+{
+  "schema_version": "1",
+  "cases": [
+    {
+      "case_id": "dev_privacy_compound_participant_record",
+      "split": "development",
+      "format": "json",
+      "files": {
+        "participant.json": "{\"participant\": {\"fullName\": \"Avery Benchmark\", \"dateOfBirth\": \"1988-03-04\", \"email\": \"participant@example.invalid\", \"emergencyPhone\": \"+34 600 222 333\", \"homeAddress\": \"14 Benchmark Street\", \"medicalRecordId\": \"MRN-ADV-001\", \"sourceId\": \"HOSP-ADV-001\"}}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "Avery Benchmark",
+        "1988-03-04",
+        "participant@example.invalid",
+        "+34 600 222 333",
+        "14 Benchmark Street",
+        "MRN-ADV-001",
+        "HOSP-ADV-001"
+      ],
+      "expected_findings": [
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "participant.json",
+          "location": "JSON field participant.full_name"
+        },
+        {
+          "code": "BIRTH_DATE_FIELD",
+          "severity": "high",
+          "path": "participant.json",
+          "location": "JSON field participant.date_of_birth"
+        },
+        {
+          "code": "DIRECT_EMAIL",
+          "severity": "high",
+          "path": "participant.json",
+          "location": "JSON value participant.<field>"
+        },
+        {
+          "code": "DIRECT_PHONE",
+          "severity": "high",
+          "path": "participant.json",
+          "location": "JSON field participant.emergency_phone"
+        },
+        {
+          "code": "POSTAL_ADDRESS_FIELD",
+          "severity": "high",
+          "path": "participant.json",
+          "location": "JSON field participant.home_address"
+        },
+        {
+          "code": "DIRECT_PERSONAL_ID",
+          "severity": "high",
+          "path": "participant.json",
+          "location": "JSON field participant.medical_record_id"
+        },
+        {
+          "code": "LINKED_SOURCE_ID",
+          "severity": "review",
+          "path": "participant.json",
+          "location": "JSON field participant.source_id"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_privacy_acquisition_trace",
+      "split": "development",
+      "format": "json",
+      "files": {
+        "acquisition.json": "{\"runtime\": {\"hostname\": \"acq-ws-17\", \"ipAddress\": \"10.20.30.40\", \"macAddress\": \"AA:BB:CC:DD:EE:FF\", \"username\": \"local.operator\"}, \"acquisition\": {\"operator\": \"Case Operator\", \"deviceSerial\": \"SN-ADV-4402\", \"acquisitionDateTime\": \"2024-01-02T03:04:05\", \"processingPath\": \"/Users/operator/private/sub-01\"}}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "acq-ws-17",
+        "10.20.30.40",
+        "AA:BB:CC:DD:EE:FF",
+        "local.operator",
+        "Case Operator",
+        "SN-ADV-4402",
+        "2024-01-02T03:04:05",
+        "/Users/operator/private/sub-01"
+      ],
+      "expected_findings": [
+        {
+          "code": "LOCAL_HOSTNAME",
+          "severity": "review",
+          "path": "acquisition.json",
+          "location": "JSON field runtime.hostname"
+        },
+        {
+          "code": "NETWORK_ADDRESS",
+          "severity": "review",
+          "path": "acquisition.json",
+          "location": "JSON field runtime.ip_address"
+        },
+        {
+          "code": "DEVICE_ADDRESS",
+          "severity": "review",
+          "path": "acquisition.json",
+          "location": "JSON field runtime.mac_address"
+        },
+        {
+          "code": "ACCOUNT_NAME",
+          "severity": "review",
+          "path": "acquisition.json",
+          "location": "JSON field runtime.username"
+        },
+        {
+          "code": "PERSONNEL_FIELD",
+          "severity": "review",
+          "path": "acquisition.json",
+          "location": "JSON field <field>.operator"
+        },
+        {
+          "code": "DEVICE_IDENTIFIER",
+          "severity": "review",
+          "path": "acquisition.json",
+          "location": "JSON field <field>.device_serial"
+        },
+        {
+          "code": "EXACT_RECORDING_DATE",
+          "severity": "review",
+          "path": "acquisition.json",
+          "location": "JSON field <field>.acquisition_date_time"
+        },
+        {
+          "code": "LOCAL_PATH",
+          "severity": "review",
+          "path": "acquisition.json",
+          "location": "JSON value <field>.<field>"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_privacy_short_credentials",
+      "split": "development",
+      "format": "json",
+      "files": {
+        "metadata.json": "{\"password\": \"q7\", \"clientSecret\": \"z9\", \"refreshToken\": \"token-3\", \"apiKey\": \"key-4\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "q7",
+        "z9",
+        "token-3",
+        "key-4"
+      ],
+      "expected_findings": [
+        {
+          "code": "POTENTIAL_SECRET",
+          "severity": "high",
+          "path": "metadata.json",
+          "location": "JSON field password"
+        },
+        {
+          "code": "POTENTIAL_SECRET",
+          "severity": "high",
+          "path": "metadata.json",
+          "location": "JSON field client_secret"
+        },
+        {
+          "code": "POTENTIAL_SECRET",
+          "severity": "high",
+          "path": "metadata.json",
+          "location": "JSON field refresh_token"
+        },
+        {
+          "code": "POTENTIAL_SECRET",
+          "severity": "high",
+          "path": "metadata.json",
+          "location": "JSON field api_key"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_privacy_credential_placeholders_control",
+      "split": "development",
+      "format": "json_control",
+      "files": {
+        "metadata.json": "{\"password\": \"unknown\", \"clientSecret\": \"n/a\", \"refreshToken\": \"none\", \"apiKey\": \"null\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": []
+    },
+    {
+      "case_id": "dev_privacy_public_and_participant_contacts",
+      "split": "development",
+      "format": "json",
+      "files": {
+        "dataset_description.json": "{\"Name\": \"Synthetic contact example\", \"Authors\": [\"Researcher <author@example.invalid>\"]}\n",
+        "participant.json": "{\"participant\": {\"email\": \"participant@example.invalid\"}}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "author@example.invalid",
+        "participant@example.invalid"
+      ],
+      "expected_findings": [
+        {
+          "code": "DIRECT_EMAIL",
+          "severity": "high",
+          "path": "participant.json",
+          "location": "JSON value participant.<field>"
+        },
+        {
+          "code": "DIRECT_EMAIL",
+          "severity": "review",
+          "path": "dataset_description.json",
+          "location": "JSON value <field>.<field>"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_privacy_structured_free_text_history",
+      "split": "development",
+      "format": "json",
+      "files": {
+        "history.json": "{\"patientHistory\": \"Patient name: Avery Stone\\nDate of birth: 04-03-1988\\nOriginal subject ID: HOSP-ADV-77\\nSource: /srv/private/sub-77\\nContact: subject77@example.invalid\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "Avery Stone",
+        "04-03-1988",
+        "HOSP-ADV-77",
+        "/srv/private/sub-77",
+        "subject77@example.invalid"
+      ],
+      "expected_findings": [
+        {
+          "code": "FREE_TEXT_METADATA",
+          "severity": "review",
+          "path": "history.json",
+          "location": "JSON field patient_history"
+        },
+        {
+          "code": "SUBJECT_NAME_FIELD",
+          "severity": "high",
+          "path": "history.json",
+          "location": "JSON value patient_history"
+        },
+        {
+          "code": "BIRTH_DATE_FIELD",
+          "severity": "high",
+          "path": "history.json",
+          "location": "JSON value patient_history"
+        },
+        {
+          "code": "LINKED_SOURCE_ID",
+          "severity": "review",
+          "path": "history.json",
+          "location": "JSON value patient_history"
+        },
+        {
+          "code": "NETWORK_PATH",
+          "severity": "review",
+          "path": "history.json",
+          "location": "JSON value patient_history"
+        },
+        {
+          "code": "DIRECT_EMAIL",
+          "severity": "high",
+          "path": "history.json",
+          "location": "JSON value patient_history"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_privacy_subject_mapping_file",
+      "split": "development",
+      "format": "tsv",
+      "files": {
+        "subject_mapping.tsv": "participant_id\tsource_subject_id\nsub-01\tHOSP-ADV-01\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [
+        "HOSP-ADV-01"
+      ],
+      "expected_findings": [
+        {
+          "code": "SUBJECT_KEY_FILE",
+          "severity": "high",
+          "path": "subject_mapping.tsv",
+          "location": "filename"
+        },
+        {
+          "code": "LINKED_SOURCE_ID",
+          "severity": "review",
+          "path": "subject_mapping.tsv",
+          "location": "row 2, column source_subject_id"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_privacy_sensitive_config_directory",
+      "split": "development",
+      "format": "config",
+      "files": {
+        ".ssh/id_rsa": "synthetic placeholder\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [
+        {
+          "code": "SENSITIVE_CONFIG_DIRECTORY",
+          "severity": "review",
+          "path": ".ssh",
+          "location": "directory name"
+        },
+        {
+          "code": "SENSITIVE_CONFIG_FILE",
+          "severity": "review",
+          "path": ".ssh/id_rsa",
+          "location": "filename"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_privacy_os_metadata_file",
+      "split": "development",
+      "format": "file_hygiene",
+      "files": {
+        ".DS_Store": "synthetic placeholder\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": [
+        {
+          "code": "OS_METADATA_FILE",
+          "severity": "review",
+          "path": ".DS_Store",
+          "location": "filename"
+        }
+      ]
+    },
+    {
+      "case_id": "dev_privacy_technical_placeholders_control",
+      "split": "development",
+      "format": "json_control",
+      "files": {
+        "hardware.json": "{\"hostname\": \"localhost\", \"ipAddress\": \"127.0.0.1\", \"username\": \"example\", \"password\": \"n/a\", \"participant_id\": \"sub-01\", \"microphone_model\": \"Mic-100\", \"headphone_model\": \"HP-20\"}\n"
+      },
+      "sensitive_terms": [],
+      "seeded_values": [],
+      "expected_findings": []
+    }
+  ]
+}

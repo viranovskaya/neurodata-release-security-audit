@@ -20,8 +20,7 @@ def _manifest(path: str) -> ManifestEntry:
     return ManifestEntry(path=path, size_bytes=512, sha256=digest)
 
 
-def _clean_report() -> ScanReport:
-    path = "dataset_description.json"
+def _clean_report(path: str, reason: str) -> ScanReport:
     return ScanReport(
         scanner_version="0.2.0.dev0",
         files_inspected=[path],
@@ -30,15 +29,15 @@ def _clean_report() -> ScanReport:
                 path=path,
                 entry_type="file",
                 status="fully_inspected_metadata",
-                reason="JSON metadata parsed",
+                reason=reason,
             )
         ],
         manifest=[_manifest(path)],
     )
 
 
-def _high_report() -> ScanReport:
-    path = "sub-01/eeg/sub-01_task-rest_eeg.fif"
+def _high_fif_report() -> ScanReport:
+    path = "sub-02/eeg/sub-02_task-rest_eeg.fif"
     return ScanReport(
         scanner_version="0.2.0.dev0",
         files_inspected=[path],
@@ -67,8 +66,34 @@ def _high_report() -> ScanReport:
     )
 
 
-def _coverage_report() -> ScanReport:
-    path = "sub-01/eeg/sub-01_task-rest_eeg.xyz"
+def _high_table_report() -> ScanReport:
+    path = "participants.tsv"
+    return ScanReport(
+        scanner_version="0.2.0.dev0",
+        files_inspected=[path],
+        coverage=[
+            CoverageEntry(
+                path=path,
+                entry_type="file",
+                status="fully_inspected_metadata",
+                reason="TSV metadata parsed",
+            )
+        ],
+        manifest=[_manifest(path)],
+        findings=[
+            Finding(
+                code="DIRECT_EMAIL",
+                severity="high",
+                path=path,
+                location="row 4, column contact",
+                evidence="<masked-email>",
+                message="Remove the direct email before release.",
+            )
+        ],
+    )
+
+
+def _coverage_report(path: str, reason: str) -> ScanReport:
     return ScanReport(
         scanner_version="0.2.0.dev0",
         coverage=[
@@ -76,14 +101,14 @@ def _coverage_report() -> ScanReport:
                 path=path,
                 entry_type="file",
                 status="unsupported_manual_review",
-                reason="The .xyz payload is not parsed by this scanner",
+                reason=reason,
             )
         ],
         manifest=[_manifest(path)],
     )
 
 
-def _integrity_report() -> ScanReport:
+def _manifest_integrity_report() -> ScanReport:
     path = "participants.tsv"
     return ScanReport(
         scanner_version="0.2.0.dev0",
@@ -112,6 +137,35 @@ def _integrity_report() -> ScanReport:
     )
 
 
+def _tree_integrity_report() -> ScanReport:
+    path = "dataset_description.json"
+    return ScanReport(
+        scanner_version="0.2.0.dev0",
+        files_inspected=[path],
+        coverage=[
+            CoverageEntry(
+                path=path,
+                entry_type="file",
+                status="fully_inspected_metadata",
+                reason="JSON metadata parsed",
+            )
+        ],
+        manifest=[_manifest(path)],
+        findings=[
+            Finding(
+                code="FREE_TEXT_METADATA",
+                severity="review",
+                path=path,
+                location="DatasetDescription",
+                evidence="<masked-free-text>",
+                message="Review this description for identifying details.",
+            )
+        ],
+        manifest_recheck_passed=True,
+        release_tree_recheck_passed=False,
+    )
+
+
 def _large_report() -> ScanReport:
     findings = []
     coverage = []
@@ -135,7 +189,7 @@ def _large_report() -> ScanReport:
             "Confirm that this reference does not expose a private location.",
         ),
     )
-    for subject in range(1, 31):
+    for subject in range(1, 32):
         path = f"sub-{subject:02d}/eeg/sub-{subject:02d}_task-rest_eeg.vhdr"
         files.append(path)
         coverage.append(
@@ -148,26 +202,21 @@ def _large_report() -> ScanReport:
         )
         manifest.append(_manifest(path))
         for code, location, message in locations:
+            evidence = (
+                "<masked-review:length=17>"
+                if subject == 17 and code == "FREE_TEXT_REVIEW"
+                else "<review>"
+            )
             findings.append(
                 Finding(
                     code=code,
                     severity="review",
                     path=path,
                     location=location,
-                    evidence="<review>",
+                    evidence=evidence,
                     message=message,
                 )
             )
-    findings.append(
-        Finding(
-            code="UNIQUE_CONTACT_REVIEW",
-            severity="review",
-            path="sub-17/eeg/sub-17_task-rest_eeg.vhdr",
-            location="Recording.TechnicianContact",
-            evidence="<masked-contact>",
-            message=("Check whether the technician contact is needed in the release."),
-        )
-    )
     return ScanReport(
         scanner_version="0.2.0.dev0",
         files_inspected=files,
@@ -209,14 +258,26 @@ def _inventory_report() -> ScanReport:
 def build_reports(output_dir: Path) -> dict[str, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
     reports = {
-        "report-a": _clean_report(),
-        "report-b": _high_report(),
-        "report-c": _coverage_report(),
-        "report-d": _integrity_report(),
-        "report-e": _high_report(),
-        "report-f": _coverage_report(),
-        "report-g": _clean_report(),
-        "report-h": _integrity_report(),
+        "report-a": _clean_report(
+            "dataset_description.json",
+            "JSON metadata parsed",
+        ),
+        "report-b": _high_table_report(),
+        "report-c": _coverage_report(
+            "sub-01/eeg/sub-01_task-rest_eeg.vendor",
+            "The .vendor payload is not parsed by this scanner",
+        ),
+        "report-d": _manifest_integrity_report(),
+        "report-e": _high_fif_report(),
+        "report-f": _coverage_report(
+            "sub-01/eeg/sub-01_task-rest_eeg.xyz",
+            "The .xyz payload is not parsed by this scanner",
+        ),
+        "report-g": _clean_report(
+            "participants.tsv",
+            "TSV metadata parsed",
+        ),
+        "report-h": _tree_integrity_report(),
         "report-i": _large_report(),
         "report-j": _inventory_report(),
     }
@@ -230,10 +291,21 @@ def build_reports(output_dir: Path) -> dict[str, Path]:
         raise ValueError(
             "Report directory contains unexpected HTML files: " + ", ".join(unexpected)
         )
+    rendered = {name: render_html(report) for name, report in reports.items()}
+    fingerprints: dict[str, str] = {}
+    for name, content in rendered.items():
+        fingerprint = hashlib.sha256(content.encode()).hexdigest()
+        if fingerprint in fingerprints:
+            raise ValueError(
+                "Usability reports must be byte-distinct: "
+                f"{fingerprints[fingerprint]} and {name}"
+            )
+        fingerprints[fingerprint] = name
+
     paths = {}
-    for name, report in reports.items():
+    for name, content in rendered.items():
         path = output_dir / f"{name}.html"
-        write_text_new(path, render_html(report))
+        write_text_new(path, content)
         paths[name] = path
     return paths
 

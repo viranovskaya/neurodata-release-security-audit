@@ -87,6 +87,7 @@ p { margin: 0; }
   font-weight: 650;
   text-decoration: none;
 }
+.report-action.hold { background: var(--review); }
 .decision {
   margin: 0 0 16px;
   padding: 14px 16px;
@@ -113,8 +114,20 @@ p { margin: 0; }
   font-weight: 650;
   white-space: nowrap;
 }
+.status-stack {
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+}
 .status.ok { color: var(--ok); background: var(--ok-soft); }
+.status.hold { color: var(--review); background: var(--review-soft); }
 .status.failed { color: var(--high); background: var(--high-soft); }
+.integrity-note {
+  color: var(--muted);
+  max-width: 270px;
+  font-size: .78rem;
+  text-align: right;
+}
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -126,6 +139,17 @@ p { margin: 0; }
   border-radius: 14px;
 }
 .card { padding: 16px; }
+.card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.card-link:hover { border-color: var(--info); transform: translateY(-1px); }
+.card-link:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 3px;
+}
 .label { color: var(--muted); font-size: .84rem; }
 .value { font-size: 1.75rem; font-weight: 700; margin-top: 2px; }
 .context { color: var(--muted); font-size: .84rem; margin-top: 2px; }
@@ -133,7 +157,7 @@ section { margin-top: 16px; padding: 20px; }
 .bars { display: grid; gap: 10px; }
 .bar-row {
   display: grid;
-  grid-template-columns: minmax(170px, .8fr) minmax(130px, 2fr) 44px;
+  grid-template-columns: minmax(170px, .8fr) minmax(130px, 2fr) 76px;
   gap: 12px;
   align-items: center;
 }
@@ -152,8 +176,27 @@ section { margin-top: 16px; padding: 20px; }
 .fill.coverage-3 { background: var(--coverage-3); }
 .fill.coverage-4 { background: var(--coverage-4); }
 .fill.coverage-5 { background: var(--coverage-5); }
-.count { text-align: right; font-variant-numeric: tabular-nums; }
+.count {
+  min-width: 70px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .table-wrap { overflow-x: auto; }
+.table-wrap:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 3px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 table {
   width: 100%;
   min-width: 900px;
@@ -216,6 +259,28 @@ code {
   align-items: center;
   margin-bottom: 10px;
 }
+.finding-tools {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.find-help {
+  padding: 10px 12px;
+  border-left: 4px solid var(--info);
+  border-radius: 8px;
+  background: var(--info-soft);
+  font-size: .88rem;
+}
+kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 650;
+}
 .finding-filters input {
   position: absolute;
   opacity: 0;
@@ -235,7 +300,8 @@ code {
 #findings-all:checked + label,
 #findings-high:checked + label,
 #findings-review:checked + label,
-#findings-info:checked + label {
+#findings-info:checked + label,
+#findings-distinct:checked + label {
   color: var(--surface);
   background: var(--info);
   border-color: var(--info);
@@ -247,6 +313,24 @@ code {
 .finding-filter-shell:has(#findings-info:checked)
   .finding-row:not(.finding-info) {
   display: none;
+}
+.finding-filter-shell:has(#findings-distinct:checked)
+  .finding-row:not(.finding-distinct) {
+  display: none;
+}
+.filter-status span { display: none; }
+.finding-filter-shell:has(#findings-all:checked) .filter-status-all,
+.finding-filter-shell:has(#findings-high:checked) .filter-status-high,
+.finding-filter-shell:has(#findings-review:checked) .filter-status-review,
+.finding-filter-shell:has(#findings-info:checked) .filter-status-info,
+.finding-filter-shell:has(#findings-distinct:checked) .filter-status-distinct {
+  display: inline;
+}
+.provisional-section { border-color: var(--high); }
+.provisional-section details { margin-top: 12px; }
+.provisional-section summary {
+  cursor: pointer;
+  font-weight: 650;
 }
 details.review-queue {
   margin-top: 16px;
@@ -267,7 +351,9 @@ footer {
 @media (max-width: 640px) {
   main { width: min(100% - 20px, 1180px); margin-top: 18px; }
   .top { display: grid; }
-  .bar-row { grid-template-columns: minmax(0, 1fr) 38px; }
+  .status-stack { justify-items: start; }
+  .integrity-note { text-align: left; }
+  .bar-row { grid-template-columns: minmax(0, 1fr) 70px; }
   .track { grid-column: 1 / -1; grid-row: 2; }
   section { padding: 16px; }
 }
@@ -280,7 +366,14 @@ footer {
     --line: #d1d5db;
   }
   main { width: 100%; margin: 0; }
-  .card, section { break-inside: avoid; }
+  .finding-tools { display: none; }
+  .finding-row { display: table-row !important; }
+  .provisional-section details > * { display: block !important; }
+  .provisional-section details > summary { display: none !important; }
+  .table-wrap { overflow: visible; }
+  table { min-width: 0; }
+  thead { display: table-header-group; }
+  .card, section { break-inside: auto; }
 }
 """
 
@@ -301,6 +394,7 @@ def _table(
     materialized = list(rows)
     if not materialized:
         return f'<p class="empty">{_text(empty)}</p>'
+    table_label = "Table: " + ", ".join(str(header) for header in headers)
     head = "".join(f"<th>{_text(header)}</th>" for header in headers)
     body_rows = []
     for row in materialized:
@@ -318,7 +412,9 @@ def _table(
             cells.append(f"<td{classes}>{rendered}</td>")
         body_rows.append("<tr>" + "".join(cells) + "</tr>")
     return (
-        '<div class="table-wrap"><table><thead><tr>'
+        f'<div class="table-wrap" role="region" tabindex="0" '
+        f'aria-label="{_text(table_label)}"><table>'
+        f'<caption class="sr-only">{_text(table_label)}</caption><thead><tr>'
         + head
         + "</tr></thead><tbody>"
         + "".join(body_rows)
@@ -328,18 +424,20 @@ def _table(
 
 def _bar_rows(
     values: Sequence[tuple[str, int, str]],
+    *,
+    denominator: int,
 ) -> str:
-    maximum = max((value for _, value, _ in values), default=0)
     rows = []
     for label, value, css_class in values:
-        width = 0 if maximum == 0 else 100 * value / maximum
+        width = 0 if denominator == 0 else 100 * value / denominator
+        displayed_count = str(value) if denominator == 0 else f"{value} / {denominator}"
         rows.append(
             '<div class="bar-row">'
             f"<span>{_text(label)}</span>"
             '<span class="track">'
             f'<span class="fill {_text(css_class)}" style="width:{width:.3f}%"></span>'
             "</span>"
-            f'<span class="count">{value}</span>'
+            f'<span class="count">{displayed_count}</span>'
             "</div>"
         )
     return '<div class="bars">' + "".join(rows) + "</div>"
@@ -399,14 +497,26 @@ def _filterable_findings_table(
     findings: list[tuple[str, str, str, str, str, str]],
 ) -> str:
     if not findings:
-        return '<p class="empty">No findings.</p>'
+        return (
+            '<p class="empty">No automated findings. Check Coverage and files '
+            "needing manual review before release.</p>"
+        )
 
     counts = {
         severity: sum(row[0] == severity for row in findings)
         for severity in ("high", "review", "info")
     }
+    codes = sorted({row[1] for row in findings})
+    code_classes = {code: f"finding-code-{index}" for index, code in enumerate(codes)}
+    evidence_counts: dict[str, int] = {}
+    for row in findings:
+        evidence_counts[row[4]] = evidence_counts.get(row[4], 0) + 1
+    distinct_count = sum(evidence_counts[row[4]] == 1 for row in findings)
     body = []
     for severity, code, path, location, evidence, message in findings:
+        classes = ["finding-row", f"finding-{severity}", code_classes[code]]
+        if evidence_counts[evidence] == 1:
+            classes.append("finding-distinct")
         cells = (
             f"<td>{_severity(severity)}</td>",
             f"<td><code>{_text(code)}</code></td>",
@@ -416,7 +526,7 @@ def _filterable_findings_table(
             f"<td>{_text(message)}</td>",
         )
         body.append(
-            f'<tr class="finding-row finding-{severity}">'
+            f'<tr class="{" ".join(classes)}">'
             + "".join(cells)
             + "</tr>"
         )
@@ -431,22 +541,93 @@ def _filterable_findings_table(
             "What to check",
         )
     )
+    code_filters = ""
+    code_statuses = ""
+    dynamic_css = ""
+    if len(codes) <= 8:
+        labels = []
+        statuses = []
+        rules = []
+        for code in codes:
+            css_class = code_classes[code]
+            filter_id = css_class.replace("finding-", "findings-")
+            count = sum(row[1] == code for row in findings)
+            labels.append(
+                f'<input type="radio" name="finding-filter" id="{filter_id}">'
+                f'<label for="{filter_id}">{_text(code)} {count}</label>'
+            )
+            statuses.append(
+                f'<span class="filter-status-{filter_id}">'
+                f"{count} finding"
+                f'{"s" if count != 1 else ""} shown for {_text(code)}.</span>'
+            )
+            rules.append(
+                f".finding-filter-shell:has(#{filter_id}:checked) "
+                f".finding-row:not(.{css_class}) {{ display: none; }}"
+            )
+            rules.append(
+                f"#{filter_id}:checked + label {{ color: var(--surface); "
+                "background: var(--info); border-color: var(--info); }"
+            )
+            rules.append(
+                f".finding-filter-shell:has(#{filter_id}:checked) "
+                f".filter-status-{filter_id} {{ display: inline; }}"
+            )
+        code_filters = "".join(labels)
+        code_statuses = "".join(statuses)
+        dynamic_css = "<style>" + "".join(rules) + "</style>"
+    severity_filters = []
+    severity_statuses = []
+    for severity, label in (
+        ("high", "High"),
+        ("review", "Review"),
+        ("info", "Info"),
+    ):
+        count = counts[severity]
+        if not count:
+            continue
+        severity_filters.append(
+            f'<input type="radio" name="finding-filter" '
+            f'id="findings-{severity}">'
+            f'<label for="findings-{severity}">{label} {count}</label>'
+        )
+        severity_statuses.append(
+            f'<span class="filter-status-{severity}">{count} {label.lower()} '
+            f'finding{"s" if count != 1 else ""} shown.</span>'
+        )
+    distinct_filter = (
+        '<input type="radio" name="finding-filter" id="findings-distinct">'
+        f'<label for="findings-distinct">Distinct evidence {distinct_count}</label>'
+        if distinct_count
+        else ""
+    )
     return f"""
+    {dynamic_css}
     <div class="finding-filter-shell">
-      <div class="finding-filters" role="group" aria-label="Filter findings">
-        <span class="label">Show</span>
-        <input type="radio" name="finding-filter" id="findings-all" checked>
-        <label for="findings-all">All {len(findings)}</label>
-        <input type="radio" name="finding-filter" id="findings-high">
-        <label for="findings-high">High {counts["high"]}</label>
-        <input type="radio" name="finding-filter" id="findings-review">
-        <label for="findings-review">Review {counts["review"]}</label>
-        <input type="radio" name="finding-filter" id="findings-info">
-        <label for="findings-info">Info {counts["info"]}</label>
+      <div class="finding-tools">
+        <div class="finding-filters" role="group" aria-label="Filter findings">
+          <span class="label">Show</span>
+          <input type="radio" name="finding-filter" id="findings-all" checked>
+          <label for="findings-all">All {len(findings)}</label>
+          {"".join(severity_filters)}
+          {distinct_filter}
+          {code_filters}
+        </div>
+        <div class="filter-status note" role="status" aria-live="polite">
+          <span class="filter-status-all">{len(findings)} finding
+          {"s" if len(findings) != 1 else ""} shown.</span>
+          {"".join(severity_statuses)}
+          <span class="filter-status-distinct">{distinct_count} finding
+          {"s" if distinct_count != 1 else ""} with evidence seen once shown.</span>
+          {code_statuses}
+        </div>
+        <div class="find-help"><strong>Find a file, field or value:</strong>
+        press <kbd>⌘F</kbd> on Mac or <kbd>Ctrl+F</kbd> on Windows, then type
+        part of the path, field, finding code or masked evidence.</div>
       </div>
-      <p class="note">Use the browser Find command to jump to a file, field or
-      finding code.</p>
-      <div class="table-wrap"><table><thead><tr>{head}</tr></thead>
+      <div class="table-wrap" role="region" tabindex="0"
+      aria-label="All findings table"><table>
+      <caption class="sr-only">All findings</caption><thead><tr>{head}</tr></thead>
       <tbody>{"".join(body)}</tbody></table></div>
     </div>
 """
@@ -457,6 +638,7 @@ def _remediation_content(
     *,
     high_count: int,
     review_count: int,
+    coverage_gap_count: int,
     manifest_recheck_passed: bool,
     release_tree_recheck_passed: bool,
 ) -> tuple[str, str]:
@@ -539,6 +721,32 @@ def _remediation_content(
       scientific properties did not change unexpectedly.</li>
     </ol>
 """
+    elif coverage_gap_count:
+        selected = []
+        secondary = []
+        decision = (
+            '<div class="decision review"><strong>No automated findings, but '
+            "release remains on hold.</strong> "
+            f"{coverage_gap_count} unsupported or untraversed "
+            f'entr{"y" if coverage_gap_count == 1 else "ies"} still '
+            f'{"needs" if coverage_gap_count == 1 else "need"} manual review.'
+            "</div>"
+        )
+        queue_note = (
+            "Open the manual-review table below and document a decision for "
+            "every remaining entry."
+        )
+        empty_message = "No automated remediation tasks."
+        correction_steps = """
+    <h3>Before release</h3>
+    <ol class="fix-list">
+      <li>Review every unsupported or untraversed entry below.</li>
+      <li>Use a suitable format-aware tool or document why the remaining
+      coverage gap is acceptable.</li>
+      <li>Run the audit again after any change and confirm both integrity
+      checks still pass.</li>
+    </ol>
+"""
     else:
         selected = []
         secondary = []
@@ -560,9 +768,10 @@ def _remediation_content(
 
     if selected:
         table, group_count = _action_groups_table(selected)
+        item_verb = "is" if len(selected) == 1 else "are"
         grouping_note = (
             f"{len(selected)} individual item"
-            f"{'s' if len(selected) != 1 else ''} are summarized in "
+            f"{'s' if len(selected) != 1 else ''} {item_verb} summarized in "
             f"{group_count} action group"
             f"{'s' if group_count != 1 else ''}. Grouping uses the finding "
             "code, field or location, and recommended action."
@@ -614,6 +823,9 @@ def render_html(report: ScanReport) -> str:
         + summary["findings_review"]
         + summary["findings_info"]
     )
+    coverage_gap_count = (
+        summary["unsupported_manual_review"] + summary["not_traversed"]
+    )
 
     findings = []
     for item in data["findings"]:
@@ -632,6 +844,7 @@ def render_html(report: ScanReport) -> str:
         findings,
         high_count=summary["findings_high"],
         review_count=summary["findings_review"],
+        coverage_gap_count=coverage_gap_count,
         manifest_recheck_passed=summary["manifest_recheck_passed"],
         release_tree_recheck_passed=summary["release_tree_recheck_passed"],
     )
@@ -647,7 +860,7 @@ def render_html(report: ScanReport) -> str:
             )
             for item in data["coverage"]
         ),
-        empty="No release entries were recorded.",
+        empty="No files or folders were recorded.",
         code_columns=frozenset({0}),
     )
     coverage_gap_table = _table(
@@ -657,7 +870,7 @@ def render_html(report: ScanReport) -> str:
             for item in data["coverage"]
             if item["status"] in {"unsupported_manual_review", "not_traversed"}
         ),
-        empty="No unsupported or untraversed release entries.",
+        empty="No unsupported or untraversed files or folders.",
         code_columns=frozenset({0}),
     )
     references_table = _table(
@@ -712,7 +925,8 @@ def render_html(report: ScanReport) -> str:
             ("High severity", summary["findings_high"], "high"),
             ("Needs review", summary["findings_review"], "review"),
             ("Information", summary["findings_info"], "info"),
-        )
+        ),
+        denominator=finding_total,
     )
     coverage_bars = _bar_rows(
         (
@@ -741,33 +955,94 @@ def render_html(report: ScanReport) -> str:
                 summary["not_traversed"],
                 "coverage-5",
             ),
-        )
+        ),
+        denominator=summary["entries_total"],
     )
-    status_class = "ok" if integrity_ok else "failed"
-    status_text = "Integrity checks passed" if integrity_ok else "Integrity check failed"
     high_count = summary["findings_high"]
     if not integrity_ok:
+        release_status_class = "failed"
+        release_status_text = "STOP — scan integrity failed"
+        integrity_text = "Scan integrity failed — rerun before using this report"
         high_action = (
             '<div class="report-actions"><a class="report-action" '
             'href="#what-to-do">Resolve integrity failure</a></div>'
         )
-    else:
+    elif high_count:
+        release_status_class = "failed"
+        release_status_text = "HOLD — high-priority findings"
+        integrity_text = "Scan integrity passed — not release clearance"
         high_action = (
-        '<div class="report-actions">'
-        f'<a class="report-action" href="#what-to-do">Review {high_count} '
-        f'high-priority finding{"s" if high_count != 1 else ""}</a>'
-        "</div>"
-        if high_count
-        else ""
+            '<div class="report-actions">'
+            f'<a class="report-action" href="#what-to-do">Review {high_count} '
+            f'high-priority finding{"s" if high_count != 1 else ""}</a>'
+            "</div>"
         )
-    valid_references = (
-        f"{summary['references_valid']} / {summary['references_checked']}"
+    elif summary["findings_review"]:
+        release_status_class = "hold"
+        release_status_text = "HOLD — curator review required"
+        integrity_text = "Scan integrity passed — not release clearance"
+        review_count = summary["findings_review"]
+        high_action = (
+            '<div class="report-actions">'
+            f'<a class="report-action hold" href="#what-to-do">Review {review_count} '
+            f'finding{"s" if review_count != 1 else ""}</a>'
+            "</div>"
+        )
+    elif coverage_gap_count:
+        release_status_class = "hold"
+        release_status_text = "HOLD — coverage review required"
+        integrity_text = "Scan integrity passed — not release clearance"
+        high_action = (
+            '<div class="report-actions"><a class="report-action hold" '
+            'href="#coverage-gaps">Review coverage gaps</a></div>'
+        )
+    else:
+        release_status_class = "ok"
+        release_status_text = "No automated release hold"
+        integrity_text = "Scan integrity passed — not proof of anonymity"
+        high_action = ""
+    reference_summary = (
+        f"{summary['references_valid']} valid of "
+        f"{summary['references_checked']} checked"
+    )
+    reference_card = (
+        f"""
+    <a class="card card-link" href="#cross-file-references">
+      <div class="label">Valid cross-file references</div>
+      <div class="value">{reference_summary}</div>
+      <div class="context">{summary["container_members"]} archive members
+      inventoried. Open reference details.</div>
+    </a>
+"""
+        if summary["references_checked"]
+        else ""
     )
     manifest_label = (
         "regular file"
         if summary["manifest_files"] == 1
         else "regular files"
     )
+    if integrity_ok:
+        findings_section = f"""
+  <section id="all-findings">
+    <h2>All findings</h2>
+    {findings_table}
+  </section>
+"""
+    else:
+        findings_section = f"""
+  <section id="all-findings" class="provisional-section">
+    <h2>Provisional findings</h2>
+    <div class="decision high"><strong>Do not act on individual findings
+    yet.</strong> The candidate changed during the scan or could not be
+    rechecked consistently. Stabilize it and rerun the audit first.</div>
+    <details>
+      <summary>View {finding_total} provisional
+      finding{"s" if finding_total != 1 else ""}</summary>
+      {findings_table}
+    </details>
+  </section>
+"""
 
     return f"""<!doctype html>
 <html lang="en">
@@ -786,7 +1061,10 @@ def render_html(report: ScanReport) -> str:
       items that need a decision; it does not certify anonymity or compliance.</p>
       {high_action}
     </div>
-    <span class="status {status_class}">{status_text}</span>
+    <div class="status-stack">
+      <span class="status {release_status_class}">{release_status_text}</span>
+      <span class="integrity-note">{integrity_text}</span>
+    </div>
   </header>
 
   <p class="privacy-warning" role="note"><strong>Keep this report private.</strong>
@@ -794,32 +1072,33 @@ def render_html(report: ScanReport) -> str:
   relative paths or locations. Review the report before sharing or publishing it.</p>
 
   <div class="grid" aria-label="Audit summary">
-    <div class="card">
+    <a class="card card-link" href="#inventory">
       <div class="label">Files and folders accounted for</div>
       <div class="value">{summary["entries_total"]}</div>
       <div class="context">{summary["manifest_files"]} {manifest_label} in the manifest.
-      The total also includes folders, symlinks and unsupported filesystem entries.</div>
-    </div>
-    <div class="card">
+      This broader total also includes folders, symlinks and unsupported
+      filesystem entries. Open the inventory.</div>
+    </a>
+    <a class="card card-link" href="#all-findings">
       <div class="label">Findings</div>
       <div class="value">{finding_total}</div>
-      <div class="context">{summary["findings_high"]} high · {summary["findings_review"]} review</div>
-    </div>
-    <div class="card">
-      <div class="label">Files inspected</div>
+      <div class="context">{summary["findings_high"]} high ·
+      {summary["findings_review"]} review. Open the finding list.</div>
+    </a>
+    <a class="card card-link" href="#coverage">
+      <div class="label">Files inspected by the scanner</div>
       <div class="value">{summary["files_inspected"]}</div>
-      <div class="context">{summary["files_skipped"]} skipped or partially covered</div>
-    </div>
-    <div class="card">
-      <div class="label">Valid references</div>
-      <div class="value">{valid_references}</div>
-      <div class="context">{summary["container_members"]} archive members inventoried</div>
-    </div>
+      <div class="context">{summary["files_skipped"]} files skipped. This count
+      excludes folders and differs from the inventory total. Open Coverage.</div>
+    </a>
+    {reference_card}
   </div>
 
   <section>
     <h2>Findings by severity</h2>
     {severity_bars}
+    <p class="note">Each bar uses the same denominator:
+    {finding_total} total finding{"s" if finding_total != 1 else ""}.</p>
   </section>
 
   <section id="what-to-do">
@@ -827,11 +1106,14 @@ def render_html(report: ScanReport) -> str:
     {remediation_content}
   </section>
 
-  <section>
+  <section id="coverage">
     <h2>Coverage</h2>
     {coverage_bars}
-    <p class="note">Coverage describes what was read. It is separate from privacy
-    findings. Signal samples, image voxels and DICOM pixels are not interpreted.</p>
+    <p class="note">Coverage categories are mutually exclusive and use the same
+    denominator: {summary["entries_total"]} accounted
+    entr{"y" if summary["entries_total"] == 1 else "ies"}. Coverage describes
+    what was read and is separate from privacy findings. Signal samples, image
+    voxels and DICOM pixels are not interpreted.</p>
   </section>
 
   <section id="coverage-gaps">
@@ -842,12 +1124,9 @@ def render_html(report: ScanReport) -> str:
     gap is acceptable for this release.</p>
   </section>
 
-  <section id="all-findings">
-    <h2>All findings</h2>
-    {findings_table}
-  </section>
+  {findings_section}
 
-  <section>
+  <section id="inventory">
     <h2>Files and folders accounted for</h2>
     {coverage_table}
     <p class="note">This inventory includes files, folders, symlinks and
@@ -855,7 +1134,7 @@ def render_html(report: ScanReport) -> str:
     only.</p>
   </section>
 
-  <section>
+  <section id="cross-file-references">
     <h2>Cross-file references</h2>
     {references_table}
   </section>

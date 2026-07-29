@@ -44,7 +44,7 @@ in the private independent-review handoff rather than the repository.
 | Datasets completed | 50 / 50 |
 | Real-payload slices | 39 |
 | Metadata-only slices | 11 |
-| Release entries | 31,472 |
+| Files and folders accounted for | 31,472 |
 | Regular files in the integrity manifest | 24,442 |
 | Files inspected | 24,434 |
 | Deliberately skipped payload or legacy structures | 11 |
@@ -81,6 +81,12 @@ The corrected pass:
 After these corrections, only eight signal or image payloads and three legacy
 EEGLAB structures remained deliberately unparsed. There was no optional-reader
 failure in the final run.
+
+The format-selection record for the next candidate is in
+[`format_selection_v0.2.1.md`](format_selection_v0.2.1.md). The calibration does
+not justify adding a new general reader. It points instead to one explicit
+boundary: legacy nested EEGLAB metadata remains a manual-review case because a
+safe metadata-only parse has not been demonstrated.
 
 ## Interpretation limits
 
