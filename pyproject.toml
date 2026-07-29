@@ -41,6 +41,7 @@ namespaces = false
 [tool.setuptools.package-data]
 usability = [
   "README.md",
+  "prolific_pilot1_results.md",
   "spec.json",
 ]
 

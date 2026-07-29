@@ -322,9 +322,9 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             len({response["task_id"] for response in template["responses"]}),
         )
 
-    def test_installed_usability_package_contains_runtime_materials(self) -> None:
+    def test_installed_usability_package_contains_admin_materials(self) -> None:
         package_root = Path(usability.__file__).resolve().parent
-        required = ("README.md", "spec.json")
+        required = ("README.md", "prolific_pilot1_results.md", "spec.json")
 
         for relative_path in required:
             with self.subTest(relative_path=relative_path):

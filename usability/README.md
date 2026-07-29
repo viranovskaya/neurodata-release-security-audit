@@ -119,3 +119,17 @@ critical gate. A good average cannot hide it.
 These are practical engineering thresholds, not a validated psychometric
 instrument. A passing pilot applies only to this report version, task set and
 reviewer group. It is not a privacy, legal or usability certification.
+
+## First web pilot
+
+A five-person Prolific basic-comprehension pilot produced 55/65 correct answers
+(84.6%). Curator experience was not required or measured, so this was not the
+intended formal reviewer group. Even as an exploratory threshold comparison,
+the pilot did not pass: release-decision accuracy was 60% and critical-task
+accuracy was 73.3%. An older generated copy of Report C reached only 1/5 and
+showed that the hold decision was not clear enough.
+
+The aggregate findings, sensitivity check and resulting changes are described
+in [prolific_pilot1_results.md](prolific_pilot1_results.md). Row-level responses
+remain private. The corrected reports have not yet been tested with a second
+participant sample.

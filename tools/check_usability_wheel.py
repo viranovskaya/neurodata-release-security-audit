@@ -19,6 +19,7 @@ def check_wheel(path: Path) -> None:
             "usability/build_reviewer_packet.py",
             "usability/score_responses.py",
             "usability/README.md",
+            "usability/prolific_pilot1_results.md",
             "usability/spec.json",
         }
         missing = sorted(required - names)
