@@ -233,6 +233,9 @@ The [first web-pilot results](usability/prolific_pilot1_results.md) record an
 exploratory five-person basic-comprehension check, its failed threshold
 comparison and the report changes made before a second pilot with the intended
 reviewer group.
+A separate [synthetic usability stress test](usability/synthetic_usability_stress_test.md)
+records the model-based wording check used before that second paid sample. It
+is development evidence only and is not combined with human pilot results.
 
 ## Status
 
