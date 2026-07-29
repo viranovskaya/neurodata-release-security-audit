@@ -12,23 +12,23 @@
       "task_id": "task_01",
       "report": "reports/report-c.html",
       "capability": "release_decision",
-      "prompt": "What should happen next?",
+      "prompt": "Which action does this report recommend?",
       "choices": [
         {
           "value": "continue_scope_review",
-          "label": "Continue to the remaining coverage and format checks."
+          "label": "Keep reviewing the remaining files and format limits before deciding whether to share."
         },
         {
           "value": "hold_high",
-          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+          "label": "Do not share this copy. Fix the high-priority problem, then run the audit again."
         },
         {
           "value": "hold_coverage",
-          "label": "Hold the release decision and manually review an unsupported entry."
+          "label": "Do not decide yet. Manually check the file that the audit could not inspect."
         },
         {
           "value": "invalidate_integrity",
-          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+          "label": "Do not use this report. Keep the dataset unchanged, then run the audit again."
         }
       ],
       "expected": "hold_coverage",
@@ -39,23 +39,23 @@
       "task_id": "task_02",
       "report": "reports/report-a.html",
       "capability": "release_decision",
-      "prompt": "What should happen next?",
+      "prompt": "Which action does this report recommend?",
       "choices": [
         {
           "value": "continue_scope_review",
-          "label": "Continue to the remaining coverage and format checks."
+          "label": "Keep reviewing the remaining files and format limits before deciding whether to share."
         },
         {
           "value": "hold_high",
-          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+          "label": "Do not share this copy. Fix the high-priority problem, then run the audit again."
         },
         {
           "value": "hold_coverage",
-          "label": "Hold the release decision and manually review an unsupported entry."
+          "label": "Do not decide yet. Manually check the file that the audit could not inspect."
         },
         {
           "value": "invalidate_integrity",
-          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+          "label": "Do not use this report. Keep the dataset unchanged, then run the audit again."
         }
       ],
       "expected": "continue_scope_review",
@@ -66,23 +66,23 @@
       "task_id": "task_03",
       "report": "reports/report-d.html",
       "capability": "release_decision",
-      "prompt": "What should happen next?",
+      "prompt": "Which action does this report recommend?",
       "choices": [
         {
           "value": "continue_scope_review",
-          "label": "Continue to the remaining coverage and format checks."
+          "label": "Keep reviewing the remaining files and format limits before deciding whether to share."
         },
         {
           "value": "hold_high",
-          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+          "label": "Do not share this copy. Fix the high-priority problem, then run the audit again."
         },
         {
           "value": "hold_coverage",
-          "label": "Hold the release decision and manually review an unsupported entry."
+          "label": "Do not decide yet. Manually check the file that the audit could not inspect."
         },
         {
           "value": "invalidate_integrity",
-          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+          "label": "Do not use this report. Keep the dataset unchanged, then run the audit again."
         }
       ],
       "expected": "invalidate_integrity",
@@ -93,23 +93,23 @@
       "task_id": "task_04",
       "report": "reports/report-b.html",
       "capability": "release_decision",
-      "prompt": "What should happen next?",
+      "prompt": "Which action does this report recommend?",
       "choices": [
         {
           "value": "continue_scope_review",
-          "label": "Continue to the remaining coverage and format checks."
+          "label": "Keep reviewing the remaining files and format limits before deciding whether to share."
         },
         {
           "value": "hold_high",
-          "label": "Hold this copy, correct a high-priority finding and rerun the audit."
+          "label": "Do not share this copy. Fix the high-priority problem, then run the audit again."
         },
         {
           "value": "hold_coverage",
-          "label": "Hold the release decision and manually review an unsupported entry."
+          "label": "Do not decide yet. Manually check the file that the audit could not inspect."
         },
         {
           "value": "invalidate_integrity",
-          "label": "Treat the findings as provisional, stabilize the candidate and rerun."
+          "label": "Do not use this report. Keep the dataset unchanged, then run the audit again."
         }
       ],
       "expected": "hold_high",
