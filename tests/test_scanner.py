@@ -2889,7 +2889,10 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("sub-01/eeg/sub-01_task-rest_eeg.set", rendered)
         self.assertIn("EEGLAB field comments", rendered)
         self.assertIn("HOLD — curator review required", rendered)
-        self.assertIn("Scan integrity passed — not release clearance", rendered)
+        self.assertIn(
+            "The dataset stayed unchanged during this scan — not release clearance",
+            rendered,
+        )
 
     def test_clean_html_report_keeps_coverage_limits_visible(self) -> None:
         (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
@@ -2900,7 +2903,15 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("This is not proof of anonymity.", rendered)
         self.assertIn("No immediate remediation tasks.", rendered)
         self.assertIn("No automated blocker found", rendered)
-        self.assertIn("Scan integrity passed — not proof of anonymity", rendered)
+        self.assertIn(
+            "The dataset stayed unchanged during this scan — not proof of anonymity",
+            rendered,
+        )
+        self.assertIn(
+            "Yes — for the next review step, with the stated coverage and format "
+            "limits.",
+            rendered,
+        )
 
     def test_html_report_starts_with_a_plain_release_decision(self) -> None:
         high = Finding(
@@ -2934,7 +2945,7 @@ class ScannerTests(unittest.TestCase):
                 ),
                 "No.",
                 "The dataset changed while it was being checked",
-                "Stop changes to the dataset and run the audit again.",
+                "Do not use this report for a release decision.",
             ),
             (
                 "high",
@@ -2975,6 +2986,34 @@ class ScannerTests(unittest.TestCase):
                 self.assertIn(next_step, rendered)
                 self.assertIn('aria-labelledby="share-decision-title"', rendered)
 
+    def test_html_report_separates_finding_list_from_release_clearance(self) -> None:
+        stable = render_html(ScanReport(scanner_version="test"))
+        unstable = render_html(
+            ScanReport(
+                scanner_version="test",
+                release_tree_recheck_passed=False,
+            )
+        )
+
+        question = "Can this finding list be used for the next review step?"
+        self.assertIn(question, stable)
+        self.assertIn(
+            "Yes — for the next review step, with the stated coverage and format "
+            "limits.",
+            stable,
+        )
+        self.assertIn("This is not permission to share the dataset.", stable)
+        self.assertIn(question, unstable)
+        self.assertIn(
+            "No. This finding list is provisional until a new scan passes both "
+            "integrity checks.",
+            unstable,
+        )
+        self.assertIn(
+            "Do not use this report for a release decision.",
+            unstable,
+        )
+
     def test_html_report_has_no_trailing_whitespace(self) -> None:
         rendered = render_html(ScanReport(scanner_version="test"))
 
@@ -3009,7 +3048,7 @@ class ScannerTests(unittest.TestCase):
                 report_text,
             )
         self.assertIn('href="#coverage-gaps"', rendered)
-        self.assertIn("HOLD — coverage review required", rendered)
+        self.assertIn("HOLD — 1 item needs manual review", rendered)
 
     def test_integrity_failure_overrides_all_remediation_states(self) -> None:
         cases = (
