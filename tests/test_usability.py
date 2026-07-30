@@ -364,6 +364,13 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                         first[name].read_bytes(),
                         second[name].read_bytes(),
                     )
+                    report_letter = name.removeprefix("report-").upper()
+                    rendered = first[name].read_text(encoding="utf-8")
+                    self.assertIn(
+                        "NeuroData release security audit"
+                        f" — Report {report_letter} of {len(first)}",
+                        rendered,
+                    )
                 self.assertEqual(
                     len(first),
                     len({path.read_bytes() for path in first.values()}),

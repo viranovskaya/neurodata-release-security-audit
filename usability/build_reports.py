@@ -291,7 +291,16 @@ def build_reports(output_dir: Path) -> dict[str, Path]:
         raise ValueError(
             "Report directory contains unexpected HTML files: " + ", ".join(unexpected)
         )
-    rendered = {name: render_html(report) for name, report in reports.items()}
+    report_count = len(reports)
+    rendered = {
+        name: render_html(
+            report,
+            report_label=(
+                f"Report {name.removeprefix('report-').upper()} of {report_count}"
+            ),
+        )
+        for name, report in reports.items()
+    }
     fingerprints: dict[str, str] = {}
     for name, content in rendered.items():
         fingerprint = hashlib.sha256(content.encode()).hexdigest()

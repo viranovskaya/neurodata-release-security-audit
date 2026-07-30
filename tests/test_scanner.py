@@ -2776,6 +2776,22 @@ class ScannerTests(unittest.TestCase):
         self.assertNotIn("<script", first.lower())
         self.assertNotIn("https://", first)
 
+    def test_html_report_can_show_a_study_case_label(self) -> None:
+        rendered = render_html(
+            ScanReport(scanner_version="test"),
+            report_label="Report C of 10",
+        )
+
+        self.assertIn(
+            "<title>NeuroData release security audit — Report C of 10</title>",
+            rendered,
+        )
+        self.assertIn(
+            "<h1>NeuroData release security audit — Report C of 10</h1>",
+            rendered,
+        )
+        self.assertIn("This is a separate audit case in the study.", rendered)
+
     def test_findings_with_the_same_location_have_a_total_order(self) -> None:
         common = {
             "code": "MISSING_DATA_REFERENCE",
@@ -3098,6 +3114,8 @@ class ScannerTests(unittest.TestCase):
                     "Do not act on individual findings",
                     html,
                 )
+                self.assertNotIn('<div class="label">Findings</div>', html)
+                self.assertNotIn("<h2>Findings by severity</h2>", html)
 
     def test_html_summary_links_to_explanations_and_hides_empty_reference_card(
         self,

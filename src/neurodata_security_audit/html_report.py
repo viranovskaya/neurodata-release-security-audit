@@ -871,7 +871,7 @@ def _remediation_content(
     return content, "What to do next"
 
 
-def render_html(report: ScanReport) -> str:
+def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
     """Render one deterministic standalone HTML report."""
     data = report.to_dict()
     summary = data["summary"]
@@ -1188,6 +1188,22 @@ def render_html(report: ScanReport) -> str:
         else ""
     )
     if integrity_ok:
+        findings_card = f"""
+    <a class="card card-link" href="#all-findings">
+      <div class="label">Findings</div>
+      <div class="value">{finding_total}</div>
+      <div class="context">{summary["findings_high"]} high ·
+      {summary["findings_review"]} review. Open the finding list.</div>
+    </a>
+"""
+        severity_section = f"""
+  <section>
+    <h2>Findings by severity</h2>
+    {severity_bars}
+    <p class="note">Each bar uses the same denominator:
+    {finding_total} total finding{"s" if finding_total != 1 else ""}.</p>
+  </section>
+"""
         findings_section = f"""
   <section id="all-findings">
     <h2>All findings</h2>
@@ -1195,6 +1211,8 @@ def render_html(report: ScanReport) -> str:
   </section>
 """
     else:
+        findings_card = ""
+        severity_section = ""
         findings_section = f"""
   <section id="all-findings" class="provisional-section">
     <h2>Provisional findings</h2>
@@ -1209,21 +1227,28 @@ def render_html(report: ScanReport) -> str:
   </section>
 """
 
+    report_title = "NeuroData release security audit"
+    study_context = ""
+    if report_label:
+        report_title += f" — {_text(report_label)}"
+        study_context = " This is a separate audit case in the study."
+
     html = f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NeuroData release security audit</title>
+<title>{report_title}</title>
 <style>{_STYLE}</style>
 </head>
 <body>
 <main>
   <header class="top">
     <div>
-      <h1>NeuroData release security audit</h1>
+      <h1>{report_title}</h1>
       <p class="subtitle">A local, read-only pre-release check. This report identifies
-      items that need a decision; it does not certify anonymity or compliance.</p>
+      items that need a decision; it does not certify anonymity or
+      compliance.{study_context}</p>
       {high_action}
     </div>
     <div class="status-stack">
@@ -1258,12 +1283,7 @@ def render_html(report: ScanReport) -> str:
       <div class="value">{summary["entries_total"]}</div>
       <div class="context">{_text(entry_breakdown)}. Open the inventory.</div>
     </a>
-    <a class="card card-link" href="#all-findings">
-      <div class="label">Findings</div>
-      <div class="value">{finding_total}</div>
-      <div class="context">{summary["findings_high"]} high ·
-      {summary["findings_review"]} review. Open the finding list.</div>
-    </a>
+    {findings_card}
     <a class="card card-link" href="#coverage">
       <div class="label">Files inspected by the scanner</div>
       <div class="value">{summary["files_inspected"]}</div>
@@ -1273,12 +1293,7 @@ def render_html(report: ScanReport) -> str:
     {reference_card}
   </div>
 
-  <section>
-    <h2>Findings by severity</h2>
-    {severity_bars}
-    <p class="note">Each bar uses the same denominator:
-    {finding_total} total finding{"s" if finding_total != 1 else ""}.</p>
-  </section>
+  {severity_section}
 
   <section id="what-to-do">
     <h2>{remediation_title}</h2>
