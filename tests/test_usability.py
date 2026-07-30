@@ -368,7 +368,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
                     rendered = first[name].read_text(encoding="utf-8")
                     self.assertIn(
                         "NeuroData release security audit"
-                        f" — Report {report_letter} of {len(first)}",
+                        f" — Report {report_letter}",
                         rendered,
                     )
                 self.assertEqual(

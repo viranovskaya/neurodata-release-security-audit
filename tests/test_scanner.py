@@ -2779,15 +2779,15 @@ class ScannerTests(unittest.TestCase):
     def test_html_report_can_show_a_study_case_label(self) -> None:
         rendered = render_html(
             ScanReport(scanner_version="test"),
-            report_label="Report C of 10",
+            report_label="Report C",
         )
 
         self.assertIn(
-            "<title>NeuroData release security audit — Report C of 10</title>",
+            "<title>NeuroData release security audit — Report C</title>",
             rendered,
         )
         self.assertIn(
-            "<h1>NeuroData release security audit — Report C of 10</h1>",
+            "<h1>NeuroData release security audit — Report C</h1>",
             rendered,
         )
         self.assertIn("This is a separate audit case in the study.", rendered)
