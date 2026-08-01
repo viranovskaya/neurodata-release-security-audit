@@ -186,4 +186,4 @@ Current working title: **NeuroData Release Security Audit**.
 
 Possible repository name: `neurodata-release-security-audit`.
 
-A private GitHub repository now uses this name. No public release or PyPI project exists yet.
+The first public beta uses this name. No PyPI project exists yet.

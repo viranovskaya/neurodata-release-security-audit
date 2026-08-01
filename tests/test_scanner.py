@@ -2776,6 +2776,22 @@ class ScannerTests(unittest.TestCase):
         self.assertNotIn("<script", first.lower())
         self.assertNotIn("https://", first)
 
+    def test_html_report_can_show_a_study_case_label(self) -> None:
+        rendered = render_html(
+            ScanReport(scanner_version="test"),
+            report_label="Report C",
+        )
+
+        self.assertIn(
+            "<title>NeuroData release security audit — Report C</title>",
+            rendered,
+        )
+        self.assertIn(
+            "<h1>NeuroData release security audit — Report C</h1>",
+            rendered,
+        )
+        self.assertIn("This is a separate audit case in the study.", rendered)
+
     def test_findings_with_the_same_location_have_a_total_order(self) -> None:
         common = {
             "code": "MISSING_DATA_REFERENCE",
@@ -2896,13 +2912,17 @@ class ScannerTests(unittest.TestCase):
 
     def test_clean_html_report_keeps_coverage_limits_visible(self) -> None:
         (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+        (self.root / "recording.eeg").write_bytes(b"\x00")
 
         rendered = render_html(scan_dataset(self.root))
 
         self.assertIn("No high or review findings in the", rendered)
         self.assertIn("This is not proof of anonymity.", rendered)
         self.assertIn("No immediate remediation tasks.", rendered)
-        self.assertIn("No automated blocker found", rendered)
+        self.assertIn(
+            "No listed file needs correction — release still unconfirmed",
+            rendered,
+        )
         self.assertIn(
             "The dataset stayed unchanged during this scan — not proof of anonymity",
             rendered,
@@ -2912,6 +2932,8 @@ class ScannerTests(unittest.TestCase):
             "limits.",
             rendered,
         )
+        self.assertIn("1 file skipped.", rendered)
+        self.assertNotIn("1 files skipped.", rendered)
 
     def test_html_report_starts_with_a_plain_release_decision(self) -> None:
         high = Finding(
@@ -2965,7 +2987,7 @@ class ScannerTests(unittest.TestCase):
                 "coverage",
                 ScanReport(scanner_version="test", coverage=[coverage]),
                 "Not yet.",
-                "1 item was found but not fully checked.",
+                "1 listed entry was not fully checked by the scanner.",
                 "Open Files needing manual review",
             ),
             (
@@ -3048,7 +3070,11 @@ class ScannerTests(unittest.TestCase):
                 report_text,
             )
         self.assertIn('href="#coverage-gaps"', rendered)
-        self.assertIn("HOLD — 1 item needs manual review", rendered)
+        self.assertIn("HOLD — manually review 1 listed entry", rendered)
+        self.assertIn(
+            "1 listed entry needs manual review and is not counted as inspected.",
+            rendered,
+        )
 
     def test_integrity_failure_overrides_all_remediation_states(self) -> None:
         cases = (
@@ -3098,6 +3124,8 @@ class ScannerTests(unittest.TestCase):
                     "Do not act on individual findings",
                     html,
                 )
+                self.assertNotIn('<div class="label">Findings</div>', html)
+                self.assertNotIn("<h2>Findings by severity</h2>", html)
 
     def test_html_summary_links_to_explanations_and_hides_empty_reference_card(
         self,

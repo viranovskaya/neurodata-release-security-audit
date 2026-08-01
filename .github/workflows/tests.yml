@@ -83,15 +83,17 @@ jobs:
         run: |
           python -m build --wheel --outdir dist-a
           python -m build --wheel --outdir dist-b
-          cmp \
-            dist-a/neurodata_release_security_audit-0.2.0.dev0-py3-none-any.whl \
-            dist-b/neurodata_release_security_audit-0.2.0.dev0-py3-none-any.whl
-          python tools/check_usability_wheel.py \
-            dist-a/neurodata_release_security_audit-0.2.0.dev0-py3-none-any.whl
+          wheel_a="$(find dist-a -maxdepth 1 -name '*.whl' -print -quit)"
+          wheel_b="$(find dist-b -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "${wheel_a}"
+          test -n "${wheel_b}"
+          cmp "${wheel_a}" "${wheel_b}"
+          python tools/check_usability_wheel.py "${wheel_a}"
       - name: Validate a generated report
         run: |
-          python -m pip install \
-            dist-a/neurodata_release_security_audit-0.2.0.dev0-py3-none-any.whl
+          wheel="$(find dist-a -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "${wheel}"
+          python -m pip install "${wheel}"
           neurodata-security-audit scan tests/fixtures/clean_bids \
             --json "${RUNNER_TEMP}/audit.json" \
             --html "${RUNNER_TEMP}/audit.html"

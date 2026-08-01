@@ -49,6 +49,17 @@ signal or image payload.
 
 ## Install
 
+Requires Python 3.10 or newer. A virtual environment is recommended.
+
+Clone the repository and install it locally:
+
+```bash
+git clone https://github.com/viranovskaya/neurodata-release-security-audit.git
+cd neurodata-release-security-audit
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
 The base install uses the Python standard library:
 
 ```bash
@@ -231,8 +242,12 @@ field, choose a safe next step, notice a coverage gap and treat an integrity
 failure correctly. It does not repeat the leak-detection benchmark.
 The [first web-pilot results](usability/prolific_pilot1_results.md) record an
 exploratory five-person basic-comprehension check, its failed threshold
-comparison and the report changes made before a second pilot with the intended
-reviewer group.
+comparison and the report changes made before a second general-comprehension
+pilot.
+The [second web-pilot results](usability/prolific_pilot2_results.md) record eight
+complete responses after those changes. Fixed-choice accuracy rose to 95.2%, but
+the planned ten-person gate was not completed and the sample was not restricted
+to neurodata curators.
 A separate [synthetic usability stress test](usability/synthetic_usability_stress_test.md)
 records the model-based wording check used before that second paid sample. It
 is development evidence only and is not combined with human pilot results.
@@ -241,13 +256,25 @@ is development evidence only and is not combined with human pilot results.
 
 The private v0.1 snapshot was independently reviewed before it was merged.
 
-Private `main` now includes complete release inventory, NIfTI and DICOM metadata
-checks, archive and cross-file reference checks, stronger integrity checks, an
-offline HTML report and calibration on 50 public OpenNeuro datasets. The
-implementation merged as `10b2192` was independently checked before merge.
-Later documentation or code changes do not inherit that review.
+Version `0.2.0b1` is the first public beta. It includes complete release
+inventory, NIfTI and DICOM metadata checks, archive and cross-file reference
+checks, integrity rechecks, an offline HTML report and bounded calibration on
+50 public OpenNeuro datasets.
 
-The project remains private. There is no public release or PyPI package.
+The repository contains synthetic fixtures and aggregate calibration records,
+not the public datasets or reports produced from potentially sensitive source
+metadata. There is no PyPI package. The next evaluation step is independent use
+by researchers or data curators working with their own local release copies.
+
+## Feedback and sensitive reports
+
+Ordinary bugs and format requests are welcome as GitHub issues, using synthetic
+or fully redacted examples only. Never attach a participant file, a real audit
+report or a detected value to a public issue.
+
+For a possible software vulnerability, use the private reporting route described
+in [SECURITY.md](SECURITY.md). If the concern is about a public dataset rather
+than this software, contact that dataset's repository or curator privately.
 
 ## License
 

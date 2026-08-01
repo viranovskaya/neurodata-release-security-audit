@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite this release."
+title: "NeuroData Release Security Audit"
+type: software
+version: 0.2.0-beta.1
+date-released: 2026-08-02
+authors:
+  - family-names: Agafonova
+    given-names: Daria
+    orcid: "https://orcid.org/0009-0009-3819-9362"
+repository-code: "https://github.com/viranovskaya/neurodata-release-security-audit"
+license: MIT

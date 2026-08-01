@@ -57,9 +57,10 @@ Status: implemented.
 - BrainVision, EEGLAB and BIDS reference resolution;
 - release filename collision checks.
 
-### M5 — integrated local candidate
+### M5 — integrated beta candidate
 
-Status: implemented and merged into private `main`.
+Status: implemented. The current public-beta candidate is frozen on a private
+branch until its exact successor review and final release approval are complete.
 
 - update CLI, schema, documentation and version;
 - run the full suite in base, EEG-format and imaging environments;
@@ -70,10 +71,11 @@ Status: implemented and merged into private `main`.
 - scan public files for private values and local paths;
 - freeze one clean local commit and reviewer package.
 
-### M6 — independent review
+### M6 — independent review and public beta
 
-Status: completed for private `main` at `10b2192`; required again for every
-later frozen candidate before merge.
+Status: the technical review passed for the first `0.2.0b1` candidate, but its
+public documentation required correction. The corrected successor needs a new
+exact-snapshot PASS before merge, tag or visibility change.
 
 The reviewer receives one exact commit and package with hashes, test evidence,
 claim boundaries and known limitations. A previous PASS is not reused.
@@ -83,10 +85,13 @@ merge, tag, release or public publication.
 
 ## Next decisions
 
-After the current private validation:
+After the corrected successor review:
 
-- decide whether the project should remain a small utility or be extended;
-- run the corrected report pilot with the intended reviewer group;
-- consider a public repository or software paper only if the validation supports it;
+- publish a clearly labelled GitHub beta only after final approval;
+- collect feedback from at least five researchers or data curators using their
+  own local release copies;
+- decide from that evidence whether the project should remain a small utility or
+  be extended;
+- consider a software paper only if later use and validation support it;
 - keep statistical disclosure analysis, MRI defacing and signal-based
   re-identification as separate workflows.

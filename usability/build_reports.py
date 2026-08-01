@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+from neurodata_security_audit import __version__
 from neurodata_security_audit.html_report import render_html
 from neurodata_security_audit.models import (
     CoverageEntry,
@@ -22,7 +23,7 @@ def _manifest(path: str) -> ManifestEntry:
 
 def _clean_report(path: str, reason: str) -> ScanReport:
     return ScanReport(
-        scanner_version="0.2.0.dev0",
+        scanner_version=__version__,
         files_inspected=[path],
         coverage=[
             CoverageEntry(
@@ -39,7 +40,7 @@ def _clean_report(path: str, reason: str) -> ScanReport:
 def _high_fif_report() -> ScanReport:
     path = "sub-02/eeg/sub-02_task-rest_eeg.fif"
     return ScanReport(
-        scanner_version="0.2.0.dev0",
+        scanner_version=__version__,
         files_inspected=[path],
         coverage=[
             CoverageEntry(
@@ -69,7 +70,7 @@ def _high_fif_report() -> ScanReport:
 def _high_table_report() -> ScanReport:
     path = "participants.tsv"
     return ScanReport(
-        scanner_version="0.2.0.dev0",
+        scanner_version=__version__,
         files_inspected=[path],
         coverage=[
             CoverageEntry(
@@ -95,7 +96,7 @@ def _high_table_report() -> ScanReport:
 
 def _coverage_report(path: str, reason: str) -> ScanReport:
     return ScanReport(
-        scanner_version="0.2.0.dev0",
+        scanner_version=__version__,
         coverage=[
             CoverageEntry(
                 path=path,
@@ -111,7 +112,7 @@ def _coverage_report(path: str, reason: str) -> ScanReport:
 def _manifest_integrity_report() -> ScanReport:
     path = "participants.tsv"
     return ScanReport(
-        scanner_version="0.2.0.dev0",
+        scanner_version=__version__,
         files_inspected=[path],
         coverage=[
             CoverageEntry(
@@ -140,7 +141,7 @@ def _manifest_integrity_report() -> ScanReport:
 def _tree_integrity_report() -> ScanReport:
     path = "dataset_description.json"
     return ScanReport(
-        scanner_version="0.2.0.dev0",
+        scanner_version=__version__,
         files_inspected=[path],
         coverage=[
             CoverageEntry(
@@ -218,7 +219,7 @@ def _large_report() -> ScanReport:
                 )
             )
     return ScanReport(
-        scanner_version="0.2.0.dev0",
+        scanner_version=__version__,
         files_inspected=files,
         coverage=coverage,
         manifest=manifest,
@@ -229,7 +230,7 @@ def _large_report() -> ScanReport:
 def _inventory_report() -> ScanReport:
     path = "sub-01/eeg/sub-01_task-rest_eeg.vhdr"
     return ScanReport(
-        scanner_version="0.2.0.dev0",
+        scanner_version=__version__,
         files_inspected=[path],
         coverage=[
             CoverageEntry(
@@ -291,7 +292,13 @@ def build_reports(output_dir: Path) -> dict[str, Path]:
         raise ValueError(
             "Report directory contains unexpected HTML files: " + ", ".join(unexpected)
         )
-    rendered = {name: render_html(report) for name, report in reports.items()}
+    rendered = {
+        name: render_html(
+            report,
+            report_label=f"Report {name.removeprefix('report-').upper()}",
+        )
+        for name, report in reports.items()
+    }
     fingerprints: dict[str, str] = {}
     for name, content in rendered.items():
         fingerprint = hashlib.sha256(content.encode()).hexdigest()
