@@ -49,11 +49,15 @@ signal or image payload.
 
 ## Install
 
+Requires Python 3.10 or newer. A virtual environment is recommended.
+
 Clone the repository and install it locally:
 
 ```bash
 git clone https://github.com/viranovskaya/neurodata-release-security-audit.git
 cd neurodata-release-security-audit
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
 The base install uses the Python standard library:

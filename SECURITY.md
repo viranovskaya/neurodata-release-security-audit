@@ -4,6 +4,8 @@
 
 Use **Report a vulnerability** under this repository's **Security** tab. Please
 describe the affected version and provide a minimal synthetic reproduction.
+If that option is unavailable, contact the maintainer through the email listed
+on the GitHub profile with a short initial description and no sensitive values.
 
 Do not include real participant data, an unredacted audit report, credentials or
 a detected value. If a useful reproduction cannot be made safely, send only a
