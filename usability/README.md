@@ -131,8 +131,20 @@ showed that the hold decision was not clear enough.
 
 The aggregate findings, sensitivity check and resulting changes are described
 in [prolific_pilot1_results.md](prolific_pilot1_results.md). Row-level responses
-remain private. The corrected reports have not yet been tested with a second
-participant sample.
+remain private.
+
+## Second web pilot
+
+The revised reports were tested with eight new participants from a general adult
+sample. They answered 99/104 fixed-choice questions correctly (95.2%) and 45/48
+critical release and integrity questions correctly (93.8%). Reports C and D,
+which drove the first revisions, both reached 8/8.
+
+The study stopped before the planned ten complete responses, so it did not
+complete the precommitted gate. It also did not measure curator experience. The
+aggregate result and limits are recorded in
+[prolific_pilot2_results.md](prolific_pilot2_results.md); row-level responses
+remain private.
 
 ## Synthetic wording check
 

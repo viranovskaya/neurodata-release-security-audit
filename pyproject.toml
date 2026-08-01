@@ -42,6 +42,7 @@ namespaces = false
 usability = [
   "README.md",
   "prolific_pilot1_results.md",
+  "prolific_pilot2_results.md",
   "spec.json",
 ]
 
