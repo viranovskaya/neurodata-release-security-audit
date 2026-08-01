@@ -496,7 +496,10 @@ def render_reviewer_packet(specification_path: str | Path) -> str:
         "3. start a timer before opening the report;",
         "4. mark one answer by replacing `[ ]` with `[x]`;",
         "5. record elapsed seconds and confidence from 1 to 5;",
-        "6. close the report before moving to the next task.",
+        (
+            "6. keep the report open while consecutive tasks use the same "
+            "report; close it before opening a different report."
+        ),
         "",
         (
             "Complete the tasks in the order shown. Every report file is "

@@ -453,9 +453,11 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             reports = build_reports(Path(directory))
             rendered = reports["report-b"].read_text(encoding="utf-8")
 
+        self.assertIn("HOLD — fix 1 high-priority finding", rendered)
+        self.assertIn("Fix 1 high-priority finding", rendered)
         self.assertIn("1 individual item is summarized", rendered)
         self.assertNotIn("1 individual item are summarized", rendered)
-        self.assertIn("1 finding\n           shown.", rendered)
+        self.assertIn("1\n          finding shown.", rendered)
         self.assertNotIn("1 findings shown.", rendered)
 
     def test_summary_points_partial_checks_to_coverage(self) -> None:
@@ -466,7 +468,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
 
         self.assertNotIn("skipped or partially covered", normalized)
         self.assertIn(
-            "This count excludes folders and differs from the inventory total.",
+            "1 listed entry needs manual review and is not counted as inspected.",
             normalized,
         )
         self.assertIn('href="#coverage"', rendered)
@@ -484,6 +486,15 @@ class UsabilityBenchmarkTests(unittest.TestCase):
         )
         self.assertIn('<div class="value">3</div>', rendered)
 
+    def test_coverage_report_names_the_manual_review_action(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            reports = build_reports(Path(directory))
+            rendered = reports["report-f"].read_text(encoding="utf-8")
+
+        self.assertIn("HOLD — manually review 1 listed entry", rendered)
+        self.assertIn("1 listed entry was not fully checked by the scanner.", rendered)
+        self.assertIn("Open 1 entry needing manual review", rendered)
+
     def test_reviewer_packet_does_not_contain_the_answer_key(self) -> None:
         with packaged_specification() as specification:
             rendered = render_reviewer_packet(specification)
@@ -495,6 +506,10 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             rendered,
         )
         self.assertIn("Markdown editor with clickable links", rendered)
+        self.assertIn(
+            "keep the report open while consecutive tasks use the same report",
+            rendered,
+        )
         self.assertIn("Do not move this file", rendered)
         self.assertIn("return the completed Markdown packet", rendered)
         self.assertNotRegex(

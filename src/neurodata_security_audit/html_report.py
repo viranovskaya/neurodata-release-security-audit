@@ -675,11 +675,12 @@ def _filterable_findings_table(
           {code_filters}
         </div>
         <div class="filter-status note" role="status" aria-live="polite">
-          <span class="filter-status-all">{len(findings)} finding
-          {"s" if len(findings) != 1 else ""} shown.</span>
+          <span class="filter-status-all">{len(findings)}
+          {"findings" if len(findings) != 1 else "finding"} shown.</span>
           {"".join(severity_statuses)}
-          <span class="filter-status-distinct">{distinct_count} finding
-          {"s" if distinct_count != 1 else ""} with evidence seen once shown.</span>
+          <span class="filter-status-distinct">{distinct_count}
+          {"findings" if distinct_count != 1 else "finding"} with evidence
+          seen once shown.</span>
           {code_statuses}
         </div>
         <div class="find-help"><strong>Find a file, field or value:</strong>
@@ -816,7 +817,7 @@ def _remediation_content(
             "areas checked.</strong> This is not proof of anonymity. Check the "
             "coverage gaps and the stated format limits before release.</div>"
         )
-        queue_note = "No immediate remediation tasks were generated."
+        queue_note = "Complete the release checks below before sharing the dataset."
         empty_message = "No immediate remediation tasks."
         correction_steps = """
     <h3>Before release</h3>
@@ -1070,7 +1071,10 @@ def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
         )
     elif high_count:
         release_status_class = "failed"
-        release_status_text = "HOLD — high-priority findings"
+        release_status_text = (
+            f"HOLD — fix {high_count} high-priority "
+            f'finding{"s" if high_count != 1 else ""}'
+        )
         integrity_text = (
             "The dataset stayed unchanged during this scan — not release clearance"
         )
@@ -1090,7 +1094,7 @@ def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
         )
         high_action = (
             '<div class="report-actions">'
-            f'<a class="report-action" href="#what-to-do">Review {high_count} '
+            f'<a class="report-action" href="#what-to-do">Fix {high_count} '
             f'high-priority finding{"s" if high_count != 1 else ""}</a>'
             "</div>"
         )
@@ -1126,18 +1130,17 @@ def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
     elif coverage_gap_count:
         release_status_class = "hold"
         release_status_text = (
-            f"HOLD — {coverage_gap_count} "
-            f'item{"s" if coverage_gap_count != 1 else ""} '
-            f'{"need" if coverage_gap_count != 1 else "needs"} manual review'
+            f"HOLD — manually review {coverage_gap_count} listed "
+            f'entr{"ies" if coverage_gap_count != 1 else "y"}'
         )
         integrity_text = (
             "The dataset stayed unchanged during this scan — not release clearance"
         )
         share_answer = "Not yet."
         share_reason = (
-            f"{coverage_gap_count} "
-            f'item{"s were" if coverage_gap_count != 1 else " was"} found '
-            "but not fully checked."
+            f"{coverage_gap_count} listed "
+            f'entr{"ies were" if coverage_gap_count != 1 else "y was"} '
+            "not fully checked by the scanner."
         )
         share_next = (
             "Open Files needing manual review and check every listed item before "
@@ -1149,11 +1152,15 @@ def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
         )
         high_action = (
             '<div class="report-actions"><a class="report-action hold" '
-            'href="#coverage-gaps">Review coverage gaps</a></div>'
+            f'href="#coverage-gaps">Open {coverage_gap_count} '
+            f'entr{"ies" if coverage_gap_count != 1 else "y"} needing manual '
+            "review</a></div>"
         )
     else:
         release_status_class = "ok"
-        release_status_text = "No automated blocker found"
+        release_status_text = (
+            "No listed file needs correction — release still unconfirmed"
+        )
         integrity_text = (
             "The dataset stayed unchanged during this scan — not proof of anonymity"
         )
@@ -1171,6 +1178,21 @@ def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
             "limits. This is not permission to share the dataset."
         )
         high_action = ""
+    if coverage_gap_count:
+        coverage_card_context = (
+            f"{coverage_gap_count} listed "
+            f'entr{"ies need" if coverage_gap_count != 1 else "y needs"} '
+            "manual review and "
+            f'{"are" if coverage_gap_count != 1 else "is"} not counted as '
+            "inspected. Open Coverage."
+        )
+    else:
+        coverage_card_context = (
+            f'{summary["files_skipped"]} '
+            f'{"files" if summary["files_skipped"] != 1 else "file"} skipped. '
+            "This count excludes "
+            "folders and differs from the inventory total. Open Coverage."
+        )
     reference_summary = (
         f"{summary['references_valid']} valid of "
         f"{summary['references_checked']} checked"
@@ -1287,8 +1309,7 @@ def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
     <a class="card card-link" href="#coverage">
       <div class="label">Files inspected by the scanner</div>
       <div class="value">{summary["files_inspected"]}</div>
-      <div class="context">{summary["files_skipped"]} files skipped. This count
-      excludes folders and differs from the inventory total. Open Coverage.</div>
+      <div class="context">{_text(coverage_card_context)}</div>
     </a>
     {reference_card}
   </div>
