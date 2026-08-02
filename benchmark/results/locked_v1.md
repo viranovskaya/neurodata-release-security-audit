@@ -4,6 +4,9 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 
 ## Summary
 
+- Suite: locked-v1
+- Locked manifest: yes
+- Case files: 1
 - Cases: 10
 - Expected findings matched: 21 / 21
 - Unexpected findings: 0
@@ -18,6 +21,7 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 - Expected coverage states matched: 8 / 8
 - Masking failures: 0
 - Integrity failures: 0
+- Case file hashes: cases/locked_v1.json=57582aa0f1f57167dc9f9c82416781013f88dcd6deb39845e1f87e10742aa303
 
 ## Cases
 

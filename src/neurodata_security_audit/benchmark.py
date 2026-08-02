@@ -540,6 +540,12 @@ def _format_rate(value: float | None) -> str:
 
 def render_benchmark_markdown(result: dict[str, object]) -> str:
     summary = result["summary"]
+    case_files = result.get("case_files", [])
+    case_file_hashes = [
+        f"{item['path']}={item['sha256']}"
+        for item in case_files
+        if isinstance(item, dict) and "path" in item and "sha256" in item
+    ]
     lines = [
         "# Leak-detection benchmark",
         "",
@@ -548,6 +554,9 @@ def render_benchmark_markdown(result: dict[str, object]) -> str:
         "",
         "## Summary",
         "",
+        f"- Suite: {result.get('suite_name', '—')}",
+        f"- Locked manifest: {'yes' if result.get('locked') else 'no'}",
+        f"- Case files: {len(case_files)}",
         f"- Cases: {summary['cases']}",
         (
             f"- Expected findings matched: {summary['matched_findings']} / "
@@ -581,15 +590,21 @@ def render_benchmark_markdown(result: dict[str, object]) -> str:
         ),
         f"- Masking failures: {summary['masking_failures']}",
         f"- Integrity failures: {summary['integrity_failures']}",
-        "",
-        "## Cases",
-        "",
-        (
+    ]
+    if case_file_hashes:
+        lines.append("- Case file hashes: " + ", ".join(case_file_hashes))
+    lines.extend(
+        [
+            "",
+            "## Cases",
+            "",
+            (
             "| Case | Split | Format | Expected matched | Unexpected | "
             "Duplicates | References | Archive | Coverage | Masking failures |"
-        ),
-        "|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
-    ]
+            ),
+            "|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
     for case in result["cases"]:
         lines.append(
             "| {case_id} | {split} | {format} | {matched}/{expected} | "

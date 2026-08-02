@@ -1,7 +1,7 @@
 # External review guide
 
-This guide is for the private v0.2 candidate. Each frozen successor needs its own
-handoff and independent gate.
+This guide is for reviewing one frozen source snapshot. Each changed successor
+needs its own handoff and independent gate.
 
 This review is about whether the tool is understandable and useful before an EEG dataset is shared. It is not a legal, privacy or security certification.
 

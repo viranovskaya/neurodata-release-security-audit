@@ -18,7 +18,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--manifest",
         type=Path,
-        default=Path(__file__).with_name("public_format_fixtures.json"),
+        required=True,
     )
     parser.add_argument("--json", type=Path)
     parser.add_argument("--markdown", type=Path)

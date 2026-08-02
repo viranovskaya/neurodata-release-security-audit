@@ -52,7 +52,7 @@ The public calibration found useful new review items: BIDS acquisition times, tw
 - The installed package read the official MNE `test_egi.mff` fixture with `preload=False`; adding `defusedxml` to the `formats` extra fixed the dependency found by this run.
 - The source tree was checked for private local values and automated-writing markers.
 
-The exact v0.2 results are in `final_local_gate_2026-07-23.md`.
+The exact v0.1 results are in `final_local_gate_2026-07-23.md`.
 
 ## Benchmark extension
 

@@ -1,4 +1,4 @@
-"""Score a small, precommitted report-usability benchmark."""
+"""Score the source-only report-usability benchmark."""
 
 from __future__ import annotations
 

@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from neurodata_security_audit.usability import build_response_template
+from usability.core import build_response_template
 
 from usability._io import packaged_specification, write_text_new
 

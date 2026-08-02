@@ -27,7 +27,7 @@ or DICOM pixels.
 ```json
 {
   "schema_version": "2",
-  "scanner_version": "0.2.0b1",
+  "scanner_version": "0.2.1.dev0",
   "summary": {
     "files_inspected": 1,
     "files_skipped": 1,

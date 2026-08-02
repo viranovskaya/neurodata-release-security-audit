@@ -4,6 +4,9 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 
 ## Summary
 
+- Suite: development
+- Locked manifest: no
+- Case files: 6
 - Cases: 40
 - Expected findings matched: 71 / 71
 - Unexpected findings: 0
@@ -18,6 +21,7 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 - Expected coverage states matched: 22 / 22
 - Masking failures: 0
 - Integrity failures: 0
+- Case file hashes: cases/development_core.json=3df7e6b47529be2700df65bc43989267be9ca87d43583e016f0c31fa5b4b991b, cases/development_archives.json=58811fa4298a4fbff2329ecf641c26bea388e210d30bdc1631fd89829568853d, cases/development_references.json=00c7d1988331932db70dff35334e316640af528fa6fd3a6923fd3350c18d8ceb, cases/development_formats.json=44fe57ec8206514f24c9f46de8169e6ce356529dcc251d6695999914cd5d860d, cases/development_eeg_formats.json=277e89f44699ce1d605f1e26391bb85f65707fd03769777d7ab8596716eeb7c8, cases/development_realistic.json=7da1a51e5f85c18826166edba4ce487b5719734f9e8eb6d1a5776de73d529257
 
 ## Cases
 
