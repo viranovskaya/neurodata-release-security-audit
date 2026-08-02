@@ -4,38 +4,39 @@ The usability workflow has two roles.
 
 ## Administrator side
 
-The installed wheel contains:
+The source checkout contains:
 
 - the validated scoring and bundle-building code;
 - the private `spec.json`, including expected answers and thresholds;
 - a short administrator README.
 
-The administrator keeps these files private. The scorer accepts only
+These study-administration files are deliberately excluded from the scanner
+wheel. The administrator keeps them private. The scorer accepts only
 administrator-assigned `reviewer-XX` identifiers and fixed answer, timing and
 confidence fields. It rejects names, emails, free text, extra fields, non-finite
-timing values and incomplete response sets. The public scorer CLI always uses
-the packaged frozen specification and has no answer-key or threshold override.
-Both output paths must be outside the installed package.
+timing values and incomplete response sets. The source-only scorer always uses
+the frozen specification and has no answer-key or threshold override. Both
+output paths must be outside the usability source package.
 
 ## Participant side
 
-`neurodata-usability-build-bundle --output-dir PATH` creates a new external
+`python -m usability.build_participant_bundle --output-dir PATH` creates a new external
 directory containing only:
 
 - ten synthetic HTML reports;
 - `reviewer_packet.md`.
 
-The destination must not already exist and must be outside the installed
+The destination must not already exist and must be outside the usability source
 package. The builder returns resolved absolute paths; this is intentional on
 macOS, where `/var` and `/private/var` can identify the same directory.
 
 The bundle contains no private specification, expected-answer field, serialized
 answer map or answer-map SHA-256 fingerprint. The participant returns only a
 completed Markdown packet. The administrator creates a separate pseudonymous
-JSON response with `neurodata-usability-build-response`. Generated reports,
+JSON response with `python -m usability.build_response`. Generated reports,
 reviewer responses and scored results are not wheel package data.
-The installed package is treated as read-only and is hashed before and after
-the CLI integration test.
+The source package is treated as read-only and is hashed before and after its
+integration test.
 
 Scored JSON and Markdown files use no-overwrite links. If the second output
 fails, rollback removes the first output only while it still shares a private

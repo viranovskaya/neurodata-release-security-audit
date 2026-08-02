@@ -14,10 +14,10 @@ PACKAGE_ROOT = Path(__file__).resolve().parent
 
 
 def build_response_file(participant_id: str, output: Path) -> Path:
-    """Create a blank pseudonymous response outside the installed package."""
+    """Create a blank pseudonymous response outside the usability source package."""
     resolved = output.resolve()
     if resolved == PACKAGE_ROOT or PACKAGE_ROOT in resolved.parents:
-        raise ValueError("Response output must be outside the installed package")
+        raise ValueError("Response output must be outside the usability source package")
     with packaged_specification() as specification:
         response = build_response_template(specification, participant_id)
     write_text_new(

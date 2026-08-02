@@ -20,14 +20,15 @@ release tree, while the SHA-256 manifest contains regular files only.
 
 ## Administrator and participant files
 
-The installed wheel is an administrator tool. It contains the validated private
-specification and scoring code. Do not give the wheel, `spec.json` or the source
-checkout to a reviewer.
+The usability pilot is a source-only study workflow kept in this repository; it
+is not installed by the scanner wheel. Administrators run it from a trusted
+checkout that contains the validated private specification and scoring code. Do
+not give `spec.json` or the source checkout to a reviewer.
 
 Build a separate participant bundle for each reviewer:
 
 ```bash
-neurodata-usability-build-bundle \
+python -m usability.build_participant_bundle \
   --output-dir ./participant-bundle-01
 ```
 
@@ -37,7 +38,7 @@ Give the reviewer that complete folder. It contains only:
 - `reviewer_packet.md`.
 
 The command refuses to reuse an existing directory. It never writes into the
-installed package. Returned paths are resolved absolute paths, so macOS
+usability source package. Returned paths are resolved absolute paths, so macOS
 `/var` and `/private/var` aliases do not create two identities for one output.
 The bundle is checked for the private answer-key serialization and fingerprint
 before the command returns.
@@ -47,7 +48,7 @@ them to edit JSON. After the packet is returned, create the administrator
 response file:
 
 ```bash
-neurodata-usability-build-response \
+python -m usability.build_response \
   --participant-id reviewer-01 \
   --output responses/reviewer-01.json
 ```
@@ -93,15 +94,15 @@ any overlap.
 Score complete response files:
 
 ```bash
-neurodata-usability-score \
+python -m usability.score_responses \
   responses/reviewer-01.json \
   responses/reviewer-02.json \
   --json results/result.json \
   --markdown results/result.md
 ```
 
-The scorer always uses the packaged frozen specification; the public CLI has no
-specification override. It rejects outputs inside the installed package and
+The scorer always uses the frozen specification in the checkout and has no
+specification override. It rejects outputs inside the source package and
 refuses to replace either output. Both files are created using same-directory
 temporary files and no-overwrite links.
 

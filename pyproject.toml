@@ -28,23 +28,12 @@ imaging = ["nibabel>=5.3.2", "pydicom>=3.0.1"]
 
 [project.scripts]
 neurodata-security-audit = "neurodata_security_audit.cli:main"
-neurodata-usability-build-bundle = "usability.build_participant_bundle:main"
-neurodata-usability-build-response = "usability.build_response:main"
-neurodata-usability-score = "usability.score_responses:main"
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
-include = ["neurodata_security_audit*", "usability*"]
+include = ["neurodata_security_audit*"]
 exclude = ["tests*", "tools*"]
 namespaces = false
-
-[tool.setuptools.package-data]
-usability = [
-  "README.md",
-  "prolific_pilot1_results.md",
-  "prolific_pilot2_results.md",
-  "spec.json",
-]
 
 [tool.setuptools.dynamic]
 version = {attr = "neurodata_security_audit.__version__"}
