@@ -397,7 +397,7 @@ def _hdf5_text_values(node: object, h5py, limit: int = 100) -> list[str]:
         if isinstance(item, h5py.Group):
             try:
                 address = int(h5py.h5o.get_info(item.id).addr)
-            except Exception:
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
                 address = id(item)
             if address in visited:
                 return

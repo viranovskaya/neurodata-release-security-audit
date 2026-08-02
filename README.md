@@ -10,7 +10,10 @@ old source IDs, staff names, scanner identifiers, local paths, credentials and
 forgotten mapping files.
 
 The scanner is read-only. It does not upload data, rewrite the release, extract
-archives, follow symlinks or load EEG samples, image voxels or DICOM pixels.
+archives, traverse inventoried symlink entries or load EEG samples, image voxels
+or DICOM pixels. Core regular-file reads use verified, non-following file
+descriptors; optional format readers require a stable release tree and are
+covered by the final integrity recheck.
 
 ## What it does
 
@@ -102,7 +105,9 @@ neurodata-security-audit scan /path/to/dataset \
 ```
 
 Keep reports outside the dataset. The command rejects report paths inside the
-selected release so the source tree is not changed by the audit.
+selected release so the source tree is not changed by the audit. It also refuses
+existing or symlink report destinations and publishes multiple requested reports
+as one no-overwrite operation.
 
 The HTML file is self-contained and works offline. It shows the finding severity,
 coverage, integrity result, cross-file references and full SHA-256 manifest. It
@@ -217,6 +222,8 @@ The current version does not:
 - open DICOM pixels or metadata stored after the first Pixel Data element;
 - scan archive member payloads or decrypt encrypted archives;
 - analyse malware or hostile parser inputs;
+- isolate optional third-party readers from a malicious same-user process that
+  replaces a validated path during the reader call;
 - measure statistical re-identification risk in participant tables;
 - replace the BIDS Validator, format-specific anonymisation or human review.
 
