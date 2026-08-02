@@ -8,7 +8,7 @@ import json
 import shutil
 from pathlib import Path
 
-from neurodata_security_audit.usability import render_reviewer_packet
+from usability.core import render_reviewer_packet
 
 from usability._io import packaged_specification, write_text_new
 from usability.build_reports import build_reports

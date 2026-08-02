@@ -103,6 +103,25 @@ class BenchmarkTests(unittest.TestCase):
             },
         )
 
+    def test_markdown_identifies_locked_manifest_and_case_hashes(self) -> None:
+        result = run_benchmark(self.privacy_adversarial_path)
+        unlocked_markdown = render_benchmark_markdown(result)
+        locked_result = {
+            **result,
+            "suite_name": "locked-test",
+            "locked": True,
+            "case_files": [
+                {"path": "cases/example.json", "sha256": "a" * 64}
+            ],
+        }
+        locked_markdown = render_benchmark_markdown(locked_result)
+
+        self.assertIn("- Suite: locked-test", locked_markdown)
+        self.assertIn("- Locked manifest: yes", locked_markdown)
+        self.assertIn("cases/example.json=" + "a" * 64, locked_markdown)
+        self.assertIn("- Locked manifest: no", unlocked_markdown)
+        self.assertNotEqual(unlocked_markdown, locked_markdown)
+
     @unittest.skipUnless(
         _FULL_BENCHMARK_READERS_AVAILABLE,
         "Full benchmark needs the formats and imaging extras",

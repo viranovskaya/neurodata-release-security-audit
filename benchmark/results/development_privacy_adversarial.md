@@ -4,6 +4,9 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 
 ## Summary
 
+- Suite: development_privacy_adversarial
+- Locked manifest: no
+- Case files: 0
 - Cases: 10
 - Expected findings matched: 32 / 32
 - Unexpected findings: 0

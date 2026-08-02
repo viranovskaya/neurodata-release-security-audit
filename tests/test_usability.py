@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 import usability
-from neurodata_security_audit.usability import (
+from usability.core import (
     build_response_template,
     render_reviewer_packet,
     render_usability_markdown,

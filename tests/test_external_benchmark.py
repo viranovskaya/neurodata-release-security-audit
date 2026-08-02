@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 
+from benchmark.run_public_formats import _parser as public_formats_parser
 from neurodata_security_audit.external_benchmark import (
     _directory_sha256,
     render_external_format_markdown,
@@ -36,6 +39,21 @@ def _edf_header() -> bytes:
 
 
 class ExternalBenchmarkTests(unittest.TestCase):
+    def test_public_format_manifest_is_required(self) -> None:
+        parser = public_formats_parser()
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            parser.parse_args(["--fixtures-root", "fixtures"])
+
+        args = parser.parse_args(
+            [
+                "--fixtures-root",
+                "fixtures",
+                "--manifest",
+                "manifest.json",
+            ]
+        )
+        self.assertEqual(args.manifest, Path("manifest.json"))
+
     def test_hash_pinned_edf_fixture_passes_and_is_deterministic(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -17,6 +17,7 @@ def check_wheel(path: Path) -> None:
             name
             for name in names
             if name.startswith("usability/")
+            or name == "neurodata_security_audit/usability.py"
             or "__pycache__" in name
             or name.endswith((".pyc", ".pyo"))
         )

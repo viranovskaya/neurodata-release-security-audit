@@ -4,6 +4,9 @@ This benchmark uses labelled synthetic cases. It does not prove that a dataset i
 
 ## Summary
 
+- Suite: challenge_v1
+- Locked manifest: no
+- Case files: 0
 - Cases: 14
 - Expected findings matched: 25 / 25
 - Unexpected findings: 0
