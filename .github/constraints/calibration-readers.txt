@@ -1,0 +1,6 @@
+# Direct optional-reader versions used for calibration and CI.
+# End-user supported ranges remain in pyproject.toml.
+mne==1.12.1
+defusedxml==0.7.1
+nibabel==5.4.2
+pydicom==3.0.2
