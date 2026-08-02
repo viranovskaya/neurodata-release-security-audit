@@ -25,7 +25,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parent
 def _reject_package_output(path: Path) -> None:
     resolved = path.resolve()
     if resolved == PACKAGE_ROOT or PACKAGE_ROOT in resolved.parents:
-        raise ValueError("Scorer outputs must be outside the installed package")
+        raise ValueError("Scorer outputs must be outside the usability source package")
 
 
 def write_score_outputs(

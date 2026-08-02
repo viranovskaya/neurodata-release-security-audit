@@ -69,7 +69,7 @@ def build_participant_bundle(destination: Path) -> list[Path]:
     destination = destination.resolve()
     package_root = Path(__file__).resolve().parent
     if destination == package_root or package_root in destination.parents:
-        raise ValueError("Participant output must be outside the installed package")
+        raise ValueError("Participant output must be outside the usability source package")
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.mkdir()

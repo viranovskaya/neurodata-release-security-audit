@@ -51,20 +51,23 @@ jobs:
       - name: Run copied tests outside the checkout
         run: |
           isolated="${RUNNER_TEMP}/exact-wheel"
-          mkdir -p "${isolated}/examples"
-          cp -R tests "${isolated}/tests"
+          mkdir -p "${isolated}/examples" "${isolated}/tests"
+          cp tests/__init__.py \
+            tests/test_benchmark.py \
+            tests/test_curator.py \
+            tests/test_external_benchmark.py \
+            tests/test_scanner.py \
+            "${isolated}/tests/"
           cp -R benchmark "${isolated}/benchmark"
           cp -R examples/reviewer_demo "${isolated}/examples/reviewer_demo"
           cd "${isolated}"
           python - <<'PY'
           from pathlib import Path
           import neurodata_security_audit
-          import usability
 
-          for module in (neurodata_security_audit, usability):
-              path = Path(module.__file__).resolve()
-              print(path)
-              assert "site-packages" in path.parts
+          path = Path(neurodata_security_audit.__file__).resolve()
+          print(path)
+          assert "site-packages" in path.parts
           PY
           python -m unittest discover -s tests -v
 
@@ -88,7 +91,7 @@ jobs:
           test -n "${wheel_a}"
           test -n "${wheel_b}"
           cmp "${wheel_a}" "${wheel_b}"
-          python tools/check_usability_wheel.py "${wheel_a}"
+          python tools/check_wheel_contents.py "${wheel_a}"
       - name: Validate a generated report
         run: |
           wheel="$(find dist-a -maxdepth 1 -name '*.whl' -print -quit)"
@@ -108,67 +111,6 @@ jobs:
           test -s "${RUNNER_TEMP}/audit-checklist.tsv"
           test -s "${RUNNER_TEMP}/comparison.json"
           test -s "${RUNNER_TEMP}/comparison.md"
-          (
-            cd "${RUNNER_TEMP}"
-            package_dir="$(
-              python -c 'import pathlib, usability; print(pathlib.Path(usability.__file__).parent)'
-            )"
-            before="$(
-              find "${package_dir}" -type f -print0 |
-                sort -z |
-                xargs -0 shasum -a 256 |
-                shasum -a 256
-            )"
-            chmod -R a-w "${package_dir}"
-            neurodata-usability-build-bundle \
-              --output-dir "${RUNNER_TEMP}/participant-bundle"
-            neurodata-usability-build-response \
-              --participant-id reviewer-01 \
-              --output "${RUNNER_TEMP}/reviewer-01.json"
-            python - "${package_dir}/spec.json" "${RUNNER_TEMP}/reviewer-01.json" <<'PY'
-          import json
-          from pathlib import Path
-          import sys
-
-          specification = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-          response = {
-              "schema_version": "1",
-              "participant_id": "reviewer-01",
-              "responses": [
-                  {
-                      "task_id": task["task_id"],
-                      "answer": task["expected"],
-                      "elapsed_seconds": 1,
-                      "confidence": 5,
-                  }
-                  for task in specification["tasks"]
-              ],
-          }
-          Path(sys.argv[2]).write_text(
-              json.dumps(response, indent=2) + "\n",
-              encoding="utf-8",
-          )
-          PY
-            neurodata-usability-score \
-              "${RUNNER_TEMP}/reviewer-01.json" \
-              --json "${RUNNER_TEMP}/usability-result.json" \
-              --markdown "${RUNNER_TEMP}/usability-result.md"
-            after="$(
-              find "${package_dir}" -type f -print0 |
-                sort -z |
-                xargs -0 shasum -a 256 |
-                shasum -a 256
-            )"
-            test "${before}" = "${after}"
-            test ! -e "${RUNNER_TEMP}/participant-bundle/spec.json"
-            test -s "${RUNNER_TEMP}/participant-bundle/reviewer_packet.md"
-            test ! -e "${RUNNER_TEMP}/participant-bundle/response_template.json"
-            test -s "${RUNNER_TEMP}/usability-result.json"
-            test -s "${RUNNER_TEMP}/usability-result.md"
-            if neurodata-usability-score --help | grep -q -- "--specification"; then
-              exit 1
-            fi
-          )
           python - "${RUNNER_TEMP}/audit.json" \
             "${RUNNER_TEMP}/comparison.json" <<'PY'
           import json

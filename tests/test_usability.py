@@ -322,7 +322,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             len({response["task_id"] for response in template["responses"]}),
         )
 
-    def test_installed_usability_package_contains_admin_materials(self) -> None:
+    def test_source_usability_package_contains_admin_materials(self) -> None:
         package_root = Path(usability.__file__).resolve().parent
         required = ("README.md", "prolific_pilot1_results.md", "spec.json")
 
@@ -591,7 +591,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
 
         package_root = Path(usability.__file__).resolve().parent
         package_output = package_root / "response.json"
-        with self.assertRaisesRegex(ValueError, "outside the installed package"):
+        with self.assertRaisesRegex(ValueError, "outside the usability source package"):
             build_response_file("reviewer-01", package_output)
         self.assertFalse(package_output.exists())
 
@@ -646,9 +646,9 @@ class UsabilityBenchmarkTests(unittest.TestCase):
             self.assertEqual(first_json, json_output.read_bytes())
             self.assertEqual(first_markdown, markdown_output.read_bytes())
 
-    def test_scorer_rejects_outputs_inside_installed_package(self) -> None:
+    def test_scorer_rejects_outputs_inside_source_package(self) -> None:
         package_root = Path(usability.__file__).resolve().parent
-        with self.assertRaisesRegex(ValueError, "outside the installed package"):
+        with self.assertRaisesRegex(ValueError, "outside the usability source package"):
             write_score_outputs(
                 [],
                 package_root / "result.json",
