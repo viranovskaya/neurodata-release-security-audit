@@ -148,5 +148,5 @@ Public beta `v0.2.0b1` is the current GitHub prerelease. Citation metadata for v
 - **Implemented:** local inventory, privacy findings, bounded metadata readers, archive/reference checks, integrity rechecks, reports, checklist, and comparison.
 - **Tested:** synthetic unit/integration cases, exact-wheel installs, deterministic builds, schema validation, and three hash-pinned public format smoke fixtures.
 - **Evaluated:** bounded local scans of 50 fixed OpenNeuro slices and two exploratory report-comprehension samples.
-- **Planned:** independent curator use on separately controlled release copies and evidence-led simplification of the usability administration layer.
+- **Planned:** independent curator use on separately controlled release copies; no additional format or detector is claimed without new evidence.
 - **Not yet validated:** arbitrary format variants, hostile inputs, anonymity, legal/ethical compliance, clinical use, or scientific suitability.
