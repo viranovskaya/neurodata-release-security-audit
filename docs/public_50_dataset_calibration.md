@@ -37,6 +37,11 @@ Markdown and HTML outside the source tree. The exact payload digests, slice
 inventory hashes, commands and redacted per-dataset report hashes are retained
 in the private independent-review handoff rather than the repository.
 
+The direct optional-reader versions are also pinned in
+`.github/constraints/calibration-readers.txt` and exercised by CI. The file
+does not freeze transitive dependencies and is not presented as a complete
+reconstruction of the private calibration environment.
+
 ## Result
 
 | Measure | Result |
