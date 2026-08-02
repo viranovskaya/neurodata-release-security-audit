@@ -7,8 +7,10 @@ import hashlib
 from html import escape
 import io
 import json
+import os
 from pathlib import Path
 import re
+import tempfile
 from typing import Any
 
 _MAX_REPORT_BYTES = 64 * 1024 * 1024
@@ -600,14 +602,78 @@ def write_text_new(path: Path, content: str) -> None:
 
 
 def write_texts_new(outputs: dict[Path, str]) -> None:
-    """Write related artifacts without replacing or deleting existing files."""
-    resolved = [path.resolve(strict=False) for path in outputs]
-    if len(set(resolved)) != len(resolved):
+    """Atomically publish related UTF-8 artifacts without replacing any path."""
+    targets: list[tuple[Path, str]] = []
+    for supplied, content in outputs.items():
+        expanded = supplied.expanduser().absolute()
+        if os.path.lexists(expanded):
+            raise FileExistsError("Output path already exists")
+        expanded.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        target = expanded.parent.resolve(strict=True) / expanded.name
+        targets.append((target, content))
+
+    paths = [path for path, _ in targets]
+    if len(set(paths)) != len(paths):
         raise ValueError("Output paths must be different")
-    if any(path.exists() for path in outputs):
+    if any(os.path.lexists(path) for path in paths):
         raise FileExistsError("Output path already exists")
 
-    for path, content in outputs.items():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("x", encoding="utf-8", newline="") as stream:
-            stream.write(content)
+    prepared: list[tuple[Path, Path, tuple[int, int]]] = []
+    published: list[tuple[Path, Path, tuple[int, int]]] = []
+    try:
+        for target, content in targets:
+            descriptor, temporary_name = tempfile.mkstemp(
+                prefix=f".{target.name}.",
+                suffix=".tmp",
+                dir=target.parent,
+            )
+            temporary = Path(temporary_name)
+            try:
+                os.fchmod(descriptor, 0o600)
+                with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as stream:
+                    stream.write(content)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                metadata = temporary.lstat()
+                prepared.append(
+                    (target, temporary, (metadata.st_dev, metadata.st_ino))
+                )
+            except BaseException:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+                temporary.unlink(missing_ok=True)
+                raise
+
+        if any(os.path.lexists(target) for target, _, _ in prepared):
+            raise FileExistsError("Output path already exists")
+        for target, temporary, identity in prepared:
+            os.link(temporary, target, follow_symlinks=False)
+            published.append((target, temporary, identity))
+            _fsync_directory(target.parent)
+    except BaseException:
+        for target, _, identity in reversed(published):
+            _unlink_if_identity(target, identity)
+        raise
+    finally:
+        for _, temporary, _ in prepared:
+            temporary.unlink(missing_ok=True)
+            _fsync_directory(temporary.parent)
+
+
+def _unlink_if_identity(path: Path, identity: tuple[int, int]) -> None:
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return
+    if (metadata.st_dev, metadata.st_ino) == identity:
+        path.unlink()
+
+
+def _fsync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)

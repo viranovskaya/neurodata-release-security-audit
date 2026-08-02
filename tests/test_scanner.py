@@ -31,6 +31,7 @@ from neurodata_security_audit.models import (
 )
 from neurodata_security_audit.readers import (
     FormatReaderUnavailable,
+    _hdf5_text_values,
     inspect_eeglab_metadata,
     inspect_mne_info,
 )
@@ -2382,6 +2383,25 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("MALFORMED_HEADER", {finding.code for finding in report.findings})
         self.assertIn("README", report.files_inspected)
 
+    def test_hdf5_identity_fallback_does_not_swallow_control_flow(self) -> None:
+        class Group:
+            id = object()
+
+            @staticmethod
+            def keys():
+                return []
+
+        fake_h5py = SimpleNamespace(
+            Group=Group,
+            Dataset=type("Dataset", (), {}),
+            h5o=SimpleNamespace(
+                get_info=lambda _: (_ for _ in ()).throw(KeyboardInterrupt())
+            ),
+        )
+
+        with self.assertRaises(KeyboardInterrupt):
+            _hdf5_text_values(Group(), fake_h5py)
+
     def test_git_lfs_pointer_is_not_reported_as_malformed_edf(self) -> None:
         (self.root / "recording.edf").write_text(
             "version https://git-lfs.github.com/spec/v1\n"
@@ -2449,6 +2469,35 @@ class ScannerTests(unittest.TestCase):
         self.assertIn("SYMLINK_REVIEW", {finding.code for finding in report.findings})
         self.assertIn(link.name, [item.path for item in report.skipped_files])
 
+    def test_regular_file_replaced_by_symlink_is_not_opened(self) -> None:
+        source = self.root / "notes.txt"
+        source.write_text("Synthetic dataset\n", encoding="utf-8")
+        outside = Path(self.temp_dir.name) / "outside.txt"
+        outside.write_text("Contact: alice@example.org\n", encoding="utf-8")
+        from neurodata_security_audit.scanner import _open_regular_file
+
+        opens = 0
+
+        def replace_before_second_open(path: Path, token):
+            nonlocal opens
+            if path.name == source.name:
+                opens += 1
+                if opens == 2:
+                    source.unlink()
+                    source.symlink_to(outside)
+            return _open_regular_file(path, token)
+
+        with patch(
+            "neurodata_security_audit.scanner._open_regular_file",
+            side_effect=replace_before_second_open,
+        ):
+            report = scan_dataset(self.root)
+
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("UNREADABLE_FILE", codes)
+        self.assertIn("MANIFEST_RECHECK_FAILED", codes)
+        self.assertNotIn("DIRECT_EMAIL", codes)
+
     def test_identifier_in_symlink_name_is_detected_and_masked(self) -> None:
         known_id = "SITEA-0042"
         target = self.root / "notes.txt"
@@ -2510,14 +2559,21 @@ class ScannerTests(unittest.TestCase):
         blocked = self.root / "blocked.txt"
         blocked.write_text("synthetic", encoding="utf-8")
         (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
-        original_read_bytes = Path.read_bytes
+        from neurodata_security_audit.scanner import _open_regular_file
+        blocked_opens = 0
 
-        def controlled_read_bytes(path: Path):
+        def controlled_open(path: Path, token):
+            nonlocal blocked_opens
             if path.name == blocked.name:
+                blocked_opens += 1
+            if path.name == blocked.name and blocked_opens == 2:
                 raise PermissionError("synthetic test error")
-            return original_read_bytes(path)
+            return _open_regular_file(path, token)
 
-        with patch.object(Path, "read_bytes", controlled_read_bytes):
+        with patch(
+            "neurodata_security_audit.scanner._open_regular_file",
+            side_effect=controlled_open,
+        ):
             report = scan_dataset(self.root)
         self.assertIn("UNREADABLE_FILE", {finding.code for finding in report.findings})
         self.assertIn("README", report.files_inspected)
@@ -3292,13 +3348,73 @@ class ScannerTests(unittest.TestCase):
         (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
         stderr = io.StringIO()
         with (
-            patch.object(Path, "write_text", side_effect=PermissionError("synthetic")),
+            patch(
+                "neurodata_security_audit.cli.write_texts_new",
+                side_effect=PermissionError("synthetic"),
+            ),
             redirect_stdout(io.StringIO()),
             redirect_stderr(stderr),
         ):
             code = main(["scan", str(self.root), "--json", "audit.json"])
         self.assertEqual(2, code)
         self.assertIn("could not write report (PermissionError)", stderr.getvalue())
+
+    def test_cli_refuses_existing_report_before_publishing_other_outputs(self) -> None:
+        (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+        output = Path(self.temp_dir.name) / "reports"
+        output.mkdir()
+        existing = output / "audit.json"
+        existing.write_text("keep\n", encoding="utf-8")
+        markdown = output / "audit.md"
+
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            code = main(
+                [
+                    "scan",
+                    str(self.root),
+                    "--json",
+                    str(existing),
+                    "--markdown",
+                    str(markdown),
+                ]
+            )
+
+        self.assertEqual(2, code)
+        self.assertEqual("keep\n", existing.read_text(encoding="utf-8"))
+        self.assertFalse(markdown.exists())
+
+    def test_cli_refuses_symlink_report_destination(self) -> None:
+        (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+        output = Path(self.temp_dir.name) / "report.json"
+        outside = Path(self.temp_dir.name) / "outside.json"
+        outside.write_text("keep\n", encoding="utf-8")
+        output.symlink_to(outside)
+
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            code = main(["scan", str(self.root), "--json", str(output)])
+
+        self.assertEqual(2, code)
+        self.assertTrue(output.is_symlink())
+        self.assertEqual("keep\n", outside.read_text(encoding="utf-8"))
+
+    def test_cli_rejects_duplicate_report_destinations(self) -> None:
+        (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+        output = Path(self.temp_dir.name) / "audit.txt"
+
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            code = main(
+                [
+                    "scan",
+                    str(self.root),
+                    "--json",
+                    str(output),
+                    "--markdown",
+                    str(output),
+                ]
+            )
+
+        self.assertEqual(2, code)
+        self.assertFalse(output.exists())
 
     def test_cli_returns_error_when_integrity_recheck_fails(self) -> None:
         report = ScanReport(

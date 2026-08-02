@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import os
+import stat
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import BinaryIO
 
 from . import __version__
 from .containers import inspect_archive, is_archive_path
@@ -224,6 +226,47 @@ class ScanPolicy:
             raise ValueError("Sensitive terms must contain at least three characters")
         object.__setattr__(self, "sensitive_terms", tuple(terms))
 
+
+@dataclass(frozen=True)
+class _FileToken:
+    device: int
+    inode: int
+    size: int
+    modified_ns: int
+
+
+def _token_from_stat(metadata: os.stat_result) -> _FileToken:
+    if not stat.S_ISREG(metadata.st_mode):
+        raise OSError("Release entry is not a regular file")
+    return _FileToken(
+        device=metadata.st_dev,
+        inode=metadata.st_ino,
+        size=metadata.st_size,
+        modified_ns=metadata.st_mtime_ns,
+    )
+
+
+def _regular_file_token(path: Path) -> _FileToken:
+    """Return a non-following identity token for one regular release file."""
+    return _token_from_stat(path.lstat())
+
+
+def _open_regular_file(path: Path, expected: _FileToken) -> BinaryIO:
+    """Open the exact regular file represented by ``expected`` without symlinks."""
+    if _regular_file_token(path) != expected:
+        raise OSError("Release file identity changed before it was opened")
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        opened = _token_from_stat(os.fstat(descriptor))
+        current = _regular_file_token(path)
+        if opened != expected or current != expected:
+            raise OSError("Release file identity changed while it was opened")
+        return os.fdopen(descriptor, "rb")
+    except BaseException:
+        os.close(descriptor)
+        raise
 
 def _sensitive_path_findings(
     relative_path: str,
@@ -565,19 +608,21 @@ def _is_nifti_path(path: Path) -> bool:
     return lower_name.endswith(".nii.gz") or path.suffix.lower() in {".nii", ".hdr"}
 
 
-def _is_dicom_path(path: Path) -> bool:
+def _is_dicom_path(path: Path, prefix: bytes) -> bool:
     if path.suffix.lower() in _DICOM_SUFFIXES:
         return True
     if path.suffix:
         return False
-    with path.open("rb") as stream:
-        prefix = stream.read(132)
     return len(prefix) == 132 and prefix[128:132] == b"DICM"
 
 
-def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
+def _sha256_file(
+    path: Path,
+    expected: _FileToken,
+    chunk_size: int = 1024 * 1024,
+) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as stream:
+    with _open_regular_file(path, expected) as stream:
         while chunk := stream.read(chunk_size):
             digest.update(chunk)
     return digest.hexdigest()
@@ -648,6 +693,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
     initial_tree = _tree_signature(root)
     coverage_by_path: dict[str, CoverageEntry] = {}
     manifest_by_path: dict[str, ManifestEntry] = {}
+    file_tokens: dict[str, _FileToken] = {}
 
     def record_coverage(
         relative_path: str,
@@ -664,12 +710,13 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
 
     def inventory_file(path: Path, relative_path: str) -> bool:
         try:
-            size = path.stat().st_size
+            token = _regular_file_token(path)
             manifest_by_path[relative_path] = ManifestEntry(
                 path=relative_path,
-                size_bytes=size,
-                sha256=_sha256_file(path),
+                size_bytes=token.size,
+                sha256=_sha256_file(path, token),
             )
+            file_tokens[relative_path] = token
             return True
         except OSError as error:
             report.manifest_recheck_passed = False
@@ -979,9 +1026,10 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
             continue
         suffix = path.suffix.lower()
         mne_format = _mne_format_for_path(path)
+        file_token = file_tokens[relative_path]
         try:
-            with path.open("rb") as stream:
-                prefix = stream.read(128)
+            with _open_regular_file(path, file_token) as stream:
+                prefix = stream.read(132)
             format_placeholder = (
                 suffix
                 in (
@@ -991,7 +1039,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 )
                 or mne_format is not None
                 or _is_nifti_path(path)
-                or _is_dicom_path(path)
+                or _is_dicom_path(path, prefix)
                 or is_archive_path(path)
             )
             if not prefix and format_placeholder:
@@ -1052,7 +1100,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 or path.name.lower() in _TEXT_NAMES
                 or _is_sensitive_config_name(path.name.lower())
             ):
-                size = path.stat().st_size
+                size = file_token.size
                 if size > policy.max_text_bytes:
                     report.findings.append(
                         Finding(
@@ -1077,7 +1125,8 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                         "Text file exceeds the configured parsing limit",
                     )
                     continue
-                data = path.read_bytes()
+                with _open_regular_file(path, file_token) as stream:
+                    data = stream.read()
                 text = decode_small_text(data)
                 report.files_inspected.append(relative_path)
                 record_coverage(
@@ -1129,7 +1178,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     report.references.extend(references.entries)
                     report.findings.extend(references.findings)
             elif suffix in _EDF_SUFFIXES:
-                with path.open("rb") as stream:
+                with _open_regular_file(path, file_token) as stream:
                     header = stream.read(256)
                 report.files_inspected.append(relative_path)
                 record_coverage(
@@ -1203,7 +1252,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                         "unsupported_manual_review",
                         "The NIfTI metadata reader failed",
                     )
-            elif _is_dicom_path(path):
+            elif _is_dicom_path(path, prefix):
                 try:
                     dicom_findings = inspect_dicom_metadata(
                         path,
@@ -1516,8 +1565,9 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
     for relative_path, initial in sorted(manifest_by_path.items()):
         try:
             current_path = root / relative_path
-            current_size = current_path.stat().st_size
-            current_hash = _sha256_file(current_path)
+            current_token = _regular_file_token(current_path)
+            current_size = current_token.size
+            current_hash = _sha256_file(current_path, current_token)
         except OSError as error:
             report.manifest_recheck_passed = False
             report.findings.append(

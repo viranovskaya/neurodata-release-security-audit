@@ -70,11 +70,6 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _write_report(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-
-
 def _read_sensitive_terms(path: Path) -> tuple[str, ...]:
     if path.stat().st_size > _MAX_TERM_FILE_BYTES:
         raise ValueError("Sensitive term file is larger than 1 MiB")
@@ -134,13 +129,23 @@ def _scan(args: argparse.Namespace) -> int:
         )
     )
     try:
+        requested = [
+            path
+            for path in (args.json_path, args.markdown_path, args.html_path)
+            if path is not None
+        ]
+        resolved = [path.expanduser().absolute() for path in requested]
+        if len(set(resolved)) != len(resolved):
+            raise ValueError("Report output paths must be different")
+        outputs: dict[Path, str] = {}
         if args.json_path:
-            _write_report(args.json_path, render_json(report))
+            outputs[args.json_path] = render_json(report)
         if args.markdown_path:
-            _write_report(args.markdown_path, render_markdown(report))
+            outputs[args.markdown_path] = render_markdown(report)
         if args.html_path:
-            _write_report(args.html_path, render_html(report))
-    except OSError as error:
+            outputs[args.html_path] = render_html(report)
+        write_texts_new(outputs)
+    except (OSError, RuntimeError, UnicodeError, ValueError) as error:
         print(f"error: could not write report ({type(error).__name__})", file=sys.stderr)
         return 2
     if not integrity_ok:

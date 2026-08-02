@@ -292,10 +292,10 @@ class CuratorWorkflowTests(unittest.TestCase):
             root = Path(directory)
             first = root / "comparison.json"
             second = root / "comparison.md"
-            original_open = Path.open
+            original_link = os.link
             calls = 0
 
-            def fail_second(path: Path, *args, **kwargs):
+            def fail_second(source: Path, destination: Path, *args, **kwargs):
                 nonlocal calls
                 calls += 1
                 if calls == 2:
@@ -310,10 +310,10 @@ class CuratorWorkflowTests(unittest.TestCase):
                     finally:
                         os.close(descriptor)
                     raise OSError("simulated second output failure")
-                return original_open(path, *args, **kwargs)
+                return original_link(source, destination, *args, **kwargs)
 
             with (
-                mock.patch("pathlib.Path.open", new=fail_second),
+                mock.patch("neurodata_security_audit.curator.os.link", new=fail_second),
                 self.assertRaisesRegex(OSError, "second output failure"),
             ):
                 write_texts_new(
@@ -328,6 +328,44 @@ class CuratorWorkflowTests(unittest.TestCase):
                 first.read_text(encoding="utf-8"),
             )
             self.assertFalse(second.exists())
+
+    def test_multi_output_failure_removes_only_owned_publications(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = root / "comparison.json"
+            second = root / "comparison.md"
+            original_link = os.link
+            calls = 0
+
+            def fail_second(source: Path, destination: Path, *args, **kwargs):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    raise OSError("simulated second output failure")
+                return original_link(source, destination, *args, **kwargs)
+
+            with (
+                mock.patch("neurodata_security_audit.curator.os.link", new=fail_second),
+                self.assertRaisesRegex(OSError, "second output failure"),
+            ):
+                write_texts_new(
+                    {
+                        first: '{"temporary": true}\n',
+                        second: "# Temporary\n",
+                    }
+                )
+
+            self.assertFalse(first.exists())
+            self.assertFalse(second.exists())
+
+    def test_new_output_is_private_regular_file_with_one_link(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "checklist.tsv"
+            write_text_new(output, "header\n")
+
+            metadata = output.lstat()
+            self.assertEqual(0o600, metadata.st_mode & 0o777)
+            self.assertEqual(1, metadata.st_nlink)
 
     def test_cli_builds_checklist_and_comparison_without_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
