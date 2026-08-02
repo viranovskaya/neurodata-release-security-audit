@@ -2,100 +2,111 @@
 
 [![tests](https://github.com/viranovskaya/neurodata-release-security-audit/actions/workflows/tests.yml/badge.svg)](https://github.com/viranovskaya/neurodata-release-security-audit/actions/workflows/tests.yml)
 
-I built this as a final local check before sharing an EEG or neuroimaging dataset.
+## Purpose
 
-It looks for information that can survive preprocessing or BIDS conversion by
-mistake: participant names, contact details, dates of birth, exact recording dates,
-old source IDs, staff names, scanner identifiers, local paths, credentials and
-forgotten mapping files.
+This repository provides a local, read-only pre-release audit of privacy-relevant metadata, file coverage, references, and integrity in EEG and neuroimaging datasets.
 
-The scanner is read-only. It does not upload data, rewrite the release, extract
-archives, traverse inventoried symlink entries or load EEG samples, image voxels
-or DICOM pixels. Core regular-file reads use verified, non-following file
-descriptors; optional format readers require a stable release tree and are
-covered by the final integrity recheck.
+## Practical problem
 
-## What it does
+Participant names, dates, source IDs, staff or scanner identifiers, local paths, credentials, and forgotten mapping files can survive preprocessing or BIDS conversion. A release curator needs one inventory that distinguishes detected findings from files or payloads that the scanner did not interpret.
 
-### Accounts for the whole release
+The audit supports a release decision; it does not prove anonymity or replace format-aware remediation, legal review, or scientific validation.
 
-- records every file, directory, symlink and special filesystem entry;
-- calculates a deterministic size and SHA-256 manifest for every readable regular
-  file;
-- hashes files again after metadata inspection;
-- checks that no entry was added, removed or changed during the scan;
-- separates privacy findings from coverage limits.
+## What I implemented
 
-Hashing streams all file bytes. It verifies integrity but does not interpret the
-signal or image payload.
+I implemented:
 
-### Reads supported metadata
+- deterministic inventory and SHA-256 manifests for regular files, with before/after integrity checks;
+- descriptor-bound, no-follow reads for core files so path replacement or symlink substitution fails closed;
+- privacy-pattern checks for BIDS tables and metadata, small text/configuration files, BrainVision headers, EDF/BDF headers, and optional format readers;
+- bounded metadata inspection for FIF, EEGLAB, KIT, MFF, NIfTI, and DICOM without requesting EEG samples, image voxels, or DICOM pixels;
+- ZIP/TAR member inspection without extraction, including traversal, collision, encryption, nesting, and special-entry checks;
+- BrainVision, EEGLAB, and supported BIDS reference checks;
+- deterministic masked JSON, Markdown, and self-contained HTML reports;
+- private review checklists and report-to-report comparison.
 
-- BIDS JSON, TSV and CSV metadata;
-- BrainVision `.vhdr` and `.vmrk`;
-- the common EDF and BDF header;
-- FIF, KIT `.con`/`.sqd`, continuous EEGLAB `.set` and EGI MFF metadata with
-  the optional EEG readers;
-- bounded XML metadata inside MFF directories;
-- NIfTI headers without requesting voxel data;
-- DICOM metadata before Pixel Data;
-- small text, source, configuration and notebook files, including BIDS
-  `.bval`, `.bvec`, `.bidsignore` and `.gitattributes`.
+The report keeps three concepts separate: findings, coverage, and scan integrity. Its top-level release state is `STOP`, `HOLD`, or no automated hold; a clean findings list cannot override a coverage gap.
 
-### Checks containers and links
+## Data and sample
 
-- lists ZIP and TAR members without extraction;
-- reports encrypted, nested, path-traversing, colliding and special archive entries;
-- checks BrainVision, EEGLAB and supported BIDS cross-file references;
-- reports missing, external, symlinked and wrong-case targets;
-- keeps unsupported formats and payloads visible instead of treating them as clean.
+The repository contains code, synthetic fixtures, aggregate calibration records, and redacted benchmark labels. It does not contain participant datasets or reports generated from potentially sensitive source metadata.
 
-## Install
+Evidence is deliberately split by source:
 
-Requires Python 3.10 or newer. A virtual environment is recommended.
+- a 50-case synthetic leak benchmark contains 103 labelled findings across text, EEG, imaging, archive, and reference cases;
+- generated format fixtures exercise BrainVision, EDF/BDF, FIF, NIfTI, and DICOM paths;
+- three hash-pinned public fixtures exercise EEGLAB, KIT, and MFF readers;
+- a fixed, non-random 50-dataset OpenNeuro calibration uses bounded slices: 39 include one hash-checked public payload and 11 are metadata-only;
+- two small exploratory web-pilot samples tested report comprehension (five and eight complete responses), not leak detection or psychometric validity.
 
-Clone the repository and install it locally:
+## Validated outputs
+
+The scanner emits:
+
+- a complete entry inventory and regular-file manifest;
+- masked findings with severity and field location;
+- per-entry coverage states;
+- cross-file reference results;
+- integrity status;
+- deterministic JSON, Markdown, and offline HTML reports.
+
+Format claims are bounded by the evidence actually run:
+
+| Format or structure | Implemented inspection | Current evidence |
+|---|---|---|
+| BIDS JSON/TSV/CSV and small metadata files | decoded metadata and bounded text checks | synthetic tests and public BIDS/OpenNeuro calibration |
+| BrainVision | text headers, marker metadata, and references; no signal samples | synthetic fixtures and public calibration |
+| EDF/BDF | common fixed header; no signal samples | generated benchmark cases and four public Sleep-EDF files |
+| FIF | optional MNE metadata; no preload | generated format fixture |
+| EEGLAB, KIT, MFF | optional reader metadata and linked-file checks; no preload | synthetic tests plus three hash-pinned public smoke fixtures |
+| NIfTI | header metadata; no voxel request; extensions remain a visible limit | generated nibabel fixture and public OpenNeuro calibration |
+| DICOM | metadata before Pixel Data; no pixel request | generated pydicom fixture only |
+| ZIP/TAR | member names and structure; no extraction or member-payload scan | synthetic archive tests |
+
+The frozen 50-dataset calibration completed 50/50 bounded slices and passed both integrity rechecks. It is an engineering robustness and field-sensitivity calibration, not a representative privacy study. Exact scope and aggregate results are in [the calibration record](docs/public_50_dataset_calibration.md).
+
+## Reproducibility
+
+CI tests Python 3.10 and 3.13 with the base package, EEG-reader extras, imaging-reader extras, and both groups together. Separate jobs build the wheel twice, compare bytes, install the exact wheel outside the checkout, run the copied functional suite, validate report schemas, and exercise the installed CLI.
+
+Supported optional-reader ranges are declared in `pyproject.toml`. Exact versions used for the frozen public calibration are recorded in its documentation; a code or report change requires a new calibration claim rather than reuse of the old result.
+
+The labelled benchmark keeps failed first runs and corrected results instead of replacing them. Public-format smoke inputs are hash-pinned. The 50-dataset registry binds dataset IDs, source commits, and payload status, while sensitive per-dataset reports remain outside the repository.
+
+## Limitations
+
+- The scanner does not test signal, image, or tabular re-identification risk.
+- It does not perform MRI defacing, OCR, malware analysis, or visual inspection.
+- NIfTI extension contents, DICOM metadata after the first Pixel Data element, archive member payloads, encrypted archives, and external link targets are not inspected.
+- Legacy nested EEGLAB structures can remain an explicit manual-review case.
+- Optional third-party readers receive stable checked paths, but their internal path handling is outside this package.
+- DICOM evidence uses generated fixtures; supported-format behavior is not evidence of general clinical-data coverage.
+- The OpenNeuro sample is bounded and non-random, and its aggregate findings do not establish that any source dataset is unsafe.
+- A successful scan is not proof of anonymity, GDPR/HIPAA compliance, ethical shareability, or scientific validity.
+
+The detailed boundaries are in [v0.2 scope](docs/v0.2_scope.md), the [report schema](docs/report_schema.md), and the [remediation guide](docs/remediation_guide.md).
+
+## Installation and run
+
+Python 3.10 or newer is required.
 
 ```bash
 git clone https://github.com/viranovskaya/neurodata-release-security-audit.git
 cd neurodata-release-security-audit
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-The base install uses the Python standard library:
-
-```bash
 python3 -m pip install .
 ```
 
-Add EEG format readers:
+Install optional metadata readers as needed:
 
 ```bash
 python3 -m pip install ".[formats]"
-```
-
-Add NIfTI and DICOM readers:
-
-```bash
 python3 -m pip install ".[imaging]"
-```
-
-Install both groups:
-
-```bash
 python3 -m pip install ".[formats,imaging]"
 ```
 
-Optional readers fail visibly when they are missing or cannot read a file safely.
-
-## Run
-
-```bash
-neurodata-security-audit scan /path/to/dataset
-```
-
-Save deterministic JSON, Markdown and visual HTML reports:
+Run a local audit and keep reports outside the selected release:
 
 ```bash
 neurodata-security-audit scan /path/to/dataset \
@@ -104,96 +115,21 @@ neurodata-security-audit scan /path/to/dataset \
   --html reports/audit.html
 ```
 
-Keep reports outside the dataset. The command rejects report paths inside the
-selected release so the source tree is not changed by the audit. It also refuses
-existing or symlink report destinations and publishes multiple requested reports
-as one no-overwrite operation.
+The command refuses report paths inside the dataset and refuses to replace an existing report. Exit status is `0` with no high-severity finding, `1` with at least one high-severity finding, and `2` for scan, integrity, or report-publication failure. Review-level findings still require a decision when the exit status is `0`.
 
-The HTML file is self-contained and works offline. It shows the finding severity,
-coverage, integrity result, cross-file references and full SHA-256 manifest. It
-uses the same masked report data as JSON and Markdown; it does not add another
-metadata-reading path. The first action section says whether to stop the release,
-review an item or continue to the coverage check. It lists the exact file, field
-location and next step without exposing the matched value. Unsupported and
-untraversed entries are repeated in a separate manual-review list.
-
-The status at the top is the release decision: `STOP`, `HOLD` or no automated
-hold. Scan integrity is shown separately and is never presented as release
-clearance. Finding filters help with long reports, while printing always includes
-the complete finding table.
-
-Treat every report as private working material. Detected values are masked, but
-an identifier that no rule recognized may still appear in a relative filename or
-field location. Review the report before sharing or publishing it.
-
-The terminal exits with:
-
-- `0` when no high-severity finding is present;
-- `1` when at least one high-severity finding is present;
-- `2` when the scan fails, the release changes during the scan or report writing
-  fails.
-
-Review-level findings still need a decision even when the exit status is `0`.
-
-## Add known names or source IDs
-
-Generic name detection creates too many false positives. If you know the names,
-hospital IDs or old subject codes used in the project, keep them in a private text
-file with one value per line:
-
-```text
-Jane Doe
-hospital-id-0042
-```
-
-Then run:
+Known private terms can be supplied from a file kept outside the dataset:
 
 ```bash
 neurodata-security-audit scan /path/to/dataset \
   --sensitive-terms /private/path/known_identifiers.txt
 ```
 
-The list must stay outside the dataset and should not be committed to Git.
-
-## How to read the report
-
-`findings` says what may be sensitive or unsafe.
-
-`coverage` says how each file, folder, symlink or other filesystem entry was
-handled:
-
-- `fully_inspected_metadata`;
-- `header_or_structure_only`;
-- `payload_not_opened`;
-- `unsupported_manual_review`;
-- `not_traversed`.
-
-`manifest` contains the file size and SHA-256 digest. `container_members` records
-ZIP and TAR directory entries. `references` shows which supported cross-file links
-are valid and which need repair.
-
-A clean findings list does not override a coverage gap.
-
-The report does not contain a delete button. Start with **What to do next**, work
-on a copy and use a tool that understands the flagged format. Run the audit again
-before replacing a release candidate. JSON and TSV fields can usually be edited
-directly. FIF and EDF/BDF headers need format-aware tools, followed by a check
-that the signal, channels, sampling, annotations and duration were preserved.
-The [format remediation guide](docs/remediation_guide.md) gives a short checklist
-for FIF, EEGLAB, EDF/BDF, MFF, DICOM, NIfTI, JSON and TSV.
-
-## Keep track of a private review
-
-Create a TSV checklist from the first JSON report:
+Create a private checklist or compare two scans of the same release candidate:
 
 ```bash
 neurodata-security-audit checklist reports/audit.json \
   --tsv review/audit-checklist.tsv
-```
 
-After correcting a private copy and scanning it again, compare the two reports:
-
-```bash
 neurodata-security-audit compare \
   reports/baseline.json reports/current.json \
   --confirm-same-dataset \
@@ -201,88 +137,16 @@ neurodata-security-audit compare \
   --markdown review/comparison.md
 ```
 
-The comparison separates new, remaining and resolved review items. A resolved
-item only means that the same masked record is no longer reported. It is not
-proof that the dataset is anonymous or ready to share. Use
-`--confirm-same-dataset` only after checking that both reports describe versions
-of the same release. The
-[curator workflow](docs/curator_workflow.md) explains the checklist fields and
-the checks that still need a format-aware tool.
+Treat reports and known-term files as private working material. Use only synthetic or fully redacted examples in public issues; private vulnerability reporting is described in [SECURITY.md](SECURITY.md).
 
-## Limits
+## Citation
 
-This is a practical release check for an honest curator. It is not proof that a
-dataset is anonymous, secure or legally compliant.
+Public beta `v0.2.0b1` is the current GitHub prerelease. Citation metadata for version `0.2.0-beta.1` is in [`CITATION.cff`](CITATION.cff). The code is released under the [MIT License](LICENSE); there is no PyPI release.
 
-The current version does not:
+## Current status
 
-- test whether EEG signals or images can identify a person;
-- perform MRI defacing, OCR or visual inspection;
-- interpret NIfTI extension content;
-- open DICOM pixels or metadata stored after the first Pixel Data element;
-- scan archive member payloads or decrypt encrypted archives;
-- analyse malware or hostile parser inputs;
-- isolate optional third-party readers from a malicious same-user process that
-  replaces a validated path during the reader call;
-- measure statistical re-identification risk in participant tables;
-- replace the BIDS Validator, format-specific anonymisation or human review.
-
-The full v0.2 boundary is in
-[docs/v0.2_scope.md](docs/v0.2_scope.md). The report contract is in
-[docs/report_schema.md](docs/report_schema.md). The private review workflow is in
-[docs/curator_workflow.md](docs/curator_workflow.md). Public and real-reader
-checks are recorded in [docs/v0.2_calibration.md](docs/v0.2_calibration.md). A separate
-[50-dataset OpenNeuro calibration](docs/public_50_dataset_calibration.md) covers
-EEG, MEG, iEEG, MRI and fMRI.
-The [v0.2.1 format-selection record](docs/format_selection_v0.2.1.md) explains
-why the calibration supports a visible manual-review boundary for legacy
-EEGLAB files rather than a new general reader.
-
-The [labelled leak benchmark](docs/privacy_benchmark.md) keeps failed first runs
-alongside corrected regression results instead of replacing them. Its separate
-public-format layer checks hash-pinned EEGLAB, KIT and EGI MFF fixtures, with no
-claim of privacy ground truth.
-
-The separate [report usability pilot](usability/README.md) tests whether an
-independent curator can understand the release decision, locate the file and
-field, choose a safe next step, notice a coverage gap and treat an integrity
-failure correctly. It does not repeat the leak-detection benchmark.
-The [first web-pilot results](usability/prolific_pilot1_results.md) record an
-exploratory five-person basic-comprehension check, its failed threshold
-comparison and the report changes made before a second general-comprehension
-pilot.
-The [second web-pilot results](usability/prolific_pilot2_results.md) record eight
-complete responses after those changes. Fixed-choice accuracy rose to 95.2%, but
-the planned ten-person gate was not completed and the sample was not restricted
-to neurodata curators.
-A separate [synthetic usability stress test](usability/synthetic_usability_stress_test.md)
-records the model-based wording check used before that second paid sample. It
-is development evidence only and is not combined with human pilot results.
-
-## Status
-
-The private v0.1 snapshot was independently reviewed before it was merged.
-
-Version `0.2.0b1` is the first public beta. It includes complete release
-inventory, NIfTI and DICOM metadata checks, archive and cross-file reference
-checks, integrity rechecks, an offline HTML report and bounded calibration on
-50 public OpenNeuro datasets.
-
-The repository contains synthetic fixtures and aggregate calibration records,
-not the public datasets or reports produced from potentially sensitive source
-metadata. There is no PyPI package. The next evaluation step is independent use
-by researchers or data curators working with their own local release copies.
-
-## Feedback and sensitive reports
-
-Ordinary bugs and format requests are welcome as GitHub issues, using synthetic
-or fully redacted examples only. Never attach a participant file, a real audit
-report or a detected value to a public issue.
-
-For a possible software vulnerability, use the private reporting route described
-in [SECURITY.md](SECURITY.md). If the concern is about a public dataset rather
-than this software, contact that dataset's repository or curator privately.
-
-## License
-
-MIT
+- **Implemented:** local inventory, privacy findings, bounded metadata readers, archive/reference checks, integrity rechecks, reports, checklist, and comparison.
+- **Tested:** synthetic unit/integration cases, exact-wheel installs, deterministic builds, schema validation, and three hash-pinned public format smoke fixtures.
+- **Evaluated:** bounded local scans of 50 fixed OpenNeuro slices and two exploratory report-comprehension samples.
+- **Planned:** independent curator use on separately controlled release copies; no additional format or detector is claimed without new evidence.
+- **Not yet validated:** arbitrary format variants, hostile inputs, anonymity, legal/ethical compliance, clinical use, or scientific suitability.
