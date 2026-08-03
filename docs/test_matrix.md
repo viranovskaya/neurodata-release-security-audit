@@ -3,6 +3,15 @@
 All identifiers below are synthetic. The v0.1 rows are retained, and the v0.2
 integration rows are listed after them.
 
+## Installation and platform gates
+
+| Gate | Environment | What it checks |
+|---|---|---|
+| Full test matrix | Ubuntu; Python 3.10 and 3.13 | base, format-reader, imaging-reader, and combined installations |
+| Exact wheel | Ubuntu; Python 3.10 and 3.13 | installed wheel outside the checkout with the copied functional suite |
+| Clean-install smoke | Ubuntu, macOS, and Windows; Python 3.13 | installed import path, pinned optional-reader versions, CLI version, and a clean fixture scan |
+| Package reproducibility | Ubuntu; Python 3.13 | two byte-identical wheels and schema-valid generated reports |
+
 | Area | Fixture | Expected result |
 |---|---|---|
 | Clean BIDS text | minimal `dataset_description.json` and README | no high finding |
