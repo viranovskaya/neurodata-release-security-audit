@@ -188,6 +188,15 @@ p { margin: 0; }
 .finding-list-status strong {
   color: var(--muted);
 }
+.decision-legend {
+  margin: -4px 0 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: .88rem;
+}
+.decision-legend strong { color: var(--text); }
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1294,6 +1303,11 @@ def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
     <strong>Can this finding list be used for the next review step?</strong>
     <span>{_text(finding_list_status)}</span>
   </div>
+
+  <div class="decision-legend" role="note"><strong>How to read this report:</strong>
+  high = resolve before release by correcting a confirmed problem or documenting
+  an expected or false-positive match; review = a curator must decide and record
+  the outcome; coverage gap = the scanner did not fully inspect that entry.</div>
 
   <p class="privacy-warning" role="note"><strong>Keep this report private.</strong>
   Detected values are masked, but unrecognized identifying text may remain in
