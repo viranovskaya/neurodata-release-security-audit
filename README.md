@@ -59,8 +59,8 @@ Format claims are bounded by the evidence actually run:
 | EDF/BDF | common fixed header; no signal samples | generated benchmark cases and four public Sleep-EDF files |
 | FIF | optional MNE metadata; no preload | generated format fixture |
 | EEGLAB, KIT, MFF | optional reader metadata and linked-file checks; no preload | synthetic tests plus three hash-pinned public smoke fixtures |
-| MATLAB | variable names, classes, shapes, and small string values; no numeric-array load | synthetic tests and a fixed GIN run with 20 explicit nested-structure limits |
-| XLSX/DOCX | bounded text, comments, core metadata, macros, and external-link checks | synthetic tests and fixed GIN calibration files |
+| MATLAB | variable names, classes, shapes, and small string values; no numeric-array load | synthetic tests and a [fixed GIN run](docs/matlab_office_calibration.md) with 20 explicit nested-structure limits |
+| XLSX/DOCX | bounded text, comments, core metadata, macros, and external-link checks | synthetic tests and [fixed GIN calibration files](docs/matlab_office_calibration.md) |
 | NIfTI | header metadata; no voxel request; extensions remain a visible limit | generated nibabel fixture and public OpenNeuro calibration |
 | DICOM | metadata before Pixel Data; no pixel request | generated pydicom fixture only |
 | ZIP/TAR | member names and structure; no extraction or member-payload scan | synthetic archive tests |
