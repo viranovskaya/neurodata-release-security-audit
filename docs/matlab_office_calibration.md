@@ -21,14 +21,14 @@ public repository does not need a second file-level copy of the source index.
 
 ## Scanner environment
 
-- Scanner source commit: `b508db855212cac631c86cc117e2bb17a787821c`
-- Package version: `0.2.1.dev0`
+- Scanner source commit: `5393b4953d68aba4317abff6370df930c26d7c22`
+- Package version: `0.2.1b1`
 - Python: `3.13.7`
 - SciPy: `1.18.0`
 - h5py: `3.16.0`
 - Office reader: Python standard-library ZIP and XML parsing
 - Deterministic wheel SHA-256:
-  `0c16d6e212afed3111020bdcdd120b21f77d3eb5180f0bbe5c7f62bbe87ef241`
+  `e64e6ef711305c2ea35fc25c136cbaa2eac18218d7a50d915d8c159139d088aa`
 
 The source commit includes the bounded MATLAB and Office readers plus the
 first-run report wording and HTML legend. The readers prevent Office
@@ -57,13 +57,13 @@ their numeric arrays.
 
 Report SHA-256 values:
 
-- JSON: `6868b82eff8e4cbef87ff90cb9f8de5eacfa870f1b3e1d8b958306b3242ac407`
+- JSON: `e7665f4eb32a5a83eeb37ec6b98c0619d4eafde3d149476e46c8e1e19d8db410`
 - Markdown: `3066259ad2c39e568243b4ce266daf1a6f7b42ae1d719e6dc80da2791a8f317b`
-- HTML: `dafed9e14f91da4dad9c894ba6800cd5dc65aee4fea1ad1d6fe3fb88fbf3817e`
+- HTML: `74ed560b50884d2f357ad6cee9b8159e1397324e24b96d54a51f5eac156212c0`
 
-The JSON and Markdown hashes are unchanged from the earlier reader calibration.
-The HTML hash changed because this commit changes the shared report renderer;
-two fresh runs of the commit produced the new HTML byte-for-byte identically.
+The Markdown hash is unchanged from the earlier reader calibration. JSON and
+HTML changed only because the scanner version is now `0.2.1b1`; two fresh runs
+of the release wheel produced all three reports byte-for-byte identically.
 
 ## Boundary
 
