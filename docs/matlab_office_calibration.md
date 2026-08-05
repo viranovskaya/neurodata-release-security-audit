@@ -27,6 +27,8 @@ public repository does not need a second file-level copy of the source index.
 - SciPy: `1.18.0`
 - h5py: `3.16.0`
 - Office reader: Python standard-library ZIP and XML parsing
+- Deterministic wheel SHA-256:
+  `5ab37b7c24250ba34ab0ee22c5711538e51535185a2900452a2d10a52c7e0675`
 
 The source commit fixes the MATLAB 7.3 counter initialization, bounds classic
 MATLAB text loading to 10,000 total elements and 100 variables, and prevents
@@ -42,6 +44,10 @@ Two fresh runs produced identical JSON, Markdown and HTML reports:
 - 0 high findings
 - 20 review findings
 - both integrity rechecks passed
+
+The exact installed wheel passed 204 copied functional tests outside the source
+checkout on both Python 3.10 and Python 3.13. Two controlled wheel builds were
+byte-identical.
 
 Every review finding was an explicit `MATLAB_METADATA_COVERAGE_LIMIT` for a
 nested classic MATLAB structure. The scanner did not load those structures or
