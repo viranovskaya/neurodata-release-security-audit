@@ -2671,6 +2671,27 @@ class ScannerTests(unittest.TestCase):
                 {finding.code for finding in findings},
             )
 
+    def test_matlab_73_fixed_width_string_respects_byte_budget(self) -> None:
+        try:
+            import h5py
+            import numpy as np
+        except ImportError:
+            self.skipTest("h5py and numpy are not installed")
+        path = self.root / "wide-string.mat"
+        with h5py.File(path, "w") as document:
+            document.create_dataset(
+                "note",
+                data=np.array([b"alice@example.org"], dtype="S200000"),
+            )
+
+        findings = inspect_matlab_metadata(path, path.name)
+
+        self.assertNotIn("DIRECT_EMAIL", {finding.code for finding in findings})
+        self.assertIn(
+            "MATLAB_METADATA_COVERAGE_LIMIT",
+            {finding.code for finding in findings},
+        )
+
     def test_oversized_classic_matlab_text_is_not_loaded(self) -> None:
         try:
             import scipy.io  # noqa: F401

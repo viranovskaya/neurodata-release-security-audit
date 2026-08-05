@@ -43,6 +43,7 @@ _OFFICE_MAX_TEXT_BYTES = 8 * 1024 * 1024
 _OFFICE_XML_DECLARATIONS = (b"<!DOCTYPE", b"<!ENTITY")
 _MATLAB_MAX_TEXT_ELEMENTS = 10000
 _MATLAB_MAX_TEXT_VARIABLES = 100
+_MATLAB_MAX_TEXT_BYTES = 64 * 1024
 
 
 class FormatReaderUnavailable(RuntimeError):
@@ -641,6 +642,7 @@ def inspect_matlab_metadata(
             ) from error
         selected_text_elements = 0
         selected_text_variables = 0
+        selected_text_bytes = 0
         with h5py.File(path, "r") as document:
             for name in sorted(document.keys()):
                 link = document.get(name, getlink=True)
@@ -681,17 +683,21 @@ def inspect_matlab_metadata(
                         matlab_class == "char" or node.dtype.kind in {"S", "U"}
                     )
                     elements = int(getattr(node, "size", 0))
+                    text_bytes = int(getattr(node, "nbytes", elements))
                     if is_text_dataset and (
                         elements > _MATLAB_MAX_TEXT_ELEMENTS
                         or selected_text_elements + elements
                         > _MATLAB_MAX_TEXT_ELEMENTS
                         or selected_text_variables >= _MATLAB_MAX_TEXT_VARIABLES
+                        or text_bytes > _MATLAB_MAX_TEXT_BYTES
+                        or selected_text_bytes + text_bytes > _MATLAB_MAX_TEXT_BYTES
                     ):
                         oversized_texts += 1
                         values = []
                     elif is_text_dataset:
                         selected_text_elements += elements
                         selected_text_variables += 1
+                        selected_text_bytes += text_bytes
                         values = _hdf5_text_values(node, h5py)
                     else:
                         values = []
