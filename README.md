@@ -117,7 +117,42 @@ neurodata-security-audit scan /path/to/dataset \
   --html reports/audit.html
 ```
 
-The command refuses report paths inside the dataset and refuses to replace an existing report. Exit status is `0` with no high-severity finding, `1` with at least one high-severity finding, and `2` for scan, integrity, or report-publication failure. Review-level findings still require a decision when the exit status is `0`.
+The command refuses report paths inside the dataset and refuses to replace an
+existing report. The terminal repeats each supplied output path without
+expanding local home or working-directory context into logs; path spelling may
+be normalized and non-ASCII characters are escaped for terminal safety.
+Relative paths are relative to the directory where the command runs. Exit
+status is `0` with no high-severity finding, `1` with at least one high-severity
+finding, and `2` for scan, integrity, or report-publication failure.
+Review-level findings still require a decision when the exit status is `0`.
+
+Try the included synthetic demo before using research data. The demo is meant to
+return exit status `1`: it contains deliberate findings and should produce a
+reported `HOLD` release state.
+
+```bash
+mkdir -p /tmp/neurodata-audit-demo-reports
+neurodata-security-audit scan examples/reviewer_demo \
+  --json /tmp/neurodata-audit-demo-reports/audit.json \
+  --markdown /tmp/neurodata-audit-demo-reports/audit.md \
+  --html /tmp/neurodata-audit-demo-reports/audit.html
+```
+
+Open the HTML report and check three separate things: high findings must be
+resolved before release by correcting a confirmed problem or documenting an
+expected or false-positive match, review findings need a recorded curator
+decision, and coverage gaps need a suitable manual check. Passing integrity
+checks only means the selected files did not change during the scan; it is not
+release clearance.
+
+After correcting a private working copy, write the next audit to new paths:
+
+```bash
+neurodata-security-audit scan /path/to/corrected-dataset \
+  --json reports/audit-after-fix.json \
+  --markdown reports/audit-after-fix.md \
+  --html reports/audit-after-fix.html
+```
 
 Known private terms can be supplied from a file kept outside the dataset:
 

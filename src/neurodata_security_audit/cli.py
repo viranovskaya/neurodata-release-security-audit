@@ -148,9 +148,23 @@ def _scan(args: argparse.Namespace) -> int:
     except (OSError, RuntimeError, UnicodeError, ValueError) as error:
         print(f"error: could not write report ({type(error).__name__})", file=sys.stderr)
         return 2
+    for path in requested:
+        safe_path = f"report={path}".encode("ascii", errors="backslashreplace").decode()
+        print(safe_path)
     if not integrity_ok:
+        print("RELEASE STATE: STOP - scan integrity failed; run a new audit.")
         return 2
-    return 1 if summary["findings_high"] else 0
+    if summary["findings_high"]:
+        print(
+            "RELEASE STATE: HOLD - reports were written, but high-priority "
+            "findings must be resolved before release."
+        )
+        return 1
+    print(
+        "RELEASE STATE: NOT APPROVED - review findings, coverage, and format "
+        "limits still require a curator decision."
+    )
+    return 0
 
 
 def _checklist(args: argparse.Namespace) -> int:

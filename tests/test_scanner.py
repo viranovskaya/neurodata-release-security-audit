@@ -3632,7 +3632,8 @@ class ScannerTests(unittest.TestCase):
     def test_cli_writes_reports_and_returns_finding_status(self) -> None:
         (self.root / "notes.txt").write_text("Contact: alice@example.org\n", encoding="utf-8")
         output = Path(self.temp_dir.name) / "reports"
-        with redirect_stdout(io.StringIO()):
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
             code = main(
                 [
                     "scan",
@@ -3646,11 +3647,75 @@ class ScannerTests(unittest.TestCase):
                 ]
             )
         self.assertEqual(1, code)
+        output_text = stdout.getvalue()
+        self.assertIn("RELEASE STATE: HOLD", output_text)
+        self.assertIn(f"report={output / 'audit.html'}", output_text)
         self.assertTrue((output / "audit.json").is_file())
         self.assertTrue((output / "audit.md").is_file())
         html = (output / "audit.html").read_text(encoding="utf-8")
         self.assertIn("<!doctype html>", html)
         self.assertNotIn("alice@example.org", html)
+
+    def test_cli_clean_scan_still_requires_release_decision(self) -> None:
+        (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            code = main(["scan", str(self.root)])
+
+        self.assertEqual(0, code)
+        self.assertIn("RELEASE STATE: NOT APPROVED", stdout.getvalue())
+
+    def test_cli_release_state_is_safe_on_ascii_stdout(self) -> None:
+        (self.root / "notes.txt").write_text(
+            "Contact: alice@example.org\n",
+            encoding="utf-8",
+        )
+        output = Path(self.temp_dir.name) / "r\N{LATIN SMALL LETTER E WITH ACUTE}port.json"
+        raw_stdout = io.BytesIO()
+        ascii_stdout = io.TextIOWrapper(raw_stdout, encoding="ascii")
+
+        with redirect_stdout(ascii_stdout):
+            code = main(["scan", str(self.root), "--json", str(output)])
+        ascii_stdout.flush()
+        rendered = raw_stdout.getvalue().decode("ascii")
+
+        self.assertEqual(1, code)
+        self.assertTrue(output.is_file())
+        self.assertIn("RELEASE STATE: HOLD -", rendered)
+        self.assertIn("r\\xe9port.json", rendered)
+
+    def test_cli_repeats_paths_without_expanding_local_context(self) -> None:
+        (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
+        stdout = io.StringIO()
+
+        with (
+            patch("neurodata_security_audit.cli.write_texts_new"),
+            redirect_stdout(stdout),
+        ):
+            code = main(
+                [
+                    "scan",
+                    str(self.root),
+                    "--json",
+                    "reports/audit.json",
+                    "--markdown",
+                    "~/private-audit.md",
+                ]
+            )
+
+        rendered = stdout.getvalue()
+        self.assertEqual(0, code)
+        self.assertIn("report=reports/audit.json", rendered)
+        self.assertIn("report=~/private-audit.md", rendered)
+        self.assertNotIn(str(Path.home()), rendered)
+
+    def test_html_explains_findings_and_coverage_terms(self) -> None:
+        rendered = render_html(ScanReport(scanner_version="test"))
+
+        self.assertIn("How to read this report:", rendered)
+        self.assertIn("high = resolve before release", rendered)
+        self.assertIn("coverage gap = the scanner did not fully inspect", rendered)
 
     def test_cli_handles_report_write_error(self) -> None:
         (self.root / "README").write_text("Synthetic dataset\n", encoding="utf-8")
