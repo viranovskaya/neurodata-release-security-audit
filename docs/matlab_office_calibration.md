@@ -21,19 +21,20 @@ public repository does not need a second file-level copy of the source index.
 
 ## Scanner environment
 
-- Scanner source commit: `4de3c9abf4df0acfa35e738741a4799722e687bb`
+- Scanner source commit: `1bdccc17c9778b8d3d72b32bc8886bca976167c7`
 - Package version: `0.2.1.dev0`
 - Python: `3.13.7`
 - SciPy: `1.18.0`
 - h5py: `3.16.0`
 - Office reader: Python standard-library ZIP and XML parsing
 - Deterministic wheel SHA-256:
-  `e54451e785b57b27a3e9ac24e2cb53a19ef7a02e146311d388215eb14c7b4198`
+  `5374e81211bd24c997fd7de39dd0082b18a38cdcddbc7e4dcc366c155ecc374a`
 
 The source commit fixes the MATLAB 7.3 counter initialization, prevents Office
 relationship and HDF5 variable names from appearing raw in finding locations,
 and applies the same file-level budget to classic and HDF5 MATLAB text: at most
-10,000 total elements and 100 variables are loaded.
+10,000 total elements and 100 variables are loaded. HDF5 text is additionally
+limited to 64 KiB of encoded dataset storage per file.
 
 ## Result
 
@@ -45,7 +46,7 @@ Two fresh runs produced identical JSON, Markdown and HTML reports:
 - 20 review findings
 - both integrity rechecks passed
 
-The exact installed wheel passed 205 copied functional tests outside the source
+The exact installed wheel passed 206 copied functional tests outside the source
 checkout on both Python 3.10 and Python 3.13. Two controlled wheel builds were
 byte-identical.
 
