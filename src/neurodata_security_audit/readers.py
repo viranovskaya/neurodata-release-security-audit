@@ -639,6 +639,8 @@ def inspect_matlab_metadata(
             raise FormatReaderUnavailable(
                 "Install the 'formats' extra to inspect MATLAB 7.3 metadata"
             ) from error
+        selected_text_elements = 0
+        selected_text_variables = 0
         with h5py.File(path, "r") as document:
             for name in sorted(document.keys()):
                 link = document.get(name, getlink=True)
@@ -675,7 +677,24 @@ def inspect_matlab_metadata(
                     limited_layouts += 1
                     values = []
                 else:
-                    values = _hdf5_text_values(node, h5py)
+                    is_text_dataset = isinstance(node, h5py.Dataset) and (
+                        matlab_class == "char" or node.dtype.kind in {"S", "U"}
+                    )
+                    elements = int(getattr(node, "size", 0))
+                    if is_text_dataset and (
+                        elements > _MATLAB_MAX_TEXT_ELEMENTS
+                        or selected_text_elements + elements
+                        > _MATLAB_MAX_TEXT_ELEMENTS
+                        or selected_text_variables >= _MATLAB_MAX_TEXT_VARIABLES
+                    ):
+                        oversized_texts += 1
+                        values = []
+                    elif is_text_dataset:
+                        selected_text_elements += elements
+                        selected_text_variables += 1
+                        values = _hdf5_text_values(node, h5py)
+                    else:
+                        values = []
                 for value in values:
                     findings.extend(
                         scan_text(

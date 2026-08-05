@@ -33,6 +33,7 @@ from neurodata_security_audit.readers import (
     FormatReaderUnavailable,
     _hdf5_text_values,
     inspect_eeglab_metadata,
+    inspect_matlab_metadata,
     inspect_mne_info,
     inspect_office_metadata,
 )
@@ -2632,6 +2633,43 @@ class ScannerTests(unittest.TestCase):
             {finding.code for finding in report.findings},
         )
         self.assertNotIn("alice@example.org", render_json(report))
+
+    def test_matlab_73_text_uses_one_file_level_budget(self) -> None:
+        try:
+            import h5py
+            import numpy as np
+        except ImportError:
+            self.skipTest("h5py and numpy are not installed")
+        path = self.root / "many-text-values.mat"
+        values = ("first@example.org", "second@example.org", "third@example.org")
+        with h5py.File(path, "w") as document:
+            for index, value in enumerate(values):
+                text = document.create_dataset(
+                    f"note_{index}",
+                    data=np.array([ord(char) for char in value], dtype="uint16"),
+                )
+                text.attrs["MATLAB_class"] = b"char"
+
+        for element_limit, variable_limit in ((40, 100), (1000, 2)):
+            with self.subTest(
+                element_limit=element_limit,
+                variable_limit=variable_limit,
+            ), patch(
+                "neurodata_security_audit.readers._MATLAB_MAX_TEXT_ELEMENTS",
+                element_limit,
+            ), patch(
+                "neurodata_security_audit.readers._MATLAB_MAX_TEXT_VARIABLES",
+                variable_limit,
+            ):
+                findings = inspect_matlab_metadata(path, path.name)
+            self.assertEqual(
+                2,
+                sum(finding.code == "DIRECT_EMAIL" for finding in findings),
+            )
+            self.assertIn(
+                "MATLAB_METADATA_COVERAGE_LIMIT",
+                {finding.code for finding in findings},
+            )
 
     def test_oversized_classic_matlab_text_is_not_loaded(self) -> None:
         try:

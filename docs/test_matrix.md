@@ -59,6 +59,7 @@ integration rows are listed after them.
 | MATLAB metadata | string metadata beside a numeric array | string checked; numeric array not loaded |
 | Nested MATLAB metadata | struct, cell or reference-backed variable | visible `MATLAB_METADATA_COVERAGE_LIMIT` |
 | MATLAB 7.3 metadata | HDF5 char dataset beside a nested group | text checked; nested group remains a visible limit |
+| MATLAB 7.3 aggregate bound | multiple HDF5 char datasets exceed the file-level element or variable budget | remaining values are not loaded; visible coverage limit |
 | MATLAB text bound | classic char variable above the element cap | value not loaded; visible `MATLAB_METADATA_COVERAGE_LIMIT` |
 | Unexpected backup | `.bak`, `.old`, `.zip` or temporary export | `UNEXPECTED_FILE` |
 | Archive and editor remnants | TAR archive, patch, workspace or editor-backup name | `UNEXPECTED_FILE`; bounded text still inspected |
