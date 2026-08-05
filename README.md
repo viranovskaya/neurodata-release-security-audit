@@ -19,7 +19,7 @@ I implemented:
 - deterministic inventory and SHA-256 manifests for regular files, with before/after integrity checks;
 - descriptor-bound, no-follow reads for core files so path replacement or symlink substitution fails closed;
 - privacy-pattern checks for BIDS tables and metadata, small text/configuration files, BrainVision headers, EDF/BDF headers, and optional format readers;
-- bounded metadata inspection for FIF, EEGLAB, KIT, MFF, NIfTI, and DICOM without requesting EEG samples, image voxels, or DICOM pixels;
+- bounded metadata inspection for FIF, EEGLAB, KIT, MFF, MATLAB, XLSX, DOCX, NIfTI, and DICOM without requesting signal arrays, image voxels, embedded Office objects, or DICOM pixels;
 - ZIP/TAR member inspection without extraction, including traversal, collision, encryption, nesting, and special-entry checks;
 - BrainVision, EEGLAB, and supported BIDS reference checks;
 - deterministic masked JSON, Markdown, and self-contained HTML reports;
@@ -59,6 +59,8 @@ Format claims are bounded by the evidence actually run:
 | EDF/BDF | common fixed header; no signal samples | generated benchmark cases and four public Sleep-EDF files |
 | FIF | optional MNE metadata; no preload | generated format fixture |
 | EEGLAB, KIT, MFF | optional reader metadata and linked-file checks; no preload | synthetic tests plus three hash-pinned public smoke fixtures |
+| MATLAB | variable names, classes, shapes, and small string values; no numeric-array load | synthetic tests and a [fixed GIN run](docs/matlab_office_calibration.md) with 20 explicit nested-structure limits |
+| XLSX/DOCX | bounded text, comments, core metadata, macros, and external-link checks | synthetic tests and [fixed GIN calibration files](docs/matlab_office_calibration.md) |
 | NIfTI | header metadata; no voxel request; extensions remain a visible limit | generated nibabel fixture and public OpenNeuro calibration |
 | DICOM | metadata before Pixel Data; no pixel request | generated pydicom fixture only |
 | ZIP/TAR | member names and structure; no extraction or member-payload scan | synthetic archive tests |
@@ -77,8 +79,8 @@ The labelled benchmark keeps failed first runs and corrected results instead of 
 
 - The scanner does not test signal, image, or tabular re-identification risk.
 - It does not perform MRI defacing, OCR, malware analysis, or visual inspection.
-- NIfTI extension contents, DICOM metadata after the first Pixel Data element, archive member payloads, encrypted archives, and external link targets are not inspected.
-- Legacy nested EEGLAB structures can remain an explicit manual-review case.
+- NIfTI extension contents, DICOM metadata after the first Pixel Data element, Office embedded objects, archive member payloads, encrypted archives, and external link targets are not inspected.
+- Legacy nested EEGLAB and standalone MATLAB structures can remain explicit manual-review cases.
 - Optional third-party readers receive stable checked paths, but their internal path handling is outside this package.
 - DICOM evidence uses generated fixtures; supported-format behavior is not evidence of general clinical-data coverage.
 - The OpenNeuro sample is bounded and non-random, and its aggregate findings do not establish that any source dataset is unsafe.

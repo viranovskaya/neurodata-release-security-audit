@@ -52,6 +52,16 @@ integration rows are listed after them.
 | EDF recording date | non-placeholder start date | `EXACT_RECORDING_DATE` |
 | Clean EDF | placeholder patient/recording fields and anonymised date | no high finding |
 | Participant key | `participant_name_key.xlsx` | `SUBJECT_KEY_FILE` |
+| XLSX text and links | shared string, external relationship and macro member | masked finding for text; visible link and macro review |
+| XLSX relationship name | identifying text in the relationship member name | generic location; raw member name absent from report |
+| DOCX text and package path | local path in document text and parent-traversing member | masked local-path and unsafe-member findings |
+| Office parser bounds | member count, member size, total metadata size and forbidden XML declarations | parsing fails visibly without partial clearance |
+| MATLAB metadata | string metadata beside a numeric array | string checked; numeric array not loaded |
+| Nested MATLAB metadata | struct, cell or reference-backed variable | visible `MATLAB_METADATA_COVERAGE_LIMIT` |
+| MATLAB 7.3 metadata | HDF5 char dataset beside a nested group | text checked; nested group remains a visible limit |
+| MATLAB 7.3 aggregate bound | multiple HDF5 char datasets exceed the file-level element or variable budget | remaining values are not loaded; visible coverage limit |
+| MATLAB 7.3 fixed-width string bound | one-element HDF5 string reserves more than the file-level byte budget | value not loaded; visible coverage limit |
+| MATLAB text bound | classic char variable above the element cap | value not loaded; visible `MATLAB_METADATA_COVERAGE_LIMIT` |
 | Unexpected backup | `.bak`, `.old`, `.zip` or temporary export | `UNEXPECTED_FILE` |
 | Archive and editor remnants | TAR archive, patch, workspace or editor-backup name | `UNEXPECTED_FILE`; bounded text still inspected |
 | Development directory | version-control, environment, editor or cache directory in the release tree | `UNEXPECTED_DIRECTORY`; directory listed as skipped |

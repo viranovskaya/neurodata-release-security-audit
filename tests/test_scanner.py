@@ -33,7 +33,9 @@ from neurodata_security_audit.readers import (
     FormatReaderUnavailable,
     _hdf5_text_values,
     inspect_eeglab_metadata,
+    inspect_matlab_metadata,
     inspect_mne_info,
+    inspect_office_metadata,
 )
 from neurodata_security_audit.reporting import render_json, render_markdown
 from neurodata_security_audit.scanner import (
@@ -2427,7 +2429,313 @@ class ScannerTests(unittest.TestCase):
         (self.root / "notes.bak").write_text("old", encoding="utf-8")
         codes = set(self._codes())
         self.assertIn("SUBJECT_KEY_FILE", codes)
-        self.assertIn("UNEXPECTED_FILE", codes)
+        self.assertIn("FORMAT_METADATA_UNREADABLE", codes)
+        report = scan_dataset(self.root)
+        self.assertNotIn(
+            "participant_name_key.xlsx",
+            [item.path for item in report.findings if item.code == "UNEXPECTED_FILE"],
+        )
+
+    def test_plain_license_file_is_inspected(self) -> None:
+        (self.root / "LICENSE").write_text("Public research license\n", encoding="utf-8")
+        report = scan_dataset(self.root)
+        self.assertIn("LICENSE", report.files_inspected)
+        self.assertNotIn("LICENSE", [item.path for item in report.skipped_files])
+
+    def test_xlsx_text_external_links_and_macros_are_visible(self) -> None:
+        workbook = self.root / "metadata.xlsx"
+        with zipfile.ZipFile(workbook, "w") as document:
+            document.writestr("[Content_Types].xml", "<Types />")
+            document.writestr("xl/workbook.xml", "<workbook />")
+            document.writestr(
+                "xl/sharedStrings.xml",
+                "<sst><si><t>participant: alice@example.org</t></si></sst>",
+            )
+            document.writestr(
+                "xl/_rels/workbook.xml.rels",
+                '<Relationships><Relationship TargetMode="External" '
+                'Target="file:///Users/alice/private.xlsx" /></Relationships>',
+            )
+            document.writestr("xl/vbaProject.bin", b"not-opened")
+
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("DIRECT_EMAIL", codes)
+        self.assertIn("EXTERNAL_DATA_REFERENCE", codes)
+        self.assertIn("OFFICE_MACRO_CONTENT", codes)
+        self.assertIn("metadata.xlsx", report.files_inspected)
+        coverage = next(item for item in report.coverage if item.path == "metadata.xlsx")
+        self.assertEqual("header_or_structure_only", coverage.status)
+        rendered = render_json(report)
+        self.assertNotIn("alice@example.org", rendered)
+        self.assertNotIn("/Users/alice", rendered)
+
+    def test_office_relationship_member_name_is_not_reported(self) -> None:
+        workbook = self.root / "metadata.xlsx"
+        with zipfile.ZipFile(workbook, "w") as document:
+            document.writestr("[Content_Types].xml", "<Types />")
+            document.writestr("xl/workbook.xml", "<workbook />")
+            document.writestr(
+                "xl/_rels/alice@example.org.rels",
+                '<Relationships><Relationship TargetMode="External" '
+                'Target="https://example.org/data" /></Relationships>',
+            )
+
+        report = scan_dataset(self.root)
+        self.assertIn(
+            "EXTERNAL_DATA_REFERENCE",
+            {finding.code for finding in report.findings},
+        )
+        self.assertNotIn("alice@example.org", render_json(report))
+
+    def test_office_metadata_limits_fail_visibly(self) -> None:
+        cases = (
+            (
+                "member-count.docx",
+                {"[Content_Types].xml": "<Types />", "word/document.xml": "<p />"},
+                "_OFFICE_MAX_MEMBERS",
+                1,
+            ),
+            (
+                "member-size.docx",
+                {"[Content_Types].xml": "<Types />", "word/document.xml": "<p>text</p>"},
+                "_OFFICE_MAX_MEMBER_BYTES",
+                5,
+            ),
+            (
+                "total-size.docx",
+                {
+                    "[Content_Types].xml": "<Types />",
+                    "word/document.xml": "<p>first</p>",
+                    "word/comments.xml": "<p>second</p>",
+                },
+                "_OFFICE_MAX_TEXT_BYTES",
+                10,
+            ),
+            (
+                "forbidden-xml.docx",
+                {
+                    "[Content_Types].xml": "<Types />",
+                    "word/document.xml": '<!DOCTYPE p [<!ENTITY x "text">]><p>&x;</p>',
+                },
+                None,
+                None,
+            ),
+        )
+        for filename, members, constant, limit in cases:
+            with self.subTest(filename=filename):
+                path = self.root / filename
+                with zipfile.ZipFile(path, "w") as document:
+                    for name, value in members.items():
+                        document.writestr(name, value)
+                context = (
+                    patch(f"neurodata_security_audit.readers.{constant}", limit)
+                    if constant is not None
+                    else patch(
+                        "neurodata_security_audit.readers._OFFICE_XML_DECLARATIONS",
+                        (b"<!DOCTYPE", b"<!ENTITY"),
+                    )
+                )
+                with context, self.assertRaises(ValueError):
+                    inspect_office_metadata(path, filename, "docx")
+                path.unlink()
+
+    def test_docx_text_and_unsafe_member_are_visible(self) -> None:
+        document_path = self.root / "notes.docx"
+        with zipfile.ZipFile(document_path, "w") as document:
+            document.writestr("[Content_Types].xml", "<Types />")
+            document.writestr(
+                "word/document.xml",
+                "<document><p>/Users/alice/private/session.txt</p></document>",
+            )
+            document.writestr("../outside.xml", "<not-opened />")
+
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("LOCAL_PATH", codes)
+        self.assertIn("OFFICE_MEMBER_PATH_TRAVERSAL", codes)
+        self.assertIn("notes.docx", report.files_inspected)
+        rendered = render_json(report)
+        self.assertNotIn("/Users/alice", rendered)
+
+    def test_invalid_office_package_is_not_treated_as_clean(self) -> None:
+        (self.root / "broken.docx").write_bytes(b"not a zip")
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("FORMAT_METADATA_UNREADABLE", codes)
+        self.assertNotIn("broken.docx", report.files_inspected)
+        coverage = next(item for item in report.coverage if item.path == "broken.docx")
+        self.assertEqual("unsupported_manual_review", coverage.status)
+
+    def test_matlab_text_is_scanned_without_loading_numeric_arrays(self) -> None:
+        try:
+            import numpy as np
+            from scipy.io import loadmat, savemat
+        except ImportError:
+            self.skipTest("scipy is not installed")
+        path = self.root / "analysis.mat"
+        savemat(
+            path,
+            {
+                "participant_note": "participant: alice@example.org",
+                "signal": np.zeros((2, 1000)),
+            },
+        )
+
+        with patch("scipy.io.loadmat", wraps=loadmat) as mocked_loadmat:
+            report = scan_dataset(self.root)
+        self.assertEqual(1, mocked_loadmat.call_count)
+        self.assertEqual(
+            ["participant_note"],
+            mocked_loadmat.call_args.kwargs["variable_names"],
+        )
+        self.assertIn("DIRECT_EMAIL", {finding.code for finding in report.findings})
+        self.assertIn("analysis.mat", report.files_inspected)
+        coverage = next(item for item in report.coverage if item.path == "analysis.mat")
+        self.assertEqual("header_or_structure_only", coverage.status)
+        self.assertNotIn("alice@example.org", render_json(report))
+
+    def test_matlab_73_text_and_nested_layout_are_bounded(self) -> None:
+        try:
+            import h5py
+            import numpy as np
+        except ImportError:
+            self.skipTest("h5py and numpy are not installed")
+        path = self.root / "analysis-v73.mat"
+        with h5py.File(path, "w") as document:
+            text = document.create_dataset(
+                "participant_note",
+                data=np.array([ord(char) for char in "alice@example.org"], dtype="uint16"),
+            )
+            text.attrs["MATLAB_class"] = b"char"
+            document.create_group("nested")
+
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("DIRECT_EMAIL", codes)
+        self.assertIn("MATLAB_METADATA_COVERAGE_LIMIT", codes)
+        self.assertNotIn("FORMAT_METADATA_UNREADABLE", codes)
+        self.assertIn("analysis-v73.mat", report.files_inspected)
+        self.assertNotIn("alice@example.org", render_json(report))
+
+    def test_matlab_external_variable_name_is_not_reported(self) -> None:
+        try:
+            import h5py
+        except ImportError:
+            self.skipTest("h5py is not installed")
+        path = self.root / "external-v73.mat"
+        with h5py.File(path, "w") as document:
+            document["alice@example.org"] = h5py.ExternalLink("outside.h5", "/data")
+
+        report = scan_dataset(self.root)
+        self.assertIn(
+            "EXTERNAL_DATA_REFERENCE",
+            {finding.code for finding in report.findings},
+        )
+        self.assertNotIn("alice@example.org", render_json(report))
+
+    def test_matlab_73_text_uses_one_file_level_budget(self) -> None:
+        try:
+            import h5py
+            import numpy as np
+        except ImportError:
+            self.skipTest("h5py and numpy are not installed")
+        path = self.root / "many-text-values.mat"
+        values = ("first@example.org", "second@example.org", "third@example.org")
+        with h5py.File(path, "w") as document:
+            for index, value in enumerate(values):
+                text = document.create_dataset(
+                    f"note_{index}",
+                    data=np.array([ord(char) for char in value], dtype="uint16"),
+                )
+                text.attrs["MATLAB_class"] = b"char"
+
+        for element_limit, variable_limit in ((40, 100), (1000, 2)):
+            with self.subTest(
+                element_limit=element_limit,
+                variable_limit=variable_limit,
+            ), patch(
+                "neurodata_security_audit.readers._MATLAB_MAX_TEXT_ELEMENTS",
+                element_limit,
+            ), patch(
+                "neurodata_security_audit.readers._MATLAB_MAX_TEXT_VARIABLES",
+                variable_limit,
+            ):
+                findings = inspect_matlab_metadata(path, path.name)
+            self.assertEqual(
+                2,
+                sum(finding.code == "DIRECT_EMAIL" for finding in findings),
+            )
+            self.assertIn(
+                "MATLAB_METADATA_COVERAGE_LIMIT",
+                {finding.code for finding in findings},
+            )
+
+    def test_matlab_73_fixed_width_string_respects_byte_budget(self) -> None:
+        try:
+            import h5py
+            import numpy as np
+        except ImportError:
+            self.skipTest("h5py and numpy are not installed")
+        path = self.root / "wide-string.mat"
+        with h5py.File(path, "w") as document:
+            document.create_dataset(
+                "note",
+                data=np.array([b"alice@example.org"], dtype="S200000"),
+            )
+
+        findings = inspect_matlab_metadata(path, path.name)
+
+        self.assertNotIn("DIRECT_EMAIL", {finding.code for finding in findings})
+        self.assertIn(
+            "MATLAB_METADATA_COVERAGE_LIMIT",
+            {finding.code for finding in findings},
+        )
+
+    def test_oversized_classic_matlab_text_is_not_loaded(self) -> None:
+        try:
+            import scipy.io  # noqa: F401
+        except ImportError:
+            self.skipTest("scipy is not installed")
+        path = self.root / "large-text.mat"
+        path.write_bytes(b"classic-mat")
+        with (
+            patch(
+                "scipy.io.whosmat",
+                return_value=[("huge_text", (100_000_000,), "char")],
+            ),
+            patch("scipy.io.loadmat") as mocked_loadmat,
+        ):
+            report = scan_dataset(self.root)
+
+        mocked_loadmat.assert_not_called()
+        self.assertIn(
+            "MATLAB_METADATA_COVERAGE_LIMIT",
+            {finding.code for finding in report.findings},
+        )
+        self.assertIn("large-text.mat", report.files_inspected)
+
+    def test_missing_matlab_reader_is_visible(self) -> None:
+        (self.root / "analysis.mat").write_bytes(b"synthetic")
+        with patch(
+            "neurodata_security_audit.scanner.inspect_matlab_metadata",
+            side_effect=FormatReaderUnavailable("synthetic"),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn("FORMAT_READER_UNAVAILABLE", {item.code for item in report.findings})
+        self.assertNotIn("analysis.mat", report.files_inspected)
+
+    def test_nested_matlab_metadata_has_a_visible_coverage_limit(self) -> None:
+        try:
+            from scipy.io import savemat
+        except ImportError:
+            self.skipTest("scipy is not installed")
+        savemat(self.root / "nested.mat", {"participant": {"note": "private"}})
+        report = scan_dataset(self.root)
+        self.assertIn(
+            "MATLAB_METADATA_COVERAGE_LIMIT",
+            {item.code for item in report.findings},
+        )
 
     def test_development_directory_is_visible_but_not_traversed(self) -> None:
         git_dir = self.root / ".git"
