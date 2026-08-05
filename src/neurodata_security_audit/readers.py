@@ -6,6 +6,7 @@ import re
 import zipfile
 from collections.abc import Mapping
 from datetime import date, datetime
+from math import prod
 from numbers import Number
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
@@ -40,6 +41,8 @@ _OFFICE_MAX_MEMBERS = 1000
 _OFFICE_MAX_MEMBER_BYTES = 2 * 1024 * 1024
 _OFFICE_MAX_TEXT_BYTES = 8 * 1024 * 1024
 _OFFICE_XML_DECLARATIONS = (b"<!DOCTYPE", b"<!ENTITY")
+_MATLAB_MAX_TEXT_ELEMENTS = 10000
+_MATLAB_MAX_TEXT_VARIABLES = 100
 
 
 class FormatReaderUnavailable(RuntimeError):
@@ -129,7 +132,6 @@ def inspect_mne_info(
 
     known_terms = known_terms or KnownTermMatcher()
     findings: list[Finding] = []
-    limited_layouts = 0
     subject = info.get("subject_info")
     if isinstance(subject, Mapping):
         for key in ("first_name", "middle_name", "last_name"):
@@ -626,6 +628,8 @@ def inspect_matlab_metadata(
 
     known_terms = known_terms or KnownTermMatcher()
     findings: list[Finding] = []
+    limited_layouts = 0
+    oversized_texts = 0
     with path.open("rb") as stream:
         prefix = stream.read(8)
     if prefix == b"\x89HDF\r\n\x1a\n":
@@ -644,7 +648,7 @@ def inspect_matlab_metadata(
                             code="EXTERNAL_DATA_REFERENCE",
                             severity="review",
                             path=relative_path,
-                            location=f"MATLAB variable {name}",
+                            location="MATLAB external variable",
                             evidence=redacted("external-hdf5-reference", link.filename),
                             message=(
                                 "Move this referenced data inside the release or "
@@ -692,9 +696,21 @@ def inspect_matlab_metadata(
             class_name in {"cell", "function", "object", "opaque", "struct", "unknown"}
             for _, _, class_name in variables
         )
-        text_names = [
-            name for name, _, class_name in variables if class_name in {"char", "string"}
-        ]
+        text_names: list[str] = []
+        selected_text_elements = 0
+        for name, shape, class_name in variables:
+            if class_name not in {"char", "string"}:
+                continue
+            elements = prod(shape) if shape else 1
+            if (
+                elements > _MATLAB_MAX_TEXT_ELEMENTS
+                or selected_text_elements + elements > _MATLAB_MAX_TEXT_ELEMENTS
+                or len(text_names) >= _MATLAB_MAX_TEXT_VARIABLES
+            ):
+                oversized_texts += 1
+                continue
+            text_names.append(name)
+            selected_text_elements += elements
         for name, shape, class_name in variables:
             findings.extend(
                 scan_text(
@@ -730,6 +746,20 @@ def inspect_matlab_metadata(
                 message=(
                     "Review these nested or reference-backed variables manually; "
                     "their contents were not loaded."
+                ),
+            )
+        )
+    if oversized_texts:
+        findings.append(
+            Finding(
+                code="MATLAB_METADATA_COVERAGE_LIMIT",
+                severity="review",
+                path=relative_path,
+                location="MATLAB text variables",
+                evidence=f"<oversized-text-variables,count={oversized_texts}>",
+                message=(
+                    "Review these oversized text variables manually; their values were not "
+                    "loaded by this bounded metadata pass."
                 ),
             )
         )
@@ -834,7 +864,7 @@ def inspect_office_metadata(
                             code="EXTERNAL_DATA_REFERENCE",
                             severity="review",
                             path=relative_path,
-                            location=f"Office relationship {member.filename}",
+                            location="Office external relationship",
                             evidence=redacted("office-external-reference", target),
                             message=(
                                 "Remove this external link or confirm it is intended "
