@@ -2427,7 +2427,123 @@ class ScannerTests(unittest.TestCase):
         (self.root / "notes.bak").write_text("old", encoding="utf-8")
         codes = set(self._codes())
         self.assertIn("SUBJECT_KEY_FILE", codes)
-        self.assertIn("UNEXPECTED_FILE", codes)
+        self.assertIn("FORMAT_METADATA_UNREADABLE", codes)
+        report = scan_dataset(self.root)
+        self.assertNotIn(
+            "participant_name_key.xlsx",
+            [item.path for item in report.findings if item.code == "UNEXPECTED_FILE"],
+        )
+
+    def test_plain_license_file_is_inspected(self) -> None:
+        (self.root / "LICENSE").write_text("Public research license\n", encoding="utf-8")
+        report = scan_dataset(self.root)
+        self.assertIn("LICENSE", report.files_inspected)
+        self.assertNotIn("LICENSE", [item.path for item in report.skipped_files])
+
+    def test_xlsx_text_external_links_and_macros_are_visible(self) -> None:
+        workbook = self.root / "metadata.xlsx"
+        with zipfile.ZipFile(workbook, "w") as document:
+            document.writestr("[Content_Types].xml", "<Types />")
+            document.writestr("xl/workbook.xml", "<workbook />")
+            document.writestr(
+                "xl/sharedStrings.xml",
+                "<sst><si><t>participant: alice@example.org</t></si></sst>",
+            )
+            document.writestr(
+                "xl/_rels/workbook.xml.rels",
+                '<Relationships><Relationship TargetMode="External" '
+                'Target="file:///Users/alice/private.xlsx" /></Relationships>',
+            )
+            document.writestr("xl/vbaProject.bin", b"not-opened")
+
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("DIRECT_EMAIL", codes)
+        self.assertIn("EXTERNAL_DATA_REFERENCE", codes)
+        self.assertIn("OFFICE_MACRO_CONTENT", codes)
+        self.assertIn("metadata.xlsx", report.files_inspected)
+        coverage = next(item for item in report.coverage if item.path == "metadata.xlsx")
+        self.assertEqual("header_or_structure_only", coverage.status)
+        rendered = render_json(report)
+        self.assertNotIn("alice@example.org", rendered)
+        self.assertNotIn("/Users/alice", rendered)
+
+    def test_docx_text_and_unsafe_member_are_visible(self) -> None:
+        document_path = self.root / "notes.docx"
+        with zipfile.ZipFile(document_path, "w") as document:
+            document.writestr("[Content_Types].xml", "<Types />")
+            document.writestr(
+                "word/document.xml",
+                "<document><p>/Users/alice/private/session.txt</p></document>",
+            )
+            document.writestr("../outside.xml", "<not-opened />")
+
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("LOCAL_PATH", codes)
+        self.assertIn("OFFICE_MEMBER_PATH_TRAVERSAL", codes)
+        self.assertIn("notes.docx", report.files_inspected)
+        rendered = render_json(report)
+        self.assertNotIn("/Users/alice", rendered)
+
+    def test_invalid_office_package_is_not_treated_as_clean(self) -> None:
+        (self.root / "broken.docx").write_bytes(b"not a zip")
+        report = scan_dataset(self.root)
+        codes = {finding.code for finding in report.findings}
+        self.assertIn("FORMAT_METADATA_UNREADABLE", codes)
+        self.assertNotIn("broken.docx", report.files_inspected)
+        coverage = next(item for item in report.coverage if item.path == "broken.docx")
+        self.assertEqual("unsupported_manual_review", coverage.status)
+
+    def test_matlab_text_is_scanned_without_loading_numeric_arrays(self) -> None:
+        try:
+            import numpy as np
+            from scipy.io import loadmat, savemat
+        except ImportError:
+            self.skipTest("scipy is not installed")
+        path = self.root / "analysis.mat"
+        savemat(
+            path,
+            {
+                "participant_note": "participant: alice@example.org",
+                "signal": np.zeros((2, 1000)),
+            },
+        )
+
+        with patch("scipy.io.loadmat", wraps=loadmat) as mocked_loadmat:
+            report = scan_dataset(self.root)
+        self.assertEqual(1, mocked_loadmat.call_count)
+        self.assertEqual(
+            ["participant_note"],
+            mocked_loadmat.call_args.kwargs["variable_names"],
+        )
+        self.assertIn("DIRECT_EMAIL", {finding.code for finding in report.findings})
+        self.assertIn("analysis.mat", report.files_inspected)
+        coverage = next(item for item in report.coverage if item.path == "analysis.mat")
+        self.assertEqual("header_or_structure_only", coverage.status)
+        self.assertNotIn("alice@example.org", render_json(report))
+
+    def test_missing_matlab_reader_is_visible(self) -> None:
+        (self.root / "analysis.mat").write_bytes(b"synthetic")
+        with patch(
+            "neurodata_security_audit.scanner.inspect_matlab_metadata",
+            side_effect=FormatReaderUnavailable("synthetic"),
+        ):
+            report = scan_dataset(self.root)
+        self.assertIn("FORMAT_READER_UNAVAILABLE", {item.code for item in report.findings})
+        self.assertNotIn("analysis.mat", report.files_inspected)
+
+    def test_nested_matlab_metadata_has_a_visible_coverage_limit(self) -> None:
+        try:
+            from scipy.io import savemat
+        except ImportError:
+            self.skipTest("scipy is not installed")
+        savemat(self.root / "nested.mat", {"participant": {"note": "private"}})
+        report = scan_dataset(self.root)
+        self.assertIn(
+            "MATLAB_METADATA_COVERAGE_LIMIT",
+            {item.code for item in report.findings},
+        )
 
     def test_development_directory_is_visible_but_not_traversed(self) -> None:
         git_dir = self.root / ".git"

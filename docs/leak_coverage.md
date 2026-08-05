@@ -42,6 +42,9 @@ This matrix separates implemented checks from explicit review boundaries.
 | EDF/BDF | common 256-byte header | samples not interpreted |
 | FIF | `Info` through MNE | preload forbidden |
 | EEGLAB | safe MATLAB text fields and continuous metadata | unsupported nested layouts fail visibly |
+| MATLAB `.mat` | variable names, classes, shapes and small string values | numeric arrays are not loaded; nested layouts fail visibly |
+| XLSX | shared strings, comments, workbook and core metadata | numeric cells and embedded objects are not opened |
+| DOCX | document text, comments, headers, footers and core metadata | embedded objects are not opened |
 | EGI MFF | MNE metadata plus bounded XML | preload forbidden |
 | NIfTI | selected header text fields | no voxel request; extensions not interpreted |
 | DICOM | file metadata and elements before Pixel Data | no pixels; later elements not read |

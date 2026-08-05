@@ -34,7 +34,9 @@ from .readers import (
     inspect_brainvision,
     inspect_edf_header,
     inspect_eeglab_metadata,
+    inspect_matlab_metadata,
     inspect_mne_format,
+    inspect_office_metadata,
 )
 from .references import (
     inspect_bids_json_references,
@@ -100,6 +102,8 @@ _TEXT_NAMES = {
     "id_ecdsa",
     "id_rsa",
     "known_hosts",
+    "license",
+    "license.txt",
     "makefile",
     "readme",
     "authorized_keys",
@@ -118,6 +122,7 @@ _SIGNAL_PAYLOAD_SUFFIXES = {".eeg", ".fdt"}
 _IMAGE_PAYLOAD_SUFFIXES = {".img"}
 _EDF_SUFFIXES = {".edf", ".bdf"}
 _DICOM_SUFFIXES = {".dcm", ".dicom", ".ima"}
+_OFFICE_FORMATS = {".docx": "docx", ".xlsx": "xlsx"}
 _MNE_FILE_FORMATS = {
     ".con": "kit",
     ".fif": "fif",
@@ -152,7 +157,6 @@ _UNEXPECTED_SUFFIXES = {
     ".tgz",
     ".txz",
     ".xls",
-    ".xlsx",
     ".zip",
 }
 _COMPOUND_ARCHIVE_SUFFIXES = (".tar.bz2", ".tar.gz", ".tar.xz", ".tar.zst")
@@ -1334,6 +1338,108 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                         "file",
                         "unsupported_manual_review",
                         "The DICOM metadata reader failed",
+                    )
+            elif suffix == ".mat":
+                try:
+                    report.findings.extend(
+                        inspect_matlab_metadata(path, relative_path, known_terms)
+                    )
+                    report.files_inspected.append(relative_path)
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "header_or_structure_only",
+                        "MATLAB variable metadata and small text values were inspected; "
+                        "arrays were not loaded",
+                    )
+                except FormatReaderUnavailable:
+                    report.findings.append(
+                        Finding(
+                            code="FORMAT_READER_UNAVAILABLE",
+                            severity="review",
+                            path=relative_path,
+                            location="MATLAB metadata",
+                            evidence="<optional-reader-unavailable>",
+                            message="Install the 'formats' extra to inspect this MATLAB file.",
+                        )
+                    )
+                    report.skipped_files.append(
+                        SkippedFile(
+                            relative_path,
+                            "Optional MATLAB metadata reader is unavailable",
+                        )
+                    )
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "unsupported_manual_review",
+                        "The optional MATLAB metadata reader is unavailable",
+                    )
+                except Exception as error:
+                    report.findings.append(
+                        Finding(
+                            code="FORMAT_METADATA_UNREADABLE",
+                            severity="review",
+                            path=relative_path,
+                            location="MATLAB metadata",
+                            evidence=f"<error:{type(error).__name__}>",
+                            message="Review this file manually; its MATLAB metadata was not read.",
+                        )
+                    )
+                    report.skipped_files.append(
+                        SkippedFile(
+                            relative_path,
+                            "Could not inspect MATLAB metadata: "
+                            f"{type(error).__name__}",
+                        )
+                    )
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "unsupported_manual_review",
+                        "The MATLAB metadata reader failed",
+                    )
+            elif suffix in _OFFICE_FORMATS:
+                try:
+                    report.findings.extend(
+                        inspect_office_metadata(
+                            path,
+                            relative_path,
+                            _OFFICE_FORMATS[suffix],
+                            known_terms,
+                        )
+                    )
+                    report.files_inspected.append(relative_path)
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "header_or_structure_only",
+                        "Bounded Office text and document metadata were inspected; "
+                        "embedded objects were not opened",
+                    )
+                except Exception as error:
+                    report.findings.append(
+                        Finding(
+                            code="FORMAT_METADATA_UNREADABLE",
+                            severity="review",
+                            path=relative_path,
+                            location=f"{_OFFICE_FORMATS[suffix].upper()} metadata",
+                            evidence=f"<error:{type(error).__name__}>",
+                            message="Review this file manually; its Office metadata was not read.",
+                        )
+                    )
+                    report.skipped_files.append(
+                        SkippedFile(
+                            relative_path,
+                            "Could not inspect Office metadata: "
+                            f"{type(error).__name__}",
+                        )
+                    )
+                    record_coverage(
+                        relative_path,
+                        "file",
+                        "unsupported_manual_review",
+                        "The Office metadata reader failed",
                     )
             elif is_archive_path(path):
                 try:
