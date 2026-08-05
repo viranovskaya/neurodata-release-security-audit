@@ -178,7 +178,7 @@ Treat reports and known-term files as private working material. Use only synthet
 
 ## Citation
 
-Public beta `v0.2.0b1` is the current GitHub prerelease. The `main` branch uses development version `0.2.1.dev0`; it is not a release. Citation metadata for version `0.2.0-beta.1` is in [`CITATION.cff`](CITATION.cff). The code is released under the [MIT License](LICENSE); there is no PyPI release.
+Release version `0.2.1b1` is described in [`CITATION.cff`](CITATION.cff). Public beta artifacts are distributed through GitHub Releases; there is no PyPI release. The code is released under the [MIT License](LICENSE).
 
 ## Current status
 
