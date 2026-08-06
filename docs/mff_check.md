@@ -36,3 +36,22 @@ local path in a log and one unreadable macOS resource-fork XML file. The MFF
 directory itself received `fully_inspected_metadata` coverage.
 
 This is an integration check, not a privacy assessment of the MNE fixture. Finding counts are used only to confirm stable scanner behaviour and masking.
+
+## Repeatability replay
+
+On 3 August 2026, I rebuilt the wheel from commit
+`f428bc4f7eede501ee5d0b002365c70d554ad871` and installed it in a fresh
+Python 3.13 environment with MNE 1.12.1, nibabel 5.4.2 and pydicom 3.0.2.
+The three source hashes matched the v2 manifest before the scan, including the
+complete MFF directory hash above.
+
+Two runs produced byte-identical reports and matched the checked-in v2 result:
+
+```text
+fixtures=3 passed=3 failed=0 unscored=0
+JSON SHA-256: 7672ffe4a913573b0a6c0ed1b782a54230635584ce156787ee508e06921e541a
+Markdown SHA-256: 314d2856bdff09ed76a9761b18659081b21816ee4e781b0e946bfeab03c87e5d
+```
+
+This replay confirms the pinned reader path and deterministic result. It is not
+an independent privacy assessment and does not add privacy ground truth.

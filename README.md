@@ -72,7 +72,7 @@ The frozen 50-dataset calibration completed 50/50 bounded slices and passed both
 
 ## Reproducibility
 
-CI tests Python 3.10 and 3.13 with the base package, EEG-reader extras, imaging-reader extras, and both groups together. Separate jobs build the wheel twice, compare bytes, install the exact wheel outside the checkout, run the copied functional suite, validate report schemas, and exercise the installed CLI.
+CI tests Python 3.10 and 3.13 with the base package, EEG-reader extras, imaging-reader extras, and both groups together. Fresh-install smoke checks run the installed command outside the checkout on current Ubuntu, macOS, and Windows runners. Separate Linux jobs build the wheel twice, compare bytes, install the exact wheel outside the checkout, run the copied functional suite, and validate report schemas.
 
 Supported optional-reader ranges are declared in `pyproject.toml`. Exact versions used for the frozen public calibration are recorded in its documentation; a code or report change requires a new calibration claim rather than reuse of the old result.
 
