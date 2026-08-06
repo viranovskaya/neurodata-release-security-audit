@@ -28,6 +28,7 @@ from neurodata_security_audit.models import (
     ManifestEntry,
     ReferenceEntry,
     ScanReport,
+    classify_release,
 )
 from neurodata_security_audit.readers import (
     FormatReaderUnavailable,
@@ -71,6 +72,36 @@ class _VisibleTextParser(HTMLParser):
 
 
 class ScannerTests(unittest.TestCase):
+    def test_release_state_has_one_shared_precedence(self) -> None:
+        summary = {
+            "manifest_recheck_passed": True,
+            "release_tree_recheck_passed": True,
+            "findings_high": 0,
+            "findings_review": 0,
+            "unsupported_manual_review": 0,
+            "not_traversed": 0,
+        }
+        cases = (
+            ({}, ("clear", 0)),
+            ({"not_traversed": 2}, ("coverage_gaps", 2)),
+            ({"findings_review": 1}, ("review_findings", 0)),
+            ({"findings_high": 1}, ("high_findings", 0)),
+            ({"manifest_recheck_passed": False}, ("integrity_failed", 0)),
+            (
+                {
+                    "manifest_recheck_passed": False,
+                    "findings_high": 1,
+                    "findings_review": 1,
+                    "unsupported_manual_review": 1,
+                    "not_traversed": 1,
+                },
+                ("integrity_failed", 2),
+            ),
+        )
+        for updates, expected in cases:
+            with self.subTest(expected=expected):
+                self.assertEqual(classify_release({**summary, **updates}), expected)
+
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.root = Path(self.temp_dir.name) / "dataset"

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from html import escape
 
-from .models import ScanReport
+from .models import ScanReport, classify_release
 
 
 def render_json(report: ScanReport) -> str:
-    return json.dumps(report.to_dict(), indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    return (
+        json.dumps(report.to_dict(), indent=2, sort_keys=True, ensure_ascii=False)
+        + "\n"
+    )
 
 
 def _markdown_text(value: object) -> str:
@@ -19,6 +23,122 @@ def _markdown_text(value: object) -> str:
         .replace("\n", "\\n")
         .replace("|", "\\|")
     )
+
+
+def _append_table(
+    lines: list[str],
+    headers: tuple[str, ...],
+    separators: tuple[str, ...],
+    rows: Iterable[tuple[object, ...]],
+) -> None:
+    lines.extend(
+        [
+            "| " + " | ".join(headers) + " |",
+            "|" + "|".join(separators) + "|",
+        ]
+    )
+    for row in rows:
+        lines.append("| " + " | ".join(_markdown_text(value) for value in row) + " |")
+
+
+def _append_detail_sections(lines: list[str], data: dict, findings: list[dict]) -> None:
+    lines.extend(["", "## Archive members", ""])
+    container_members = data["container_members"]
+    if container_members:
+        _append_table(
+            lines,
+            ("Archive", "Member", "Type", "Bytes", "Compressed bytes", "Encrypted"),
+            ("---", "---", "---", "---:", "---:", "---"),
+            (
+                (
+                    item["container_path"],
+                    item["member_path"],
+                    item["member_type"],
+                    item["size_bytes"],
+                    item["compressed_bytes"],
+                    "yes" if item["encrypted"] else "no",
+                )
+                for item in container_members
+            ),
+        )
+    else:
+        lines.append("No supported archive members were inventoried.")
+
+    lines.extend(["", "## Cross-file references", ""])
+    references = data["references"]
+    if references:
+        _append_table(
+            lines,
+            ("Source", "Location", "Target", "Status", "Reason"),
+            ("---", "---", "---", "---", "---"),
+            (
+                (
+                    item["source_path"],
+                    item["location"],
+                    item["target"],
+                    item["status"],
+                    item["reason"],
+                )
+                for item in references
+            ),
+        )
+    else:
+        lines.append("No supported cross-file references were found.")
+
+    lines.extend(["", "## Findings", ""])
+    if findings:
+        _append_table(
+            lines,
+            ("Severity", "Code", "File", "Location", "Evidence", "What to check"),
+            ("---", "---", "---", "---", "---", "---"),
+            (
+                (
+                    finding["severity"],
+                    finding["code"],
+                    finding["path"],
+                    finding["location"],
+                    finding["evidence"],
+                    finding["message"],
+                )
+                for finding in findings
+            ),
+        )
+    else:
+        lines.append("No findings.")
+
+    lines.extend(["", "## Skipped files and directories", ""])
+    skipped = data["skipped_files"]
+    if skipped:
+        for item in skipped:
+            path = _markdown_text(item["path"])
+            reason = _markdown_text(item["reason"])
+            lines.append(f"- {path} — {reason}")
+    else:
+        lines.append("No skipped files.")
+
+    lines.extend(
+        [
+            "",
+            "## SHA-256 manifest",
+            "",
+            (
+                "The manifest records regular files as they were read during this "
+                "scan. Hashing is a streaming integrity check; it does not inspect "
+                "EEG samples, image voxels or DICOM pixels."
+            ),
+            "",
+        ]
+    )
+    manifest = data["manifest"]
+    if manifest:
+        _append_table(
+            lines,
+            ("File", "Bytes", "SHA-256"),
+            ("---", "---:", "---"),
+            ((item["path"], item["size_bytes"], item["sha256"]) for item in manifest),
+        )
+    else:
+        lines.append("No regular files were added to the manifest.")
 
 
 def render_markdown(report: ScanReport) -> str:
@@ -68,20 +188,11 @@ def render_markdown(report: ScanReport) -> str:
         "",
     ]
     findings = data["findings"]
-    integrity_ok = (
-        summary["manifest_recheck_passed"]
-        and summary["release_tree_recheck_passed"]
-    )
-    coverage_gap_count = (
-        summary["unsupported_manual_review"] + summary["not_traversed"]
-    )
-    if not integrity_ok:
-        manifest_status = (
-            "passed" if summary["manifest_recheck_passed"] else "failed"
-        )
-        tree_status = (
-            "passed" if summary["release_tree_recheck_passed"] else "failed"
-        )
+    release_state, coverage_gap_count = classify_release(summary)
+    integrity_ok = release_state != "integrity_failed"
+    if release_state == "integrity_failed":
+        manifest_status = "passed" if summary["manifest_recheck_passed"] else "failed"
+        tree_status = "passed" if summary["release_tree_recheck_passed"] else "failed"
         lines.extend(
             [
                 (
@@ -97,36 +208,24 @@ def render_markdown(report: ScanReport) -> str:
             ]
         )
         remediation = []
-    elif summary["findings_high"]:
-        lines.extend(
-            [
-                (
-                    "**Do not release this copy yet.** Resolve the "
-                    f"{summary['findings_high']} high-priority finding"
-                    f"{'s' if summary['findings_high'] != 1 else ''} below first."
-                ),
-                "",
-            ]
-        )
-        remediation = [
-            item for item in findings if item["severity"] == "high"
-        ]
-    elif summary["findings_review"]:
-        lines.extend(
-            [
-                (
-                    "**Review before release.** The scanner found "
-                    f"{summary['findings_review']} item"
-                    f"{'s' if summary['findings_review'] != 1 else ''} "
-                    "that need a curator decision."
-                ),
-                "",
-            ]
-        )
-        remediation = [
-            item for item in findings if item["severity"] == "review"
-        ]
-    elif coverage_gap_count:
+    elif release_state in {"high_findings", "review_findings"}:
+        severity = "high" if release_state == "high_findings" else "review"
+        count = summary[f"findings_{severity}"]
+        if severity == "high":
+            decision = (
+                "**Do not release this copy yet.** Resolve the "
+                f"{count} high-priority finding"
+                f"{'s' if count != 1 else ''} below first."
+            )
+        else:
+            decision = (
+                "**Review before release.** The scanner found "
+                f"{count} item{'s' if count != 1 else ''} "
+                "that need a curator decision."
+            )
+        lines.extend([decision, ""])
+        remediation = [item for item in findings if item["severity"] == severity]
+    elif release_state == "coverage_gaps":
         lines.extend(
             [
                 (
@@ -140,7 +239,7 @@ def render_markdown(report: ScanReport) -> str:
             ]
         )
         remediation = []
-    elif integrity_ok:
+    else:
         lines.extend(
             [
                 (
@@ -154,29 +253,23 @@ def render_markdown(report: ScanReport) -> str:
         remediation = []
 
     if remediation:
-        lines.extend(
-            [
-                "| Priority | File | Field or location | What to do |",
-                "|---|---|---|---|",
-            ]
+        _append_table(
+            lines,
+            ("Priority", "File", "Field or location", "What to do"),
+            ("---", "---", "---", "---"),
+            (
+                (
+                    finding["severity"],
+                    finding["path"],
+                    finding["location"],
+                    finding["message"],
+                )
+                for finding in remediation
+            ),
         )
-        for finding in remediation:
-            values = [
-                finding["severity"],
-                finding["path"],
-                finding["location"],
-                finding["message"],
-            ]
-            lines.append(
-                "| "
-                + " | ".join(_markdown_text(value) for value in values)
-                + " |"
-            )
     else:
         if not integrity_ok:
-            lines.append(
-                "Individual remediation is deferred until integrity passes."
-            )
+            lines.append("Individual remediation is deferred until integrity passes.")
         elif coverage_gap_count:
             lines.append(
                 "No automated remediation tasks. Review every coverage gap "
@@ -232,18 +325,9 @@ def render_markdown(report: ScanReport) -> str:
             "",
             "## Coverage",
             "",
-            (
-                "- Fully inspected metadata: "
-                f"{summary['fully_inspected_metadata']}"
-            ),
-            (
-                "- Header or structure only: "
-                f"{summary['header_or_structure_only']}"
-            ),
-            (
-                "- Signal or image payload not opened: "
-                f"{summary['payload_not_opened']}"
-            ),
+            f"- Fully inspected metadata: {summary['fully_inspected_metadata']}",
+            f"- Header or structure only: {summary['header_or_structure_only']}",
+            f"- Signal or image payload not opened: {summary['payload_not_opened']}",
             (
                 "- Unsupported and needs manual review: "
                 f"{summary['unsupported_manual_review']}"
@@ -255,19 +339,17 @@ def render_markdown(report: ScanReport) -> str:
                 "the privacy findings below."
             ),
             "",
-            "| Status | Type | Entry | Reason |",
-            "|---|---|---|---|",
         ]
     )
-    for entry in data["coverage"]:
-        values = [
-            entry["status"],
-            entry["entry_type"],
-            entry["path"],
-            entry["reason"],
-        ]
-        safe = [_markdown_text(value) for value in values]
-        lines.append("| " + " | ".join(safe) + " |")
+    _append_table(
+        lines,
+        ("Status", "Type", "Entry", "Reason"),
+        ("---", "---", "---", "---"),
+        (
+            (entry["status"], entry["entry_type"], entry["path"], entry["reason"])
+            for entry in data["coverage"]
+        ),
+    )
 
     lines.extend(["", "## Places needing manual review", ""])
     coverage_gaps = [
@@ -276,131 +358,17 @@ def render_markdown(report: ScanReport) -> str:
         if entry["status"] in {"unsupported_manual_review", "not_traversed"}
     ]
     if coverage_gaps:
-        lines.extend(
-            [
-                "| Status | Entry | Why manual review is needed |",
-                "|---|---|---|",
-            ]
+        _append_table(
+            lines,
+            ("Status", "Entry", "Why manual review is needed"),
+            ("---", "---", "---"),
+            (
+                (entry["status"], entry["path"], entry["reason"])
+                for entry in coverage_gaps
+            ),
         )
-        for entry in coverage_gaps:
-            values = [entry["status"], entry["path"], entry["reason"]]
-            lines.append(
-                "| "
-                + " | ".join(_markdown_text(value) for value in values)
-                + " |"
-            )
     else:
         lines.append("No unsupported or untraversed files or folders.")
 
-    lines.extend(["", "## Archive members", ""])
-    container_members = data["container_members"]
-    if container_members:
-        lines.extend(
-            [
-                "| Archive | Member | Type | Bytes | Compressed bytes | Encrypted |",
-                "|---|---|---|---:|---:|---|",
-            ]
-        )
-        for item in container_members:
-            values = [
-                item["container_path"],
-                item["member_path"],
-                item["member_type"],
-                item["size_bytes"],
-                item["compressed_bytes"],
-                "yes" if item["encrypted"] else "no",
-            ]
-            safe = [_markdown_text(value) for value in values]
-            lines.append("| " + " | ".join(safe) + " |")
-    else:
-        lines.append("No supported archive members were inventoried.")
-
-    lines.extend(["", "## Cross-file references", ""])
-    references = data["references"]
-    if references:
-        lines.extend(
-            [
-                "| Source | Location | Target | Status | Reason |",
-                "|---|---|---|---|---|",
-            ]
-        )
-        for item in references:
-            values = [
-                item["source_path"],
-                item["location"],
-                item["target"],
-                item["status"],
-                item["reason"],
-            ]
-            safe = [_markdown_text(value) for value in values]
-            lines.append("| " + " | ".join(safe) + " |")
-    else:
-        lines.append("No supported cross-file references were found.")
-
-    lines.extend(
-        [
-            "",
-            "## Findings",
-            "",
-        ]
-    )
-    if findings:
-        lines.extend(
-            [
-                "| Severity | Code | File | Location | Evidence | What to check |",
-                "|---|---|---|---|---|---|",
-            ]
-        )
-        for finding in findings:
-            values = [
-                finding["severity"],
-                finding["code"],
-                finding["path"],
-                finding["location"],
-                finding["evidence"],
-                finding["message"],
-            ]
-            safe = [_markdown_text(value) for value in values]
-            lines.append("| " + " | ".join(safe) + " |")
-    else:
-        lines.append("No findings.")
-
-    lines.extend(["", "## Skipped files and directories", ""])
-    skipped = data["skipped_files"]
-    if skipped:
-        for item in skipped:
-            path = _markdown_text(item["path"])
-            reason = _markdown_text(item["reason"])
-            lines.append(f"- {path} — {reason}")
-    else:
-        lines.append("No skipped files.")
-
-    lines.extend(
-        [
-            "",
-            "## SHA-256 manifest",
-            "",
-            (
-                "The manifest records regular files as they were read during this "
-                "scan. Hashing is a streaming integrity check; it does not inspect "
-                "EEG samples, image voxels or DICOM pixels."
-            ),
-            "",
-        ]
-    )
-    manifest = data["manifest"]
-    if manifest:
-        lines.extend(
-            [
-                "| File | Bytes | SHA-256 |",
-                "|---|---:|---|",
-            ]
-        )
-        for item in manifest:
-            path = _markdown_text(item["path"])
-            size = _markdown_text(item["size_bytes"])
-            digest = _markdown_text(item["sha256"])
-            lines.append(f"| {path} | {size} | {digest} |")
-    else:
-        lines.append("No regular files were added to the manifest.")
+    _append_detail_sections(lines, data, findings)
     return "\n".join(lines) + "\n"

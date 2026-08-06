@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -37,6 +38,13 @@ ReferenceStatus = Literal[
     "case_mismatch",
     "not_regular_file",
 ]
+ReleaseState = Literal[
+    "integrity_failed",
+    "high_findings",
+    "review_findings",
+    "coverage_gaps",
+    "clear",
+]
 
 _SEVERITY_ORDER = {"high": 0, "review": 1, "info": 2}
 _COVERAGE_ORDER = {
@@ -46,6 +54,25 @@ _COVERAGE_ORDER = {
     "unsupported_manual_review": 3,
     "not_traversed": 4,
 }
+
+
+def classify_release(summary: Mapping[str, object]) -> tuple[ReleaseState, int]:
+    """Return the single release-decision state shared by every renderer."""
+    coverage_gaps = int(summary["unsupported_manual_review"]) + int(
+        summary["not_traversed"]
+    )
+    if not (
+        bool(summary["manifest_recheck_passed"])
+        and bool(summary["release_tree_recheck_passed"])
+    ):
+        return "integrity_failed", coverage_gaps
+    if int(summary["findings_high"]):
+        return "high_findings", coverage_gaps
+    if int(summary["findings_review"]):
+        return "review_findings", coverage_gaps
+    if coverage_gaps:
+        return "coverage_gaps", coverage_gaps
+    return "clear", 0
 
 
 @dataclass(frozen=True)
@@ -178,7 +205,7 @@ class ScanReport:
     release_tree_recheck_passed: bool = True
     schema_version: str = "2"
 
-    def normalized(self) -> "ScanReport":
+    def normalized(self) -> ScanReport:
         findings = sorted(set(self.findings), key=Finding.sort_key)
         skipped = sorted(set(self.skipped_files), key=lambda item: (item.path, item.reason))
         coverage = sorted(set(self.coverage), key=CoverageEntry.sort_key)
