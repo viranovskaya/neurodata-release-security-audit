@@ -25,14 +25,14 @@ public so that a separate calibration can be designed and reported explicitly.
 
 ## Scanner environment
 
-- Scanner source commit: `5393b4953d68aba4317abff6370df930c26d7c22`
+- Scanner source commit: `5801f820ebecde18c492e371ad24aa5de4152c72`
 - Package version: `0.2.1b1`
 - Python: `3.13.7`
 - SciPy: `1.18.0`
 - h5py: `3.16.0`
 - Office reader: Python standard-library ZIP and XML parsing
 - Deterministic wheel SHA-256:
-  `e64e6ef711305c2ea35fc25c136cbaa2eac18218d7a50d915d8c159139d088aa`
+  `e955c4cc0840b68616ecde216379a48af15b3c5a6a812b14bed3aaa48871e55f`
 
 The source commit includes the bounded MATLAB and Office readers plus the
 first-run report wording and HTML legend. The readers prevent Office
@@ -51,7 +51,7 @@ Two fresh runs produced identical JSON, Markdown and HTML reports:
 - 20 review findings
 - both integrity rechecks passed
 
-The exact installed wheel passed 210 copied functional tests outside the source
+The exact installed wheel passed 212 copied functional tests outside the source
 checkout on both Python 3.10 and Python 3.13. Two controlled wheel builds were
 byte-identical.
 
@@ -63,11 +63,12 @@ Report SHA-256 values:
 
 - JSON: `e7665f4eb32a5a83eeb37ec6b98c0619d4eafde3d149476e46c8e1e19d8db410`
 - Markdown: `3066259ad2c39e568243b4ce266daf1a6f7b42ae1d719e6dc80da2791a8f317b`
-- HTML: `74ed560b50884d2f357ad6cee9b8159e1397324e24b96d54a51f5eac156212c0`
+- HTML: `40718baf55288e758697b8c35648e82823054656ca0d3eb0bd0eb3c2220424ea`
 
-The Markdown hash is unchanged from the earlier reader calibration. JSON and
-HTML changed only because the scanner version is now `0.2.1b1`; two fresh runs
-of the release wheel produced all three reports byte-for-byte identically.
+The JSON and Markdown hashes are unchanged from the earlier release-candidate
+calibration. HTML changed because the first-run release-decision guidance was
+made more explicit. Two fresh runs of the exact installed wheel produced all
+three reports byte-for-byte identically.
 
 ## Boundary
 
