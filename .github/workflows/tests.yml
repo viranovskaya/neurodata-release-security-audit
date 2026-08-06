@@ -56,12 +56,9 @@ jobs:
           isolated="${RUNNER_TEMP}/exact-wheel"
           mkdir -p "${isolated}/examples" "${isolated}/tests"
           cp tests/__init__.py \
-            tests/test_benchmark.py \
             tests/test_curator.py \
-            tests/test_external_benchmark.py \
             tests/test_scanner.py \
             "${isolated}/tests/"
-          cp -R benchmark "${isolated}/benchmark"
           cp -R examples/reviewer_demo "${isolated}/examples/reviewer_demo"
           cd "${isolated}"
           python - <<'PY'

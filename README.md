@@ -39,6 +39,9 @@ Evidence is deliberately split by source:
 - a fixed, non-random 50-dataset OpenNeuro calibration uses bounded slices: 39 include one hash-checked public payload and 11 are metadata-only;
 - two small exploratory web-pilot samples tested report comprehension (five and eight complete responses), not leak detection or psychometric validity.
 
+Benchmark runners and labelled fixtures are source-only evaluation tools. They are
+tested from the repository but are not included in the installable scanner wheel.
+
 ## Validated outputs
 
 The scanner emits:
