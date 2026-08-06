@@ -18,17 +18,21 @@ clearance or a representative study of public datasets.
 The download manifest contains dataset-relative paths, byte sizes, source URLs
 and file SHA-256 values. It remains in the private audit evidence because the
 public repository does not need a second file-level copy of the source index.
+The published counts and report hashes therefore document a controlled internal
+calibration; this page alone is not enough to reconstruct the exact 25-file
+selection independently. The source repository, DOI and snapshot commit remain
+public so that a separate calibration can be designed and reported explicitly.
 
 ## Scanner environment
 
-- Scanner source commit: `b508db855212cac631c86cc117e2bb17a787821c`
-- Package version: `0.2.1.dev0`
+- Scanner source commit: `5801f820ebecde18c492e371ad24aa5de4152c72`
+- Package version: `0.2.1b1`
 - Python: `3.13.7`
 - SciPy: `1.18.0`
 - h5py: `3.16.0`
 - Office reader: Python standard-library ZIP and XML parsing
 - Deterministic wheel SHA-256:
-  `0c16d6e212afed3111020bdcdd120b21f77d3eb5180f0bbe5c7f62bbe87ef241`
+  `e955c4cc0840b68616ecde216379a48af15b3c5a6a812b14bed3aaa48871e55f`
 
 The source commit includes the bounded MATLAB and Office readers plus the
 first-run report wording and HTML legend. The readers prevent Office
@@ -47,7 +51,7 @@ Two fresh runs produced identical JSON, Markdown and HTML reports:
 - 20 review findings
 - both integrity rechecks passed
 
-The exact installed wheel passed 210 copied functional tests outside the source
+The exact installed wheel passed 212 copied functional tests outside the source
 checkout on both Python 3.10 and Python 3.13. Two controlled wheel builds were
 byte-identical.
 
@@ -57,13 +61,14 @@ their numeric arrays.
 
 Report SHA-256 values:
 
-- JSON: `6868b82eff8e4cbef87ff90cb9f8de5eacfa870f1b3e1d8b958306b3242ac407`
+- JSON: `e7665f4eb32a5a83eeb37ec6b98c0619d4eafde3d149476e46c8e1e19d8db410`
 - Markdown: `3066259ad2c39e568243b4ce266daf1a6f7b42ae1d719e6dc80da2791a8f317b`
-- HTML: `dafed9e14f91da4dad9c894ba6800cd5dc65aee4fea1ad1d6fe3fb88fbf3817e`
+- HTML: `40718baf55288e758697b8c35648e82823054656ca0d3eb0bd0eb3c2220424ea`
 
-The JSON and Markdown hashes are unchanged from the earlier reader calibration.
-The HTML hash changed because this commit changes the shared report renderer;
-two fresh runs of the commit produced the new HTML byte-for-byte identically.
+The JSON and Markdown hashes are unchanged from the earlier release-candidate
+calibration. HTML changed because the first-run release-decision guidance was
+made more explicit. Two fresh runs of the exact installed wheel produced all
+three reports byte-for-byte identically.
 
 ## Boundary
 

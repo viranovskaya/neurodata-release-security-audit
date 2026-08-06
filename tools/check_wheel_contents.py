@@ -16,8 +16,14 @@ def check_wheel(path: Path) -> None:
         forbidden = sorted(
             name
             for name in names
-            if name.startswith("usability/")
+            if name.startswith(("usability/", "benchmark/"))
             or name == "neurodata_security_audit/usability.py"
+            or name
+            in {
+                "neurodata_security_audit/benchmark.py",
+                "neurodata_security_audit/benchmark_builders.py",
+                "neurodata_security_audit/external_benchmark.py",
+            }
             or "__pycache__" in name
             or name.endswith((".pyc", ".pyo"))
         )

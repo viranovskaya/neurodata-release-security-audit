@@ -28,6 +28,7 @@ from neurodata_security_audit.models import (
     ManifestEntry,
     ReferenceEntry,
     ScanReport,
+    classify_release,
 )
 from neurodata_security_audit.readers import (
     FormatReaderUnavailable,
@@ -71,6 +72,36 @@ class _VisibleTextParser(HTMLParser):
 
 
 class ScannerTests(unittest.TestCase):
+    def test_release_state_has_one_shared_precedence(self) -> None:
+        summary = {
+            "manifest_recheck_passed": True,
+            "release_tree_recheck_passed": True,
+            "findings_high": 0,
+            "findings_review": 0,
+            "unsupported_manual_review": 0,
+            "not_traversed": 0,
+        }
+        cases = (
+            ({}, ("clear", 0)),
+            ({"not_traversed": 2}, ("coverage_gaps", 2)),
+            ({"findings_review": 1}, ("review_findings", 0)),
+            ({"findings_high": 1}, ("high_findings", 0)),
+            ({"manifest_recheck_passed": False}, ("integrity_failed", 0)),
+            (
+                {
+                    "manifest_recheck_passed": False,
+                    "findings_high": 1,
+                    "findings_review": 1,
+                    "unsupported_manual_review": 1,
+                    "not_traversed": 1,
+                },
+                ("integrity_failed", 2),
+            ),
+        )
+        for updates, expected in cases:
+            with self.subTest(expected=expected):
+                self.assertEqual(classify_release({**summary, **updates}), expected)
+
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.root = Path(self.temp_dir.name) / "dataset"
@@ -3344,7 +3375,7 @@ class ScannerTests(unittest.TestCase):
                 "review",
                 ScanReport(scanner_version="test", findings=[review]),
                 "Not yet.",
-                "1 item still needs a person to decide whether it is safe to share.",
+                "1 review item remains. A curator must classify each as expected",
                 "Review every item, record the decision",
             ),
             (
@@ -3665,6 +3696,31 @@ class ScannerTests(unittest.TestCase):
 
         self.assertEqual(0, code)
         self.assertIn("RELEASE STATE: NOT APPROVED", stdout.getvalue())
+
+    def test_cli_scan_help_explains_reports_and_exit_status(self) -> None:
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout), self.assertRaises(SystemExit) as raised:
+            main(["scan", "--help"])
+
+        self.assertEqual(0, raised.exception.code)
+        rendered = " ".join(stdout.getvalue().split())
+        self.assertIn("new files outside DATASET", rendered)
+        self.assertIn("0 = no high finding", rendered)
+        self.assertIn("1 = high finding and HOLD", rendered)
+        self.assertIn("2 = scan, integrity, or report-write failure", rendered)
+
+    def test_cli_scan_error_does_not_repeat_private_path(self) -> None:
+        private_path = Path(self.temp_dir.name) / "private-user" / "missing-dataset"
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            code = main(["scan", str(private_path)])
+
+        rendered = stderr.getvalue()
+        self.assertEqual(2, code)
+        self.assertIn("scan failed (FileNotFoundError)", rendered)
+        self.assertNotIn(str(private_path), rendered)
 
     def test_cli_release_state_is_safe_on_ascii_stdout(self) -> None:
         (self.root / "notes.txt").write_text(

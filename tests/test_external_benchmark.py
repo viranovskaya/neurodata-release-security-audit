@@ -10,12 +10,12 @@ import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
 
-from benchmark.run_public_formats import _parser as public_formats_parser
-from neurodata_security_audit.external_benchmark import (
+from benchmark.external import (
     _directory_sha256,
     render_external_format_markdown,
     run_external_format_checks,
 )
+from benchmark.run_public_formats import _parser as public_formats_parser
 
 
 def _edf_header() -> bytes:

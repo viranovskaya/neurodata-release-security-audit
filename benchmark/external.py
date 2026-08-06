@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from collections import Counter
 import hashlib
 import json
-from pathlib import Path
 import shutil
 import tempfile
+from collections import Counter
+from pathlib import Path
 
-from .scanner import scan_dataset
+from neurodata_security_audit.scanner import scan_dataset
 
 
 def _relative_path(value: str) -> Path:
@@ -209,8 +209,10 @@ def render_external_format_markdown(result: dict[str, object]) -> str:
     lines = [
         "# Public format fixture checks",
         "",
-        "These checks confirm reader execution and coverage on hash-pinned public "
-        "files. They do not provide privacy ground truth.",
+        (
+            "These checks confirm reader execution and coverage on hash-pinned public "
+            "files. They do not provide privacy ground truth."
+        ),
         "",
         f"- Fixtures: {summary['fixtures']}",
         f"- Passed: {summary['passed']}",

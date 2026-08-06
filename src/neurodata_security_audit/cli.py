@@ -24,18 +24,41 @@ _MAX_TERM_FILE_BYTES = 1024 * 1024
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="neurodata-security-audit")
+    parser = argparse.ArgumentParser(
+        prog="neurodata-security-audit",
+        description="Run a local, read-only metadata and release-structure audit.",
+    )
     parser.add_argument("--version", action="version", version=__version__)
     subparsers = parser.add_subparsers(dest="command", required=True)
-    scan = subparsers.add_parser("scan", help="scan one local dataset directory")
-    scan.add_argument("dataset", type=Path)
-    scan.add_argument("--json", type=Path, dest="json_path")
-    scan.add_argument("--markdown", type=Path, dest="markdown_path")
+    scan = subparsers.add_parser(
+        "scan",
+        help="scan one local dataset directory",
+        description="Scan one local dataset without modifying it.",
+        epilog=(
+            "Report outputs must be new files outside DATASET. Without a report "
+            "option, the command prints only a terminal summary. Exit status: "
+            "0 = no high finding, but review is still required; 1 = high finding "
+            "and HOLD; 2 = scan, integrity, or report-write failure and STOP."
+        ),
+    )
+    scan.add_argument("dataset", type=Path, help="local dataset directory to inspect")
+    scan.add_argument(
+        "--json",
+        type=Path,
+        dest="json_path",
+        help="write a deterministic JSON report to a new file outside DATASET",
+    )
+    scan.add_argument(
+        "--markdown",
+        type=Path,
+        dest="markdown_path",
+        help="write a deterministic Markdown report to a new file outside DATASET",
+    )
     scan.add_argument(
         "--html",
         type=Path,
         dest="html_path",
-        help="write a self-contained visual report",
+        help="write a self-contained HTML report to a new file outside DATASET",
     )
     scan.add_argument(
         "--sensitive-terms",
@@ -100,6 +123,17 @@ def _scan(args: argparse.Namespace) -> int:
             args.dataset,
         ):
             raise ValueError("The sensitive term file must be outside the dataset directory")
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    except (OSError, RuntimeError, UnicodeError) as error:
+        print(
+            f"error: could not validate scan paths ({type(error).__name__})",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
         terms = _read_sensitive_terms(args.sensitive_terms) if args.sensitive_terms else ()
         policy = ScanPolicy(sensitive_terms=terms)
         report = scan_dataset(args.dataset, policy)
@@ -109,7 +143,7 @@ def _scan(args: argparse.Namespace) -> int:
         UnicodeError,
         ValueError,
     ) as error:
-        print(f"error: {error}", file=sys.stderr)
+        print(f"error: scan failed ({type(error).__name__})", file=sys.stderr)
         return 2
 
     data = report.to_dict()

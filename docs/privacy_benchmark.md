@@ -164,7 +164,9 @@ compliant.
 
 ## Run the development suite
 
-Install the current package with both reader extras, then run:
+The benchmark runner is kept in the source repository and is not installed with
+the scanner wheel. From a repository checkout, install the current package with
+both reader extras, then run:
 
 ```bash
 python -m pip install -e '.[formats,imaging]'
