@@ -1,12 +1,12 @@
-"""Create small synthetic files used by the benchmark."""
+"""Create small synthetic files for the source-only benchmark."""
 
 from __future__ import annotations
 
 import io
-from datetime import date
-from pathlib import Path
 import tarfile
 import zipfile
+from datetime import date
+from pathlib import Path
 
 
 def _output_path(root: Path, value: str) -> Path:

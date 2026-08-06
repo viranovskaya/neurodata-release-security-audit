@@ -7,11 +7,10 @@ import json
 import tempfile
 from pathlib import Path
 
-from .benchmark_builders import build_case_data
-from .html_report import render_html
-from .reporting import render_json, render_markdown
-from .scanner import ScanPolicy, scan_dataset
-
+from benchmark.builders import build_case_data
+from neurodata_security_audit.html_report import render_html
+from neurodata_security_audit.reporting import render_json, render_markdown
+from neurodata_security_audit.scanner import ScanPolicy, scan_dataset
 
 _FINDING_CLASSES = {
     "personal_identity": {
@@ -105,7 +104,9 @@ def _load_specification(path: Path) -> dict[str, object]:
             relative_path = case_file["path"]
             expected_hash = case_file.get("sha256")
         else:
-            raise ValueError("Benchmark case file entries must be paths or mappings")
+            raise ValueError(  # noqa: TRY004 - invalid JSON benchmark value
+                "Benchmark case file entries must be paths or mappings"
+            )
         case_path = path.parent / _relative_path(relative_path)
         case_bytes = case_path.read_bytes()
         actual_hash = hashlib.sha256(case_bytes).hexdigest()
@@ -169,7 +170,7 @@ def _score_case(case: dict[str, object], root: Path) -> dict[str, object]:
     if builder is not None and builders:
         raise ValueError("Benchmark cases cannot use both builder and builders")
     if not isinstance(builders, list):
-        raise ValueError("Benchmark builders must be a list")
+        raise ValueError("Benchmark builders must be a list")  # noqa: TRY004
     if builder is not None:
         build_case_data(root, builder)
     for builder in builders:
@@ -549,8 +550,10 @@ def render_benchmark_markdown(result: dict[str, object]) -> str:
     lines = [
         "# Leak-detection benchmark",
         "",
-        "This benchmark uses labelled synthetic cases. It does not prove that a "
-        "dataset is anonymous or legally compliant.",
+        (
+            "This benchmark uses labelled synthetic cases. It does not prove that a "
+            "dataset is anonymous or legally compliant."
+        ),
         "",
         "## Summary",
         "",

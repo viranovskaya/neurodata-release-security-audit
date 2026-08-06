@@ -19,7 +19,7 @@ I implemented:
 - deterministic inventory and SHA-256 manifests for regular files, with before/after integrity checks;
 - descriptor-bound, no-follow reads for core files so path replacement or symlink substitution fails closed;
 - privacy-pattern checks for BIDS tables and metadata, small text/configuration files, BrainVision headers, EDF/BDF headers, and optional format readers;
-- bounded metadata inspection for FIF, EEGLAB, KIT, MFF, NIfTI, and DICOM without requesting EEG samples, image voxels, or DICOM pixels;
+- bounded metadata inspection for FIF, EEGLAB, KIT, MFF, MATLAB, XLSX, DOCX, NIfTI, and DICOM without requesting signal arrays, image voxels, embedded Office objects, or DICOM pixels;
 - ZIP/TAR member inspection without extraction, including traversal, collision, encryption, nesting, and special-entry checks;
 - BrainVision, EEGLAB, and supported BIDS reference checks;
 - deterministic masked JSON, Markdown, and self-contained HTML reports;
@@ -38,6 +38,9 @@ Evidence is deliberately split by source:
 - three hash-pinned public fixtures exercise EEGLAB, KIT, and MFF readers;
 - a fixed, non-random 50-dataset OpenNeuro calibration uses bounded slices: 39 include one hash-checked public payload and 11 are metadata-only;
 - two small exploratory web-pilot samples tested report comprehension (five and eight complete responses), not leak detection or psychometric validity.
+
+Benchmark runners and labelled fixtures are source-only evaluation tools. They are
+tested from the repository but are not included in the installable scanner wheel.
 
 ## Validated outputs
 
@@ -59,6 +62,8 @@ Format claims are bounded by the evidence actually run:
 | EDF/BDF | common fixed header; no signal samples | generated benchmark cases and four public Sleep-EDF files |
 | FIF | optional MNE metadata; no preload | generated format fixture |
 | EEGLAB, KIT, MFF | optional reader metadata and linked-file checks; no preload | synthetic tests plus three hash-pinned public smoke fixtures |
+| MATLAB | variable names, classes, shapes, and small string values; no numeric-array load | synthetic tests and a [fixed GIN run](docs/matlab_office_calibration.md) with 20 explicit nested-structure limits |
+| XLSX/DOCX | bounded text, comments, core metadata, macros, and external-link checks | synthetic tests and [fixed GIN calibration files](docs/matlab_office_calibration.md) |
 | NIfTI | header metadata; no voxel request; extensions remain a visible limit | generated nibabel fixture and public OpenNeuro calibration |
 | DICOM | metadata before Pixel Data; no pixel request | generated pydicom fixture only |
 | ZIP/TAR | member names and structure; no extraction or member-payload scan | synthetic archive tests |
@@ -77,8 +82,8 @@ The labelled benchmark keeps failed first runs and corrected results instead of 
 
 - The scanner does not test signal, image, or tabular re-identification risk.
 - It does not perform MRI defacing, OCR, malware analysis, or visual inspection.
-- NIfTI extension contents, DICOM metadata after the first Pixel Data element, archive member payloads, encrypted archives, and external link targets are not inspected.
-- Legacy nested EEGLAB structures can remain an explicit manual-review case.
+- NIfTI extension contents, DICOM metadata after the first Pixel Data element, Office embedded objects, archive member payloads, encrypted archives, and external link targets are not inspected.
+- Legacy nested EEGLAB and standalone MATLAB structures can remain explicit manual-review cases.
 - Optional third-party readers receive stable checked paths, but their internal path handling is outside this package.
 - DICOM evidence uses generated fixtures; supported-format behavior is not evidence of general clinical-data coverage.
 - The OpenNeuro sample is bounded and non-random, and its aggregate findings do not establish that any source dataset is unsafe.
@@ -90,9 +95,34 @@ The detailed boundaries are in [v0.2 scope](docs/v0.2_scope.md), the [report sch
 
 Python 3.10 or newer is required.
 
+### Install the exact GitHub beta
+
+Download the `v0.2.1b1` wheel and `SHA256SUMS` from the GitHub prerelease. Check
+the downloaded wheel against the published hash, then install it in a fresh
+environment:
+
+```bash
+shasum -a 256 neurodata_release_security_audit-0.2.1b1-py3-none-any.whl
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install ./neurodata_release_security_audit-0.2.1b1-py3-none-any.whl
+neurodata-security-audit --version
+```
+
+Use the `formats` extra for FIF, EEGLAB SET, KIT, MFF and MATLAB metadata. Use
+`imaging` for NIfTI and DICOM metadata. XLSX, DOCX, BIDS, text and archive checks
+need only the base install. For a mixed release, install both extras:
+
+```bash
+python3 -m pip install "./neurodata_release_security_audit-0.2.1b1-py3-none-any.whl[formats,imaging]"
+```
+
+### Install a development checkout
+
 ```bash
 git clone https://github.com/viranovskaya/neurodata-release-security-audit.git
 cd neurodata-release-security-audit
+git checkout v0.2.1b1
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install .
@@ -115,7 +145,46 @@ neurodata-security-audit scan /path/to/dataset \
   --html reports/audit.html
 ```
 
-The command refuses report paths inside the dataset and refuses to replace an existing report. Exit status is `0` with no high-severity finding, `1` with at least one high-severity finding, and `2` for scan, integrity, or report-publication failure. Review-level findings still require a decision when the exit status is `0`.
+The command refuses report paths inside the dataset and refuses to replace an
+existing report. The terminal repeats each supplied output path without
+expanding local home or working-directory context into logs; non-ASCII
+characters are escaped for terminal safety. Relative paths are relative to the
+directory where the command runs. Exit status is `0` with no high-severity
+finding, `1` with at least one high-severity finding, and `2` for scan,
+integrity, or report-publication failure.
+Review-level findings still require a decision when the exit status is `0`.
+
+Try the included synthetic demo before using research data. The demo is meant to
+return exit status `1`: it contains deliberate findings and should produce a
+reported `HOLD` release state.
+
+```bash
+mkdir -p /tmp/neurodata-audit-demo-reports
+neurodata-security-audit scan examples/reviewer_demo \
+  --json /tmp/neurodata-audit-demo-reports/audit.json \
+  --markdown /tmp/neurodata-audit-demo-reports/audit.md \
+  --html /tmp/neurodata-audit-demo-reports/audit.html
+```
+
+Open the HTML report and check three separate things: high findings must be
+resolved before release by correcting a confirmed problem or documenting an
+expected or false-positive match, review findings need a recorded curator
+decision, and coverage gaps need a suitable manual check. Passing integrity
+checks only means the selected files did not change during the scan; it is not
+release clearance.
+
+Documenting an expected or false-positive match records the curator's decision;
+it does not remove the scanner finding or change its exit status. Any decision
+to accept a remaining finding requires a separate authorised release review.
+
+After correcting a private working copy, write the next audit to new paths:
+
+```bash
+neurodata-security-audit scan /path/to/corrected-dataset \
+  --json reports/audit-after-fix.json \
+  --markdown reports/audit-after-fix.md \
+  --html reports/audit-after-fix.html
+```
 
 Known private terms can be supplied from a file kept outside the dataset:
 
@@ -141,7 +210,7 @@ Treat reports and known-term files as private working material. Use only synthet
 
 ## Citation
 
-Public beta `v0.2.0b1` is the current GitHub prerelease. The `main` branch uses development version `0.2.1.dev0`; it is not a release. Citation metadata for version `0.2.0-beta.1` is in [`CITATION.cff`](CITATION.cff). The code is released under the [MIT License](LICENSE); there is no PyPI release.
+Release version `0.2.1b1` is described in [`CITATION.cff`](CITATION.cff). Public beta artifacts are distributed through GitHub Releases; there is no PyPI release. The code is released under the [MIT License](LICENSE).
 
 ## Current status
 

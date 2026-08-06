@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from neurodata_security_audit.external_benchmark import (
+from benchmark.external import (
     render_external_format_markdown,
     run_external_format_checks,
 )

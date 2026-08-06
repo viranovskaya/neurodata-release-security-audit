@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import re
+import zipfile
 from collections.abc import Mapping
 from datetime import date, datetime
+from math import prod
 from numbers import Number
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
+from xml.etree import ElementTree
 
 from .detectors import KnownTermMatcher, redacted, scan_text
 from .models import Finding, ReferenceEntry, Severity
@@ -34,6 +37,13 @@ _EEGLAB_TEXT_FIELDS = {
     "setname",
     "subject",
 }
+_OFFICE_MAX_MEMBERS = 1000
+_OFFICE_MAX_MEMBER_BYTES = 2 * 1024 * 1024
+_OFFICE_MAX_TEXT_BYTES = 8 * 1024 * 1024
+_OFFICE_XML_DECLARATIONS = (b"<!DOCTYPE", b"<!ENTITY")
+_MATLAB_MAX_TEXT_ELEMENTS = 10000
+_MATLAB_MAX_TEXT_VARIABLES = 100
+_MATLAB_MAX_TEXT_BYTES = 64 * 1024
 
 
 class FormatReaderUnavailable(RuntimeError):
@@ -411,21 +421,23 @@ def _hdf5_text_values(node: object, h5py, limit: int = 100) -> list[str]:
             return
         if not isinstance(item, h5py.Dataset) or item.size > 10000:
             return
-        data = item[()]
         matlab_class = item.attrs.get("MATLAB_class", b"")
         if isinstance(matlab_class, bytes):
             matlab_class = matlab_class.decode("ascii", errors="ignore")
-        if matlab_class == "char" and getattr(data, "dtype", None) is not None:
+        dtype = item.dtype
+        if matlab_class == "char":
+            data = item[()]
             chars = [chr(int(value)) for value in data.reshape(-1, order="F") if int(value)]
             text = "".join(chars).strip()
             if text:
                 values.append(text)
             return
-        dtype = getattr(data, "dtype", None)
-        if dtype is not None and dtype.kind in {"S", "U"}:
+        if dtype.kind in {"S", "U"}:
+            data = item[()]
             values.extend(_plain_text_values(data, limit - len(values)))
             return
-        if dtype is not None and dtype.kind == "O":
+        if dtype.kind == "O":
+            data = item[()]
             for reference in data.reshape(-1)[:limit]:
                 if reference:
                     visit(item.file[reference])
@@ -605,6 +617,297 @@ def inspect_eeglab_metadata(
                 ),
             )
         )
+    return findings
+
+
+def inspect_matlab_metadata(
+    path: Path,
+    relative_path: str,
+    known_terms: KnownTermMatcher | None = None,
+) -> list[Finding]:
+    """Inspect MATLAB variable metadata and small text values, not arrays."""
+
+    known_terms = known_terms or KnownTermMatcher()
+    findings: list[Finding] = []
+    limited_layouts = 0
+    oversized_texts = 0
+    with path.open("rb") as stream:
+        prefix = stream.read(8)
+    if prefix == b"\x89HDF\r\n\x1a\n":
+        try:
+            import h5py
+        except ImportError as error:
+            raise FormatReaderUnavailable(
+                "Install the 'formats' extra to inspect MATLAB 7.3 metadata"
+            ) from error
+        selected_text_elements = 0
+        selected_text_variables = 0
+        selected_text_bytes = 0
+        with h5py.File(path, "r") as document:
+            for name in sorted(document.keys()):
+                link = document.get(name, getlink=True)
+                if isinstance(link, h5py.ExternalLink):
+                    findings.append(
+                        Finding(
+                            code="EXTERNAL_DATA_REFERENCE",
+                            severity="review",
+                            path=relative_path,
+                            location="MATLAB external variable",
+                            evidence=redacted("external-hdf5-reference", link.filename),
+                            message=(
+                                "Move this referenced data inside the release or "
+                                "review it manually."
+                            ),
+                        )
+                    )
+                    continue
+                node = document[name]
+                matlab_class = node.attrs.get("MATLAB_class", b"")
+                if isinstance(matlab_class, bytes):
+                    matlab_class = matlab_class.decode("ascii", errors="ignore")
+                findings.extend(
+                    scan_text(
+                        f"variable: {name}; class: {matlab_class}; "
+                        f"dimensions: {getattr(node, 'ndim', 0)}\n",
+                        relative_path,
+                        known_terms,
+                    )
+                )
+                if isinstance(node, h5py.Group) or (
+                    isinstance(node, h5py.Dataset) and node.dtype.kind == "O"
+                ):
+                    limited_layouts += 1
+                    values = []
+                else:
+                    is_text_dataset = isinstance(node, h5py.Dataset) and (
+                        matlab_class == "char" or node.dtype.kind in {"S", "U"}
+                    )
+                    elements = int(getattr(node, "size", 0))
+                    text_bytes = int(getattr(node, "nbytes", elements))
+                    if is_text_dataset and (
+                        elements > _MATLAB_MAX_TEXT_ELEMENTS
+                        or selected_text_elements + elements
+                        > _MATLAB_MAX_TEXT_ELEMENTS
+                        or selected_text_variables >= _MATLAB_MAX_TEXT_VARIABLES
+                        or text_bytes > _MATLAB_MAX_TEXT_BYTES
+                        or selected_text_bytes + text_bytes > _MATLAB_MAX_TEXT_BYTES
+                    ):
+                        oversized_texts += 1
+                        values = []
+                    elif is_text_dataset:
+                        selected_text_elements += elements
+                        selected_text_variables += 1
+                        selected_text_bytes += text_bytes
+                        values = _hdf5_text_values(node, h5py)
+                    else:
+                        values = []
+                for value in values:
+                    findings.extend(
+                        scan_text(
+                            f"{name}: {value}\n",
+                            relative_path,
+                            known_terms,
+                        )
+                    )
+    else:
+        try:
+            from scipy.io import loadmat, whosmat
+        except ImportError as error:
+            raise FormatReaderUnavailable(
+                "Install the 'formats' extra to inspect MATLAB metadata"
+            ) from error
+        variables = whosmat(path)
+        limited_layouts = sum(
+            class_name in {"cell", "function", "object", "opaque", "struct", "unknown"}
+            for _, _, class_name in variables
+        )
+        text_names: list[str] = []
+        selected_text_elements = 0
+        for name, shape, class_name in variables:
+            if class_name not in {"char", "string"}:
+                continue
+            elements = prod(shape) if shape else 1
+            if (
+                elements > _MATLAB_MAX_TEXT_ELEMENTS
+                or selected_text_elements + elements > _MATLAB_MAX_TEXT_ELEMENTS
+                or len(text_names) >= _MATLAB_MAX_TEXT_VARIABLES
+            ):
+                oversized_texts += 1
+                continue
+            text_names.append(name)
+            selected_text_elements += elements
+        for name, shape, class_name in variables:
+            findings.extend(
+                scan_text(
+                    f"variable: {name}; class: {class_name}; dimensions: {len(shape)}\n",
+                    relative_path,
+                    known_terms,
+                )
+            )
+        if text_names:
+            document = loadmat(
+                path,
+                variable_names=text_names,
+                squeeze_me=True,
+                struct_as_record=False,
+            )
+            for name in text_names:
+                for value in _plain_text_values(document.get(name)):
+                    findings.extend(
+                        scan_text(
+                            f"{name}: {value}\n",
+                            relative_path,
+                            known_terms,
+                        )
+                    )
+    if limited_layouts:
+        findings.append(
+            Finding(
+                code="MATLAB_METADATA_COVERAGE_LIMIT",
+                severity="review",
+                path=relative_path,
+                location="MATLAB variable structure",
+                evidence=f"<nested-or-reference-variables,count={limited_layouts}>",
+                message=(
+                    "Review these nested or reference-backed variables manually; "
+                    "their contents were not loaded."
+                ),
+            )
+        )
+    if oversized_texts:
+        findings.append(
+            Finding(
+                code="MATLAB_METADATA_COVERAGE_LIMIT",
+                severity="review",
+                path=relative_path,
+                location="MATLAB text variables",
+                evidence=f"<oversized-text-variables,count={oversized_texts}>",
+                message=(
+                    "Review these oversized text variables manually; their values were not "
+                    "loaded by this bounded metadata pass."
+                ),
+            )
+        )
+    return findings
+
+
+def _office_member_is_text(format_name: str, name: str) -> bool:
+    lower = name.casefold()
+    if lower.startswith("docprops/") and lower.endswith(".xml"):
+        return True
+    if lower.endswith(".rels"):
+        return True
+    if format_name == "xlsx":
+        return (
+            lower in {"xl/sharedstrings.xml", "xl/workbook.xml"}
+            or lower.startswith("xl/comments")
+            or lower.startswith("xl/persons/")
+        ) and lower.endswith(".xml")
+    return (
+        lower == "word/document.xml"
+        or lower.startswith("word/header")
+        or lower.startswith("word/footer")
+        or lower in {
+            "word/comments.xml",
+            "word/commentspeople.xml",
+            "word/footnotes.xml",
+            "word/endnotes.xml",
+        }
+    ) and lower.endswith(".xml")
+
+
+def inspect_office_metadata(
+    path: Path,
+    relative_path: str,
+    format_name: str,
+    known_terms: KnownTermMatcher | None = None,
+) -> list[Finding]:
+    """Inspect bounded text metadata in XLSX or DOCX packages."""
+
+    if format_name not in {"xlsx", "docx"}:
+        raise ValueError(f"Unsupported Office format: {format_name}")
+    known_terms = known_terms or KnownTermMatcher()
+    findings: list[Finding] = []
+    total_text_bytes = 0
+    with zipfile.ZipFile(path) as document:
+        members = document.infolist()
+        if len(members) > _OFFICE_MAX_MEMBERS:
+            raise ValueError("Office package contains too many members")
+        names = {member.filename.casefold() for member in members}
+        required = "xl/workbook.xml" if format_name == "xlsx" else "word/document.xml"
+        if "[content_types].xml" not in names or required not in names:
+            raise ValueError("Office package is missing a required document part")
+        for member in members:
+            lower = member.filename.casefold()
+            posix_name = PurePosixPath(member.filename.replace("\\", "/"))
+            windows_name = PureWindowsPath(member.filename)
+            if (
+                posix_name.is_absolute()
+                or windows_name.is_absolute()
+                or ".." in posix_name.parts
+            ):
+                findings.append(
+                    Finding(
+                        code="OFFICE_MEMBER_PATH_TRAVERSAL",
+                        severity="high",
+                        path=relative_path,
+                        location="Office package member table",
+                        evidence=redacted("unsafe-office-member", member.filename),
+                        message="Remove this absolute or parent-traversing package member.",
+                    )
+                )
+            if lower.endswith("vbaproject.bin") or lower.endswith("vbadata.xml"):
+                findings.append(
+                    Finding(
+                        code="OFFICE_MACRO_CONTENT",
+                        severity="review",
+                        path=relative_path,
+                        location="Office package member table",
+                        evidence="<office-macro-content>",
+                        message="Remove the macro or review its code and embedded data manually.",
+                    )
+                )
+            if not _office_member_is_text(format_name, member.filename):
+                continue
+            if member.file_size > _OFFICE_MAX_MEMBER_BYTES:
+                raise ValueError("Office metadata member exceeds the parsing limit")
+            total_text_bytes += member.file_size
+            if total_text_bytes > _OFFICE_MAX_TEXT_BYTES:
+                raise ValueError("Office metadata exceeds the parsing limit")
+            data = document.read(member)
+            upper = data.upper()
+            if any(marker in upper for marker in _OFFICE_XML_DECLARATIONS):
+                raise ValueError("Office metadata contains a forbidden XML declaration")
+            root = ElementTree.fromstring(data)
+            if lower.endswith(".rels"):
+                for relationship in root.iter():
+                    if relationship.attrib.get("TargetMode", "").casefold() != "external":
+                        continue
+                    target = relationship.attrib.get("Target", "")
+                    findings.append(
+                        Finding(
+                            code="EXTERNAL_DATA_REFERENCE",
+                            severity="review",
+                            path=relative_path,
+                            location="Office external relationship",
+                            evidence=redacted("office-external-reference", target),
+                            message=(
+                                "Remove this external link or confirm it is intended "
+                                "for release."
+                            ),
+                        )
+                    )
+                continue
+            text = "\n".join(part.strip() for part in root.itertext() if part.strip())
+            if text:
+                findings.extend(
+                    scan_text(
+                        text,
+                        relative_path,
+                        known_terms,
+                        public_contact_context=lower.startswith("docprops/"),
+                    )
+                )
     return findings
 
 

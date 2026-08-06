@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Sequence
 from html import escape
 
-from .models import ScanReport
+from .models import ReleaseState, ScanReport, classify_release
 
 _STYLE = """
 :root {
@@ -188,6 +188,15 @@ p { margin: 0; }
 .finding-list-status strong {
   color: var(--muted);
 }
+.decision-legend {
+  margin: -4px 0 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: .88rem;
+}
+.decision-legend strong { color: var(--text); }
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -586,11 +595,7 @@ def _filterable_findings_table(
             f"<td>{_text(evidence)}</td>",
             f"<td>{_text(message)}</td>",
         )
-        body.append(
-            f'<tr class="{" ".join(classes)}">'
-            + "".join(cells)
-            + "</tr>"
-        )
+        body.append(f'<tr class="{" ".join(classes)}">' + "".join(cells) + "</tr>")
     head = "".join(
         f"<th>{heading}</th>"
         for heading in (
@@ -620,7 +625,7 @@ def _filterable_findings_table(
             statuses.append(
                 f'<span class="filter-status-{filter_id}">'
                 f"{count} finding"
-                f'{"s" if count != 1 else ""} shown for {_text(code)}.</span>'
+                f"{'s' if count != 1 else ''} shown for {_text(code)}.</span>"
             )
             rules.append(
                 f".finding-filter-shell:has(#{filter_id}:checked) "
@@ -654,7 +659,7 @@ def _filterable_findings_table(
         )
         severity_statuses.append(
             f'<span class="filter-status-{severity}">{count} {label.lower()} '
-            f'finding{"s" if count != 1 else ""} shown.</span>'
+            f"finding{'s' if count != 1 else ''} shown.</span>"
         )
     distinct_filter = (
         '<input type="radio" name="finding-filter" id="findings-distinct">'
@@ -698,14 +703,14 @@ def _filterable_findings_table(
 def _remediation_content(
     findings: list[tuple[str, str, str, str, str, str]],
     *,
+    release_state: ReleaseState,
     high_count: int,
     review_count: int,
     coverage_gap_count: int,
     manifest_recheck_passed: bool,
     release_tree_recheck_passed: bool,
 ) -> tuple[str, str]:
-    integrity_ok = manifest_recheck_passed and release_tree_recheck_passed
-    if not integrity_ok:
+    if release_state == "integrity_failed":
         selected = []
         secondary = []
         manifest_status = "passed" if manifest_recheck_passed else "failed"
@@ -733,20 +738,33 @@ def _remediation_content(
       <li>Continue to the finding list only after both integrity checks pass.</li>
     </ol>
 """
-    elif high_count:
-        selected = [row for row in findings if row[0] == "high"]
-        secondary = [row for row in findings if row[0] == "review"]
-        decision = (
-            '<div class="decision high"><strong>Do not release this copy yet.</strong> '
-            f"Resolve the {high_count} high-priority "
-            f'finding{"s" if high_count != 1 else ""} below first.</div>'
-        )
-        queue_note = (
-            f"{review_count} additional review "
-            f'item{"s" if review_count != 1 else ""} are grouped below.'
-            if review_count
-            else "No additional review findings remain."
-        )
+    elif release_state in {"high_findings", "review_findings"}:
+        if release_state == "high_findings":
+            selected = [row for row in findings if row[0] == "high"]
+            secondary = [row for row in findings if row[0] == "review"]
+            decision = (
+                '<div class="decision high"><strong>Do not release this copy yet.</strong> '
+                f"Resolve the {high_count} high-priority "
+                f"finding{'s' if high_count != 1 else ''} below first.</div>"
+            )
+            queue_note = (
+                f"{review_count} additional review "
+                f"item{'s' if review_count != 1 else ''} are grouped below."
+                if review_count
+                else "No additional review findings remain."
+            )
+        else:
+            selected = [row for row in findings if row[0] == "review"]
+            secondary = []
+            decision = (
+                '<div class="decision review"><strong>Review before release.</strong> '
+                f"The scanner found {review_count} "
+                f"item{'s' if review_count != 1 else ''} that need a curator decision."
+                "</div>"
+            )
+            queue_note = (
+                "Work through each item below before making the release decision."
+            )
         empty_message = "No immediate remediation tasks."
         correction_steps = """
     <h3>After each correction</h3>
@@ -760,38 +778,15 @@ def _remediation_content(
       scientific properties did not change unexpectedly.</li>
     </ol>
 """
-    elif review_count:
-        selected = [row for row in findings if row[0] == "review"]
-        secondary = []
-        decision = (
-            '<div class="decision review"><strong>Review before release.</strong> '
-            f"The scanner found {review_count} "
-            f'item{"s" if review_count != 1 else ""} that need a curator decision.'
-            "</div>"
-        )
-        queue_note = "Work through each item below before making the release decision."
-        empty_message = "No immediate remediation tasks."
-        correction_steps = """
-    <h3>After each correction</h3>
-    <ol class="fix-list">
-      <li>Work on a private copy. Keep the original dataset unchanged.</li>
-      <li>Use a format-aware tool for FIF, EDF/BDF, DICOM, NIfTI and EEGLAB
-      files. Edit JSON and TSV only when their schema permits it.</li>
-      <li>Run the audit again and confirm the item is gone and both integrity
-      checks pass.</li>
-      <li>Verify that channels, sampling, annotations, duration and other
-      scientific properties did not change unexpectedly.</li>
-    </ol>
-"""
-    elif coverage_gap_count:
+    elif release_state == "coverage_gaps":
         selected = []
         secondary = []
         decision = (
             '<div class="decision review"><strong>No automated findings, but '
             "release remains on hold.</strong> "
             f"{coverage_gap_count} unsupported or untraversed "
-            f'entr{"y" if coverage_gap_count == 1 else "ies"} still '
-            f'{"needs" if coverage_gap_count == 1 else "need"} manual review.'
+            f"entr{'y' if coverage_gap_count == 1 else 'ies'} still "
+            f"{'needs' if coverage_gap_count == 1 else 'need'} manual review."
             "</div>"
         )
         queue_note = (
@@ -858,7 +853,7 @@ def _remediation_content(
     content = f"""
     {decision}
     {table}
-    {f'<p class="note">{_text(grouping_note)}</p>' if grouping_note else ''}
+    {f'<p class="note">{_text(grouping_note)}</p>' if grouping_note else ""}
     <p class="note">{_text(queue_note)}</p>
     {secondary_content}
     {correction_steps}
@@ -872,48 +867,143 @@ def _remediation_content(
     return content, "What to do next"
 
 
-def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
-    """Render one deterministic standalone HTML report."""
-    data = report.to_dict()
-    summary = data["summary"]
-    integrity_ok = (
-        summary["manifest_recheck_passed"]
-        and summary["release_tree_recheck_passed"]
-    )
-    finding_total = (
-        summary["findings_high"]
-        + summary["findings_review"]
-        + summary["findings_info"]
-    )
-    coverage_gap_count = (
-        summary["unsupported_manual_review"] + summary["not_traversed"]
-    )
-    entry_type_counts: dict[str, int] = {}
-    for item in data["coverage"]:
-        entry_type = item["entry_type"]
-        entry_type_counts[entry_type] = entry_type_counts.get(entry_type, 0) + 1
-    entry_type_labels = {
+def _entry_breakdown(coverage: list[dict[str, object]], total: int) -> str:
+    counts: dict[str, int] = {}
+    for item in coverage:
+        entry_type = str(item["entry_type"])
+        counts[entry_type] = counts.get(entry_type, 0) + 1
+    labels = {
         "file": ("regular file", "regular files"),
         "directory": ("folder", "folders"),
         "symlink": ("symlink", "symlinks"),
     }
-    entry_parts = []
+    parts = []
     for entry_type in ("file", "directory", "symlink"):
-        count = entry_type_counts.pop(entry_type, 0)
+        count = counts.pop(entry_type, 0)
         if count:
-            labels = entry_type_labels[entry_type]
-            entry_parts.append(f"{count} {labels[0 if count == 1 else 1]}")
-    other_count = sum(entry_type_counts.values())
+            names = labels[entry_type]
+            parts.append(f"{count} {names[0 if count == 1 else 1]}")
+    other_count = sum(counts.values())
     if other_count:
-        entry_parts.append(
-            f"{other_count} other entr{'y' if other_count == 1 else 'ies'}"
+        parts.append(f"{other_count} other entr{'y' if other_count == 1 else 'ies'}")
+    if not parts:
+        return "Open the inventory to review the accounted entries."
+    return f"{total} total entr{'y' if total == 1 else 'ies'} = " + " + ".join(parts)
+
+
+def _release_state(
+    summary: dict[str, object],
+) -> tuple[str, str, str, str, str, str, str]:
+    release_state, coverage_gap_count = classify_release(summary)
+    high_count = int(summary["findings_high"])
+    review_count = int(summary["findings_review"])
+    if release_state == "integrity_failed":
+        return (
+            "failed",
+            "STOP — scan integrity failed",
+            "The dataset changed during this scan",
+            "No.",
+            "The dataset changed while it was being checked, so this report may be incomplete.",
+            (
+                "Do not use this report for a release decision. Keep the dataset "
+                "unchanged and run the audit again."
+            ),
+            (
+                "No. This finding list is provisional until a new scan passes "
+                "both integrity checks."
+            ),
         )
-    entry_breakdown = (
-        f"{summary['entries_total']} total "
-        f"entr{'y' if summary['entries_total'] == 1 else 'ies'} = "
-        + " + ".join(entry_parts)
-        if entry_parts
-        else "Open the inventory to review the accounted entries."
+
+    integrity_text = (
+        "The dataset stayed unchanged during this scan — not release clearance"
+    )
+    finding_list_status = (
+        "Yes — for the next review step, with the stated coverage and format "
+        "limits. This is not permission to share the dataset."
+    )
+    if release_state == "high_findings":
+        plural = "s" if high_count != 1 else ""
+        return (
+            "failed",
+            f"HOLD — fix {high_count} high-priority finding{plural}",
+            integrity_text,
+            "No.",
+            f"{high_count} high-priority issue{plural} must be fixed first.",
+            (
+                f"Open What to do next, fix the issue{plural} on a private copy, "
+                "and run the audit again."
+            ),
+            finding_list_status,
+        )
+    if release_state == "review_findings":
+        plural = "s" if review_count != 1 else ""
+        verb = "remains" if review_count == 1 else "remain"
+        return (
+            "hold",
+            "HOLD — curator review required",
+            integrity_text,
+            "Not yet.",
+            (
+                f"{review_count} review item{plural} {verb}. A curator must classify "
+                "each as expected, requiring remediation, or needing further "
+                "governance review."
+            ),
+            (
+                "Review every item, record the decision, and run the audit again "
+                "after any change."
+            ),
+            finding_list_status,
+        )
+    if release_state == "coverage_gaps":
+        plural = coverage_gap_count != 1
+        return (
+            "hold",
+            (
+                f"HOLD — manually review {coverage_gap_count} listed "
+                f"entr{'ies' if plural else 'y'}"
+            ),
+            integrity_text,
+            "Not yet.",
+            (
+                f"{coverage_gap_count} listed "
+                f"entr{'ies were' if plural else 'y was'} not fully checked by "
+                "the scanner."
+            ),
+            (
+                "Open Files needing manual review and check every listed item before "
+                "making a release decision."
+            ),
+            finding_list_status,
+        )
+    return (
+        "ok",
+        "No listed file needs correction — release still unconfirmed",
+        "The dataset stayed unchanged during this scan — not proof of anonymity",
+        "Not confirmed yet.",
+        (
+            "The automated checks found no blocker, but the coverage and "
+            "format limits still need review before sharing."
+        ),
+        (
+            "Review the coverage and format limits before release. This report "
+            "is not approval to share."
+        ),
+        finding_list_status,
+    )
+
+
+def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
+    """Render one deterministic standalone HTML report."""
+    data = report.to_dict()
+    summary = data["summary"]
+    release_state, coverage_gap_count = classify_release(summary)
+    integrity_ok = release_state != "integrity_failed"
+    finding_total = (
+        summary["findings_high"] + summary["findings_review"] + summary["findings_info"]
+    )
+    entry_breakdown = _entry_breakdown(
+        data["coverage"],
+        summary["entries_total"],
     )
 
     findings = []
@@ -931,6 +1021,7 @@ def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
     findings_table = _filterable_findings_table(findings)
     remediation_content, remediation_title = _remediation_content(
         findings,
+        release_state=release_state,
         high_count=summary["findings_high"],
         review_count=summary["findings_review"],
         coverage_gap_count=coverage_gap_count,
@@ -1047,149 +1138,57 @@ def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
         ),
         denominator=summary["entries_total"],
     )
+    (
+        release_status_class,
+        release_status_text,
+        integrity_text,
+        share_answer,
+        share_reason,
+        share_next,
+        finding_list_status,
+    ) = _release_state(summary)
     high_count = summary["findings_high"]
     if not integrity_ok:
-        release_status_class = "failed"
-        release_status_text = "STOP — scan integrity failed"
-        integrity_text = "The dataset changed during this scan"
-        share_answer = "No."
-        share_reason = (
-            "The dataset changed while it was being checked, so this report "
-            "may be incomplete."
-        )
-        share_next = (
-            "Do not use this report for a release decision. Keep the dataset "
-            "unchanged and run the audit again."
-        )
-        finding_list_status = (
-            "No. This finding list is provisional until a new scan passes "
-            "both integrity checks."
-        )
         high_action = (
             '<div class="report-actions"><a class="report-action" '
             'href="#what-to-do">Resolve integrity failure</a></div>'
         )
     elif high_count:
-        release_status_class = "failed"
-        release_status_text = (
-            f"HOLD — fix {high_count} high-priority "
-            f'finding{"s" if high_count != 1 else ""}'
-        )
-        integrity_text = (
-            "The dataset stayed unchanged during this scan — not release clearance"
-        )
-        finding_list_status = (
-            "Yes — for the next review step, with the stated coverage and format "
-            "limits. This is not permission to share the dataset."
-        )
-        share_answer = "No."
-        share_reason = (
-            f"{high_count} high-priority "
-            f'issue{"s" if high_count != 1 else ""} must be fixed first.'
-        )
-        share_next = (
-            "Open What to do next, fix the "
-            f'issue{"s" if high_count != 1 else ""} on a private copy, and '
-            "run the audit again."
-        )
         high_action = (
             '<div class="report-actions">'
             f'<a class="report-action" href="#what-to-do">Fix {high_count} '
-            f'high-priority finding{"s" if high_count != 1 else ""}</a>'
+            f"high-priority finding{'s' if high_count != 1 else ''}</a>"
             "</div>"
         )
     elif summary["findings_review"]:
-        release_status_class = "hold"
-        release_status_text = "HOLD — curator review required"
-        integrity_text = (
-            "The dataset stayed unchanged during this scan — not release clearance"
-        )
-        finding_list_status = (
-            "Yes — for the next review step, with the stated coverage and format "
-            "limits. This is not permission to share the dataset."
-        )
         review_count = summary["findings_review"]
-        share_answer = "Not yet."
-        share_reason = (
-            f"{review_count} "
-            f'item{"s" if review_count != 1 else ""} still '
-            f'{"needs" if review_count == 1 else "need"} a person to decide '
-            f'whether {"it is" if review_count == 1 else "they are"} safe to '
-            "share."
-        )
-        share_next = (
-            "Review every item, record the decision, and run the audit again "
-            "after any change."
-        )
         high_action = (
             '<div class="report-actions">'
             f'<a class="report-action hold" href="#what-to-do">Review {review_count} '
-            f'finding{"s" if review_count != 1 else ""}</a>'
+            f"finding{'s' if review_count != 1 else ''}</a>"
             "</div>"
         )
     elif coverage_gap_count:
-        release_status_class = "hold"
-        release_status_text = (
-            f"HOLD — manually review {coverage_gap_count} listed "
-            f'entr{"ies" if coverage_gap_count != 1 else "y"}'
-        )
-        integrity_text = (
-            "The dataset stayed unchanged during this scan — not release clearance"
-        )
-        share_answer = "Not yet."
-        share_reason = (
-            f"{coverage_gap_count} listed "
-            f'entr{"ies were" if coverage_gap_count != 1 else "y was"} '
-            "not fully checked by the scanner."
-        )
-        share_next = (
-            "Open Files needing manual review and check every listed item before "
-            "making a release decision."
-        )
-        finding_list_status = (
-            "Yes — for the next review step, with the stated coverage and format "
-            "limits. This is not permission to share the dataset."
-        )
         high_action = (
             '<div class="report-actions"><a class="report-action hold" '
             f'href="#coverage-gaps">Open {coverage_gap_count} '
-            f'entr{"ies" if coverage_gap_count != 1 else "y"} needing manual '
+            f"entr{'ies' if coverage_gap_count != 1 else 'y'} needing manual "
             "review</a></div>"
         )
     else:
-        release_status_class = "ok"
-        release_status_text = (
-            "No listed file needs correction — release still unconfirmed"
-        )
-        integrity_text = (
-            "The dataset stayed unchanged during this scan — not proof of anonymity"
-        )
-        share_answer = "Not confirmed yet."
-        share_reason = (
-            "The automated checks found no blocker, but the coverage and "
-            "format limits still need review before sharing."
-        )
-        share_next = (
-            "Review the coverage and format limits before release. This report "
-            "is not approval to share."
-        )
-        finding_list_status = (
-            "Yes — for the next review step, with the stated coverage and format "
-            "limits. This is not permission to share the dataset."
-        )
         high_action = ""
     if coverage_gap_count:
         coverage_card_context = (
             f"{coverage_gap_count} listed "
-            f'entr{"ies need" if coverage_gap_count != 1 else "y needs"} '
+            f"entr{'ies need' if coverage_gap_count != 1 else 'y needs'} "
             "manual review and "
-            f'{"are" if coverage_gap_count != 1 else "is"} not counted as '
+            f"{'are' if coverage_gap_count != 1 else 'is'} not counted as "
             "inspected. Open Coverage."
         )
     else:
         coverage_card_context = (
-            f'{summary["files_skipped"]} '
-            f'{"files" if summary["files_skipped"] != 1 else "file"} skipped. '
+            f"{summary['files_skipped']} "
+            f"{'files' if summary['files_skipped'] != 1 else 'file'} skipped. "
             "This count excludes "
             "folders and differs from the inventory total. Open Coverage."
         )
@@ -1294,6 +1293,11 @@ def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
     <strong>Can this finding list be used for the next review step?</strong>
     <span>{_text(finding_list_status)}</span>
   </div>
+
+  <div class="decision-legend" role="note"><strong>How to read this report:</strong>
+  high = resolve before release by correcting a confirmed problem or documenting
+  an expected or false-positive match; review = a curator must decide and record
+  the outcome; coverage gap = the scanner did not fully inspect that entry.</div>
 
   <p class="privacy-warning" role="note"><strong>Keep this report private.</strong>
   Detected values are masked, but unrecognized identifying text may remain in

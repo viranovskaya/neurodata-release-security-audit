@@ -6,12 +6,14 @@ import importlib.util
 import json
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
-from neurodata_security_audit.benchmark import (
+from benchmark.core import (
     render_benchmark_markdown,
     run_benchmark,
 )
+from tools.check_wheel_contents import check_wheel
 
 _FULL_BENCHMARK_READERS_AVAILABLE = all(
     importlib.util.find_spec(name) is not None
@@ -20,6 +22,19 @@ _FULL_BENCHMARK_READERS_AVAILABLE = all(
 
 
 class BenchmarkTests(unittest.TestCase):
+    def test_public_wheel_rejects_source_only_benchmark_package(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            wheel = Path(directory) / "candidate.whl"
+            with zipfile.ZipFile(wheel, "w") as archive:
+                archive.writestr("neurodata_security_audit/cli.py", "")
+                archive.writestr("benchmark/core.py", "")
+                archive.writestr(
+                    "candidate.dist-info/entry_points.txt",
+                    "neurodata-security-audit = neurodata_security_audit.cli:main\n",
+                )
+            with self.assertRaisesRegex(SystemExit, "source-only"):
+                check_wheel(wheel)
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.cases_path = Path(__file__).parents[1] / "benchmark" / "cases.json"

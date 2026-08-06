@@ -5,7 +5,9 @@ from __future__ import annotations
 import hashlib
 import os
 import stat
+from collections.abc import Callable
 from dataclasses import dataclass, replace
+from functools import partial
 from pathlib import Path
 from typing import BinaryIO
 
@@ -34,7 +36,9 @@ from .readers import (
     inspect_brainvision,
     inspect_edf_header,
     inspect_eeglab_metadata,
+    inspect_matlab_metadata,
     inspect_mne_format,
+    inspect_office_metadata,
 )
 from .references import (
     inspect_bids_json_references,
@@ -100,6 +104,8 @@ _TEXT_NAMES = {
     "id_ecdsa",
     "id_rsa",
     "known_hosts",
+    "license",
+    "license.txt",
     "makefile",
     "readme",
     "authorized_keys",
@@ -118,6 +124,7 @@ _SIGNAL_PAYLOAD_SUFFIXES = {".eeg", ".fdt"}
 _IMAGE_PAYLOAD_SUFFIXES = {".img"}
 _EDF_SUFFIXES = {".edf", ".bdf"}
 _DICOM_SUFFIXES = {".dcm", ".dicom", ".ima"}
+_OFFICE_FORMATS = {".docx": "docx", ".xlsx": "xlsx"}
 _MNE_FILE_FORMATS = {
     ".con": "kit",
     ".fif": "fif",
@@ -152,7 +159,6 @@ _UNEXPECTED_SUFFIXES = {
     ".tgz",
     ".txz",
     ".xls",
-    ".xlsx",
     ".zip",
 }
 _COMPOUND_ARCHIVE_SUFFIXES = (".tar.bz2", ".tar.gz", ".tar.xz", ".tar.zst")
@@ -268,6 +274,7 @@ def _open_regular_file(path: Path, expected: _FileToken) -> BinaryIO:
         os.close(descriptor)
         raise
 
+
 def _sensitive_path_findings(
     relative_path: str,
     known_terms: KnownTermMatcher,
@@ -296,7 +303,9 @@ def _sensitive_path_findings(
                 message="Rename this path to remove the known name or identifier.",
             )
         )
-    for code, severity, kind, value, message in find_sensitive_path_values(relative_path):
+    for code, severity, kind, value, message in find_sensitive_path_values(
+        relative_path
+    ):
         findings.append(
             Finding(
                 code=code,
@@ -413,9 +422,8 @@ def _unexpected_directory_findings(
 def _is_sensitive_config_name(lower_name: str) -> bool:
     return (
         lower_name in _SENSITIVE_CONFIG_NAMES
-        or lower_name.startswith(".env.")
+        or lower_name.startswith((".env.", "credentials.", "secret.", "secrets."))
         or lower_name.endswith(".env")
-        or lower_name.startswith(("credentials.", "secret.", "secrets."))
     )
 
 
@@ -423,7 +431,9 @@ def _is_public_contact_path(relative_path: str) -> bool:
     return Path(relative_path).name.lower() in _PUBLIC_CONTACT_NAMES
 
 
-def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> ScanReport:
+def _redact_report_paths(
+    report: ScanReport, known_terms: KnownTermMatcher
+) -> ScanReport:
     paths = (
         report.files_inspected
         + [item.path for item in report.skipped_files]
@@ -465,25 +475,20 @@ def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> S
         return report
 
     def redact_path(path: str) -> str:
-        return sensitive_path_terms.redact(
-            email_terms.redact(known_terms.redact(path))
-        )
+        return sensitive_path_terms.redact(email_terms.redact(known_terms.redact(path)))
 
     return ScanReport(
         scanner_version=report.scanner_version,
         schema_version=report.schema_version,
         files_inspected=[redact_path(path) for path in report.files_inspected],
         skipped_files=[
-            replace(item, path=redact_path(item.path))
-            for item in report.skipped_files
+            replace(item, path=redact_path(item.path)) for item in report.skipped_files
         ],
         coverage=[
-            replace(item, path=redact_path(item.path))
-            for item in report.coverage
+            replace(item, path=redact_path(item.path)) for item in report.coverage
         ],
         manifest=[
-            replace(item, path=redact_path(item.path))
-            for item in report.manifest
+            replace(item, path=redact_path(item.path)) for item in report.manifest
         ],
         container_members=[
             replace(
@@ -502,8 +507,7 @@ def _redact_report_paths(report: ScanReport, known_terms: KnownTermMatcher) -> S
             for item in report.references
         ],
         findings=[
-            replace(item, path=redact_path(item.path))
-            for item in report.findings
+            replace(item, path=redact_path(item.path)) for item in report.findings
         ],
         manifest_recheck_passed=report.manifest_recheck_passed,
         release_tree_recheck_passed=report.release_tree_recheck_passed,
@@ -532,8 +536,7 @@ def _walk(root: Path):
                     )
                 elif entry.is_dir():
                     entry_is_ignored = (
-                        inside_ignored
-                        or entry.name.lower() in _IGNORED_DIRECTORIES
+                        inside_ignored or entry.name.lower() in _IGNORED_DIRECTORIES
                     )
                     if entry_is_ignored:
                         yield "ignored_directory", entry, relative_path
@@ -616,6 +619,35 @@ def _is_dicom_path(path: Path, prefix: bytes) -> bool:
     return len(prefix) == 132 and prefix[128:132] == b"DICM"
 
 
+def _symlink_review(path: Path, relative_path: str, root: Path) -> Finding:
+    try:
+        link_value = path.readlink()
+        target = link_value if link_value.is_absolute() else path.parent / link_value
+        target = Path(os.path.abspath(target))
+        if target == path:
+            code = "UNRESOLVED_SYMLINK"
+            message = "Fix or remove this self-referencing symlink."
+        else:
+            try:
+                target.relative_to(root)
+                code = "SYMLINK_REVIEW"
+                message = "Review this symlink manually; the scanner did not follow it."
+            except ValueError:
+                code = "EXTERNAL_SYMLINK"
+                message = "Remove or replace this symlink because it points outside the dataset."
+    except (OSError, RuntimeError):
+        code = "UNRESOLVED_SYMLINK"
+        message = "Fix or remove this symlink because its target could not be classified safely."
+    return Finding(
+        code=code,
+        severity="review",
+        path=relative_path,
+        location="filesystem entry",
+        evidence="<redacted:symlink-target>",
+        message=message,
+    )
+
+
 def _sha256_file(
     path: Path,
     expected: _FileToken,
@@ -636,7 +668,9 @@ def _release_collision_findings(
     basename_groups: dict[str, list[str]] = {}
     for item in manifest:
         path_groups.setdefault(item.path.casefold(), []).append(item.path)
-        basename_groups.setdefault(Path(item.path).name.casefold(), []).append(item.path)
+        basename_groups.setdefault(Path(item.path).name.casefold(), []).append(
+            item.path
+        )
 
     for paths in path_groups.values():
         if len(set(paths)) < 2:
@@ -645,7 +679,7 @@ def _release_collision_findings(
             Finding(
                 code="CASE_COLLIDING_RELEASE_PATH",
                 severity="review",
-                path=sorted(paths)[0],
+                path=min(paths),
                 location="release inventory",
                 evidence=f"<case-colliding-paths:{len(paths)}>",
                 message=(
@@ -680,7 +714,111 @@ def _release_collision_findings(
     return findings
 
 
-def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> ScanReport:
+_CoverageRecorder = Callable[[str, EntryType, CoverageStatus, str], None]
+
+
+def _recheck_manifest(
+    root: Path,
+    report: ScanReport,
+    manifest_by_path: dict[str, ManifestEntry],
+    record_coverage: _CoverageRecorder,
+) -> None:
+    for relative_path, initial in sorted(manifest_by_path.items()):
+        try:
+            current_path = root / relative_path
+            current_token = _regular_file_token(current_path)
+            current_size = current_token.size
+            current_hash = _sha256_file(current_path, current_token)
+        except OSError as error:
+            report.manifest_recheck_passed = False
+            report.findings.append(
+                Finding(
+                    code="MANIFEST_RECHECK_FAILED",
+                    severity="review",
+                    path=relative_path,
+                    location="release manifest",
+                    evidence=f"<error:{type(error).__name__}>",
+                    message=(
+                        "The file could not be rechecked after scanning; "
+                        "rerun on a stable release tree."
+                    ),
+                )
+            )
+            record_coverage(
+                relative_path,
+                "unreadable",
+                "unsupported_manual_review",
+                "The file could not be rechecked after scanning",
+            )
+            continue
+        if current_size == initial.size_bytes and current_hash == initial.sha256:
+            continue
+        report.manifest_recheck_passed = False
+        report.findings.append(
+            Finding(
+                code="FILE_CHANGED_DURING_SCAN",
+                severity="review",
+                path=relative_path,
+                location="release manifest",
+                evidence="<file-changed>",
+                message="Rerun the audit after the release tree stops changing.",
+            )
+        )
+        record_coverage(
+            relative_path,
+            "file",
+            "unsupported_manual_review",
+            "The file changed while the audit was running",
+        )
+
+
+def _recheck_release_tree(
+    root: Path,
+    report: ScanReport,
+    initial_tree: dict[str, tuple[EntryType, str]],
+    record_coverage: _CoverageRecorder,
+) -> None:
+    final_tree = _tree_signature(root)
+    for relative_path in sorted(set(initial_tree) | set(final_tree)):
+        before = initial_tree.get(relative_path)
+        after = final_tree.get(relative_path)
+        if before == after:
+            continue
+        report.release_tree_recheck_passed = False
+        if before is None:
+            change = "added"
+            entry_type: EntryType = after[0] if after is not None else "unreadable"
+        elif after is None:
+            change = "removed"
+            entry_type = "unreadable"
+        else:
+            change = (
+                "symlink-target-changed"
+                if before[0] == after[0] == "symlink"
+                else "type-changed"
+            )
+            entry_type = after[0]
+        report.findings.append(
+            Finding(
+                code="RELEASE_TREE_CHANGED_DURING_SCAN",
+                severity="review",
+                path=relative_path,
+                location="release inventory",
+                evidence=f"<tree-entry:{change}>",
+                message="Rerun the audit after the release tree stops changing.",
+            )
+        )
+        record_coverage(
+            relative_path,
+            entry_type,
+            "unsupported_manual_review",
+            f"Release entry was {change} while the audit was running",
+        )
+
+
+def scan_dataset(
+    dataset_root: str | Path, policy: ScanPolicy | None = None
+) -> ScanReport:
     policy = policy or ScanPolicy()
     root = Path(dataset_root).expanduser()
     if not root.exists():
@@ -708,6 +846,141 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
             reason=reason,
         )
 
+    def record_skip(
+        relative_path: str,
+        skipped_reason: str,
+        coverage_reason: str,
+        *,
+        entry_type: EntryType = "file",
+        status: CoverageStatus = "unsupported_manual_review",
+    ) -> None:
+        report.skipped_files.append(SkippedFile(relative_path, skipped_reason))
+        record_coverage(relative_path, entry_type, status, coverage_reason)
+
+    def record_problem(
+        relative_path: str,
+        *,
+        code: str,
+        location: str,
+        evidence: str,
+        message: str,
+        skipped_reason: str,
+        coverage_reason: str,
+        entry_type: EntryType = "file",
+        status: CoverageStatus = "unsupported_manual_review",
+    ) -> None:
+        report.findings.append(
+            Finding(
+                code=code,
+                severity="review",
+                path=relative_path,
+                location=location,
+                evidence=evidence,
+                message=message,
+            )
+        )
+        record_skip(
+            relative_path,
+            skipped_reason,
+            coverage_reason,
+            entry_type=entry_type,
+            status=status,
+        )
+
+    def reader_unavailable(
+        relative_path: str,
+        *,
+        location: str,
+        message: str,
+        skipped_reason: str,
+        coverage_reason: str,
+        code: str = "FORMAT_READER_UNAVAILABLE",
+        entry_type: EntryType = "file",
+        status: CoverageStatus = "unsupported_manual_review",
+    ) -> None:
+        record_problem(
+            relative_path,
+            code=code,
+            location=location,
+            evidence="<optional-reader-unavailable>",
+            message=message,
+            skipped_reason=skipped_reason,
+            coverage_reason=coverage_reason,
+            entry_type=entry_type,
+            status=status,
+        )
+
+    def metadata_unreadable(
+        relative_path: str,
+        error: Exception,
+        *,
+        location: str,
+        message: str,
+        skipped_reason: str,
+        coverage_reason: str,
+        code: str = "FORMAT_METADATA_UNREADABLE",
+        entry_type: EntryType = "file",
+    ) -> None:
+        record_problem(
+            relative_path,
+            code=code,
+            location=location,
+            evidence=f"<error:{type(error).__name__}>",
+            message=message,
+            skipped_reason=skipped_reason,
+            coverage_reason=coverage_reason,
+            entry_type=entry_type,
+        )
+
+    def inspect_optional_metadata(
+        relative_path: str,
+        reader: Callable[[], list[Finding]],
+        *,
+        success_reason: str,
+        location: str,
+        unavailable_message: str,
+        unavailable_skipped_reason: str,
+        unavailable_coverage_reason: str,
+        failure_message: str,
+        failure_label: str,
+        failure_reason: str,
+        entry_type: EntryType = "file",
+        success_status: CoverageStatus = "header_or_structure_only",
+        unavailable_status: CoverageStatus = "unsupported_manual_review",
+    ) -> bool:
+        try:
+            report.findings.extend(reader())
+        except FormatReaderUnavailable:
+            reader_unavailable(
+                relative_path,
+                location=location,
+                message=unavailable_message,
+                skipped_reason=unavailable_skipped_reason,
+                coverage_reason=unavailable_coverage_reason,
+                entry_type=entry_type,
+                status=unavailable_status,
+            )
+            return False
+        except Exception as error:  # noqa: BLE001 - optional readers vary by backend
+            metadata_unreadable(
+                relative_path,
+                error,
+                location=location,
+                message=failure_message,
+                skipped_reason=f"{failure_label}: {type(error).__name__}",
+                coverage_reason=failure_reason,
+                entry_type=entry_type,
+            )
+            return False
+        report.files_inspected.append(relative_path)
+        record_coverage(
+            relative_path,
+            entry_type,
+            success_status,
+            success_reason,
+        )
+        return True
+
     def inventory_file(path: Path, relative_path: str) -> bool:
         try:
             token = _regular_file_token(path)
@@ -730,14 +1003,11 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     message="Fix access to this file before relying on the release manifest.",
                 )
             )
-            report.skipped_files.append(
-                SkippedFile(relative_path, "File checksum could not be calculated")
-            )
-            record_coverage(
+            record_skip(
                 relative_path,
-                "unreadable",
-                "unsupported_manual_review",
+                "File checksum could not be calculated",
                 "The file could not be added to the integrity manifest",
+                entry_type="unreadable",
             )
             return False
 
@@ -861,70 +1131,34 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
             report.findings.extend(
                 _unexpected_directory_findings(relative_path, known_terms)
             )
-            try:
-                report.findings.extend(
-                    inspect_mne_format(path, relative_path, "mff", known_terms)
-                )
-                report.files_inspected.append(relative_path)
-                record_coverage(
-                    relative_path,
-                    "format_directory",
-                    "fully_inspected_metadata",
-                    "Recording metadata was inspected without loading the signal",
-                )
-            except FormatReaderUnavailable:
-                report.findings.append(
-                    Finding(
-                        code="FORMAT_READER_UNAVAILABLE",
-                        severity="review",
-                        path=relative_path,
-                        location="MFF recording metadata",
-                        evidence="<optional-reader-unavailable>",
-                        message=(
-                            "Install the 'formats' extra to inspect the MFF recording as a whole. "
-                            "Its bounded XML files are still checked separately."
-                        ),
-                    )
-                )
-                report.skipped_files.append(
-                    SkippedFile(
-                        relative_path,
-                        "MFF recording reader is unavailable; XML files are still inspected",
-                    )
-                )
-                record_coverage(
-                    relative_path,
-                    "format_directory",
-                    "header_or_structure_only",
+            inspect_optional_metadata(
+                relative_path,
+                partial(inspect_mne_format, path, relative_path, "mff", known_terms),
+                success_reason=(
+                    "Recording metadata was inspected without loading the signal"
+                ),
+                location="MFF recording metadata",
+                unavailable_message=(
+                    "Install the 'formats' extra to inspect the MFF recording as a whole. "
+                    "Its bounded XML files are still checked separately."
+                ),
+                unavailable_skipped_reason=(
+                    "MFF recording reader is unavailable; XML files are still inspected"
+                ),
+                unavailable_coverage_reason=(
                     "Directory structure and bounded XML are covered; "
-                    "the format reader is unavailable",
-                )
-            except Exception as error:
-                report.findings.append(
-                    Finding(
-                        code="FORMAT_METADATA_UNREADABLE",
-                        severity="review",
-                        path=relative_path,
-                        location="MFF recording metadata",
-                        evidence=f"<error:{type(error).__name__}>",
-                        message=(
-                            "Review this MFF recording manually; its recording metadata could "
-                            "not be read. Bounded XML files are still checked separately."
-                        ),
-                    )
-                )
-                report.skipped_files.append(
-                    SkippedFile(
-                        relative_path,
-                        f"Could not inspect MFF recording metadata: {type(error).__name__}",
-                    )
-                )
-                record_coverage(
-                    relative_path,
-                    "format_directory",
-                    "unsupported_manual_review",
-                    "The recording metadata reader failed",
-                )
+                    "the format reader is unavailable"
+                ),
+                failure_message=(
+                    "Review this MFF recording manually; its recording metadata could "
+                    "not be read. Bounded XML files are still checked separately."
+                ),
+                failure_label="Could not inspect MFF recording metadata",
+                failure_reason="The recording metadata reader failed",
+                entry_type="format_directory",
+                success_status="fully_inspected_metadata",
+                unavailable_status="header_or_structure_only",
+            )
             continue
 
         if kind == "directory":
@@ -947,40 +1181,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     "symlink name",
                 )
             )
-            try:
-                link_value = path.readlink()
-                target = link_value if link_value.is_absolute() else path.parent / link_value
-                target = Path(os.path.abspath(target))
-                if target == path:
-                    code = "UNRESOLVED_SYMLINK"
-                    message = "Fix or remove this self-referencing symlink."
-                else:
-                    try:
-                        target.relative_to(root)
-                        code = "SYMLINK_REVIEW"
-                        message = "Review this symlink manually; the scanner did not follow it."
-                    except ValueError:
-                        code = "EXTERNAL_SYMLINK"
-                        message = (
-                            "Remove or replace this symlink because it points outside "
-                            "the dataset."
-                        )
-            except (OSError, RuntimeError):
-                code = "UNRESOLVED_SYMLINK"
-                message = (
-                    "Fix or remove this symlink because its target could not be "
-                    "classified safely."
-                )
-            report.findings.append(
-                Finding(
-                    code=code,
-                    severity="review",
-                    path=relative_path,
-                    location="filesystem entry",
-                    evidence="<redacted:symlink-target>",
-                    message=message,
-                )
-            )
+            report.findings.append(_symlink_review(path, relative_path, root))
             report.skipped_files.append(
                 SkippedFile(relative_path, "Symlinks are not followed")
             )
@@ -1032,11 +1233,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 prefix = stream.read(132)
             format_placeholder = (
                 suffix
-                in (
-                    _EDF_SUFFIXES
-                    | _SIGNAL_PAYLOAD_SUFFIXES
-                    | _IMAGE_PAYLOAD_SUFFIXES
-                )
+                in (_EDF_SUFFIXES | _SIGNAL_PAYLOAD_SUFFIXES | _IMAGE_PAYLOAD_SUFFIXES)
                 or mne_format is not None
                 or _is_nifti_path(path)
                 or _is_dicom_path(path, prefix)
@@ -1116,7 +1313,9 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                         )
                     )
                     report.skipped_files.append(
-                        SkippedFile(relative_path, "Text file exceeds configured scan limit")
+                        SkippedFile(
+                            relative_path, "Text file exceeds configured scan limit"
+                        )
                     )
                     record_coverage(
                         relative_path,
@@ -1141,7 +1340,9 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                             text,
                             relative_path,
                             known_terms,
-                            public_contact_context=_is_public_contact_path(relative_path),
+                            public_contact_context=_is_public_contact_path(
+                                relative_path
+                            ),
                         )
                     )
                     references = inspect_bids_json_references(
@@ -1158,7 +1359,9 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                             text,
                             relative_path,
                             known_terms,
-                            public_contact_context=_is_public_contact_path(relative_path),
+                            public_contact_context=_is_public_contact_path(
+                                relative_path
+                            ),
                         )
                     )
                 if suffix == ".tsv":
@@ -1191,67 +1394,28 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     inspect_edf_header(header, relative_path, known_terms)
                 )
             elif _is_nifti_path(path):
-                try:
-                    report.findings.extend(
-                        inspect_nifti_metadata(path, relative_path, known_terms)
-                    )
-                    report.files_inspected.append(relative_path)
-                    record_coverage(
-                        relative_path,
-                        "file",
-                        "header_or_structure_only",
-                        "NIfTI header metadata was inspected; voxels were not loaded",
-                    )
-                except FormatReaderUnavailable:
-                    report.findings.append(
-                        Finding(
-                            code="FORMAT_READER_UNAVAILABLE",
-                            severity="review",
-                            path=relative_path,
-                            location="NIfTI metadata",
-                            evidence="<optional-reader-unavailable>",
-                            message=(
-                                "Install the 'imaging' extra to inspect this NIfTI header."
-                            ),
-                        )
-                    )
-                    report.skipped_files.append(
-                        SkippedFile(
-                            relative_path,
-                            "Optional NIfTI metadata reader is unavailable",
-                        )
-                    )
-                    record_coverage(
-                        relative_path,
-                        "file",
-                        "unsupported_manual_review",
-                        "The optional NIfTI metadata reader is unavailable",
-                    )
-                except Exception as error:
-                    report.findings.append(
-                        Finding(
-                            code="FORMAT_METADATA_UNREADABLE",
-                            severity="review",
-                            path=relative_path,
-                            location="NIfTI metadata",
-                            evidence=f"<error:{type(error).__name__}>",
-                            message=(
-                                "Review this file manually; its NIfTI header was not read."
-                            ),
-                        )
-                    )
-                    report.skipped_files.append(
-                        SkippedFile(
-                            relative_path,
-                            f"Could not inspect NIfTI metadata: {type(error).__name__}",
-                        )
-                    )
-                    record_coverage(
-                        relative_path,
-                        "file",
-                        "unsupported_manual_review",
-                        "The NIfTI metadata reader failed",
-                    )
+                inspect_optional_metadata(
+                    relative_path,
+                    partial(inspect_nifti_metadata, path, relative_path, known_terms),
+                    success_reason=(
+                        "NIfTI header metadata was inspected; voxels were not loaded"
+                    ),
+                    location="NIfTI metadata",
+                    unavailable_message=(
+                        "Install the 'imaging' extra to inspect this NIfTI header."
+                    ),
+                    unavailable_skipped_reason=(
+                        "Optional NIfTI metadata reader is unavailable"
+                    ),
+                    unavailable_coverage_reason=(
+                        "The optional NIfTI metadata reader is unavailable"
+                    ),
+                    failure_message=(
+                        "Review this file manually; its NIfTI header was not read."
+                    ),
+                    failure_label="Could not inspect NIfTI metadata",
+                    failure_reason="The NIfTI metadata reader failed",
+                )
             elif _is_dicom_path(path, prefix):
                 try:
                     dicom_findings = inspect_dicom_metadata(
@@ -1262,8 +1426,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                     report.findings.extend(dicom_findings)
                     report.files_inspected.append(relative_path)
                     if any(
-                        item.code == "DICOM_METADATA_LIMIT"
-                        for item in dicom_findings
+                        item.code == "DICOM_METADATA_LIMIT" for item in dicom_findings
                     ):
                         report.skipped_files.append(
                             SkippedFile(
@@ -1286,54 +1449,78 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                             "pixels were not opened",
                         )
                 except FormatReaderUnavailable:
-                    report.findings.append(
-                        Finding(
-                            code="FORMAT_READER_UNAVAILABLE",
-                            severity="review",
-                            path=relative_path,
-                            location="DICOM metadata",
-                            evidence="<optional-reader-unavailable>",
-                            message=(
-                                "Install the 'imaging' extra to inspect this DICOM file."
-                            ),
-                        )
+                    reader_unavailable(
+                        relative_path,
+                        location="DICOM metadata",
+                        message="Install the 'imaging' extra to inspect this DICOM file.",
+                        skipped_reason="Optional DICOM metadata reader is unavailable",
+                        coverage_reason=(
+                            "The optional DICOM metadata reader is unavailable"
+                        ),
                     )
-                    report.skipped_files.append(
-                        SkippedFile(
+                except Exception as error:  # noqa: BLE001 - fail closed on reader errors
+                    metadata_unreadable(
+                        relative_path,
+                        error,
+                        location="DICOM metadata",
+                        message="Review this file manually; its DICOM metadata was not read.",
+                        skipped_reason=(
+                            f"Could not inspect DICOM metadata: {type(error).__name__}"
+                        ),
+                        coverage_reason="The DICOM metadata reader failed",
+                    )
+            elif suffix == ".mat":
+                inspect_optional_metadata(
+                    relative_path,
+                    partial(inspect_matlab_metadata, path, relative_path, known_terms),
+                    success_reason=(
+                        "MATLAB variable metadata and small text values were inspected; "
+                        "arrays were not loaded"
+                    ),
+                    location="MATLAB metadata",
+                    unavailable_message=(
+                        "Install the 'formats' extra to inspect this MATLAB file."
+                    ),
+                    unavailable_skipped_reason=(
+                        "Optional MATLAB metadata reader is unavailable"
+                    ),
+                    unavailable_coverage_reason=(
+                        "The optional MATLAB metadata reader is unavailable"
+                    ),
+                    failure_message=(
+                        "Review this file manually; its MATLAB metadata was not read."
+                    ),
+                    failure_label="Could not inspect MATLAB metadata",
+                    failure_reason="The MATLAB metadata reader failed",
+                )
+            elif suffix in _OFFICE_FORMATS:
+                try:
+                    report.findings.extend(
+                        inspect_office_metadata(
+                            path,
                             relative_path,
-                            "Optional DICOM metadata reader is unavailable",
+                            _OFFICE_FORMATS[suffix],
+                            known_terms,
                         )
                     )
+                    report.files_inspected.append(relative_path)
                     record_coverage(
                         relative_path,
                         "file",
-                        "unsupported_manual_review",
-                        "The optional DICOM metadata reader is unavailable",
+                        "header_or_structure_only",
+                        "Bounded Office text and document metadata were inspected; "
+                        "embedded objects were not opened",
                     )
-                except Exception as error:
-                    report.findings.append(
-                        Finding(
-                            code="FORMAT_METADATA_UNREADABLE",
-                            severity="review",
-                            path=relative_path,
-                            location="DICOM metadata",
-                            evidence=f"<error:{type(error).__name__}>",
-                            message=(
-                                "Review this file manually; its DICOM metadata was not read."
-                            ),
-                        )
-                    )
-                    report.skipped_files.append(
-                        SkippedFile(
-                            relative_path,
-                            f"Could not inspect DICOM metadata: {type(error).__name__}",
-                        )
-                    )
-                    record_coverage(
+                except Exception as error:  # noqa: BLE001 - fail closed on reader errors
+                    metadata_unreadable(
                         relative_path,
-                        "file",
-                        "unsupported_manual_review",
-                        "The DICOM metadata reader failed",
+                        error,
+                        location=f"{_OFFICE_FORMATS[suffix].upper()} metadata",
+                        message="Review this file manually; its Office metadata was not read.",
+                        skipped_reason=(
+                            f"Could not inspect Office metadata: {type(error).__name__}"
+                        ),
+                        coverage_reason="The Office metadata reader failed",
                     )
             elif is_archive_path(path):
                 try:
@@ -1362,31 +1549,20 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                             "unsupported_manual_review",
                             archive.reason,
                         )
-                except Exception as error:
-                    report.findings.append(
-                        Finding(
-                            code="ARCHIVE_UNREADABLE",
-                            severity="review",
-                            path=relative_path,
-                            location="archive directory",
-                            evidence=f"<error:{type(error).__name__}>",
-                            message=(
-                                "Review this archive manually; its member table "
-                                "could not be read safely."
-                            ),
-                        )
-                    )
-                    report.skipped_files.append(
-                        SkippedFile(
-                            relative_path,
-                            f"Could not inspect archive directory: {type(error).__name__}",
-                        )
-                    )
-                    record_coverage(
+                except Exception as error:  # noqa: BLE001 - fail closed on reader errors
+                    metadata_unreadable(
                         relative_path,
-                        "file",
-                        "unsupported_manual_review",
-                        "The archive member table could not be read",
+                        error,
+                        code="ARCHIVE_UNREADABLE",
+                        location="archive directory",
+                        message=(
+                            "Review this archive manually; its member table "
+                            "could not be read safely."
+                        ),
+                        skipped_reason=(
+                            f"Could not inspect archive directory: {type(error).__name__}"
+                        ),
+                        coverage_reason="The archive member table could not be read",
                     )
             elif mne_format is not None:
                 eeglab_metadata_reader_unavailable = False
@@ -1413,7 +1589,7 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                         )
                     except FormatReaderUnavailable:
                         eeglab_metadata_reader_unavailable = True
-                    except Exception as error:
+                    except Exception as error:  # noqa: BLE001 - fail closed safely
                         report.findings.append(
                             Finding(
                                 code="EEGLAB_METADATA_UNREADABLE",
@@ -1443,78 +1619,45 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                         "Safe EEGLAB metadata was inspected; signal loading was refused",
                     )
                     continue
-                try:
-                    report.findings.extend(
-                        inspect_mne_format(
-                            path,
-                            relative_path,
-                            mne_format,
-                            known_terms,
-                        )
-                    )
-                    report.files_inspected.append(relative_path)
-                    record_coverage(
+                metadata_read = inspect_optional_metadata(
+                    relative_path,
+                    partial(
+                        inspect_mne_format,
+                        path,
                         relative_path,
-                        "file",
-                        "header_or_structure_only",
-                        "Format metadata was inspected without loading the signal",
-                    )
-                    if eeglab_metadata_reader_unavailable:
-                        report.findings.append(
-                            Finding(
-                                code="EEGLAB_METADATA_READER_UNAVAILABLE",
-                                severity="review",
-                                path=relative_path,
-                                location="EEGLAB MATLAB metadata",
-                                evidence="<optional-reader-unavailable>",
-                                message=(
-                                    "Install the 'formats' extra before relying on the audit of "
-                                    "EEGLAB comments, history and source-file fields."
-                                ),
-                            )
-                        )
-                except FormatReaderUnavailable:
+                        mne_format,
+                        known_terms,
+                    ),
+                    success_reason=(
+                        "Format metadata was inspected without loading the signal"
+                    ),
+                    location=f"{mne_format.upper()} metadata",
+                    unavailable_message=(
+                        "Install the 'formats' extra to inspect this file's metadata."
+                    ),
+                    unavailable_skipped_reason="Optional format reader is unavailable",
+                    unavailable_coverage_reason=(
+                        "The optional metadata reader is unavailable"
+                    ),
+                    failure_message=(
+                        "Review this file manually; its format metadata was not read."
+                    ),
+                    failure_label="Could not inspect format metadata",
+                    failure_reason="The format metadata reader failed",
+                )
+                if metadata_read and eeglab_metadata_reader_unavailable:
                     report.findings.append(
                         Finding(
-                            code="FORMAT_READER_UNAVAILABLE",
+                            code="EEGLAB_METADATA_READER_UNAVAILABLE",
                             severity="review",
                             path=relative_path,
-                            location=f"{mne_format.upper()} metadata",
+                            location="EEGLAB MATLAB metadata",
                             evidence="<optional-reader-unavailable>",
-                            message="Install the 'formats' extra to inspect this file's metadata.",
+                            message=(
+                                "Install the 'formats' extra before relying on the audit of "
+                                "EEGLAB comments, history and source-file fields."
+                            ),
                         )
-                    )
-                    report.skipped_files.append(
-                        SkippedFile(relative_path, "Optional format reader is unavailable")
-                    )
-                    record_coverage(
-                        relative_path,
-                        "file",
-                        "unsupported_manual_review",
-                        "The optional metadata reader is unavailable",
-                    )
-                except Exception as error:
-                    report.findings.append(
-                        Finding(
-                            code="FORMAT_METADATA_UNREADABLE",
-                            severity="review",
-                            path=relative_path,
-                            location=f"{mne_format.upper()} metadata",
-                            evidence=f"<error:{type(error).__name__}>",
-                            message="Review this file manually; its format metadata was not read.",
-                        )
-                    )
-                    report.skipped_files.append(
-                        SkippedFile(
-                            relative_path,
-                            f"Could not inspect format metadata: {type(error).__name__}",
-                        )
-                    )
-                    record_coverage(
-                        relative_path,
-                        "file",
-                        "unsupported_manual_review",
-                        "The format metadata reader failed",
                     )
             elif suffix in _SIGNAL_PAYLOAD_SUFFIXES | _IMAGE_PAYLOAD_SUFFIXES:
                 report.skipped_files.append(
@@ -1544,7 +1687,9 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 )
         except (OSError, UnicodeError) as error:
             report.skipped_files.append(
-                SkippedFile(relative_path, f"Could not inspect file: {type(error).__name__}")
+                SkippedFile(
+                    relative_path, f"Could not inspect file: {type(error).__name__}"
+                )
             )
             report.findings.append(
                 Finding(
@@ -1562,89 +1707,8 @@ def scan_dataset(dataset_root: str | Path, policy: ScanPolicy | None = None) -> 
                 "unsupported_manual_review",
                 "The file could not be parsed safely",
             )
-    for relative_path, initial in sorted(manifest_by_path.items()):
-        try:
-            current_path = root / relative_path
-            current_token = _regular_file_token(current_path)
-            current_size = current_token.size
-            current_hash = _sha256_file(current_path, current_token)
-        except OSError as error:
-            report.manifest_recheck_passed = False
-            report.findings.append(
-                Finding(
-                    code="MANIFEST_RECHECK_FAILED",
-                    severity="review",
-                    path=relative_path,
-                    location="release manifest",
-                    evidence=f"<error:{type(error).__name__}>",
-                    message=(
-                        "The file could not be rechecked after scanning; "
-                        "rerun on a stable release tree."
-                    ),
-                )
-            )
-            record_coverage(
-                relative_path,
-                "unreadable",
-                "unsupported_manual_review",
-                "The file could not be rechecked after scanning",
-            )
-            continue
-        if current_size != initial.size_bytes or current_hash != initial.sha256:
-            report.manifest_recheck_passed = False
-            report.findings.append(
-                Finding(
-                    code="FILE_CHANGED_DURING_SCAN",
-                    severity="review",
-                    path=relative_path,
-                    location="release manifest",
-                    evidence="<file-changed>",
-                    message="Rerun the audit after the release tree stops changing.",
-                )
-            )
-            record_coverage(
-                relative_path,
-                "file",
-                "unsupported_manual_review",
-                "The file changed while the audit was running",
-            )
-
-    final_tree = _tree_signature(root)
-    for relative_path in sorted(set(initial_tree) | set(final_tree)):
-        before = initial_tree.get(relative_path)
-        after = final_tree.get(relative_path)
-        if before == after:
-            continue
-        report.release_tree_recheck_passed = False
-        if before is None:
-            change = "added"
-            entry_type: EntryType = after[0] if after is not None else "unreadable"
-        elif after is None:
-            change = "removed"
-            entry_type = "unreadable"
-        else:
-            change = (
-                "symlink-target-changed"
-                if before[0] == after[0] == "symlink"
-                else "type-changed"
-            )
-            entry_type = after[0]
-        report.findings.append(
-            Finding(
-                code="RELEASE_TREE_CHANGED_DURING_SCAN",
-                severity="review",
-                path=relative_path,
-                location="release inventory",
-                evidence=f"<tree-entry:{change}>",
-                message="Rerun the audit after the release tree stops changing.",
-            )
-        )
-        record_coverage(
-            relative_path,
-            entry_type,
-            "unsupported_manual_review",
-            f"Release entry was {change} while the audit was running",
-        )
+    _recheck_manifest(root, report, manifest_by_path, record_coverage)
+    _recheck_release_tree(root, report, initial_tree, record_coverage)
 
     report.coverage = list(coverage_by_path.values())
     report.manifest = list(manifest_by_path.values())

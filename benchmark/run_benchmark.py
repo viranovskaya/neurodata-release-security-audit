@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from neurodata_security_audit.benchmark import (
+from benchmark.core import (
     render_benchmark_markdown,
     run_benchmark,
 )
