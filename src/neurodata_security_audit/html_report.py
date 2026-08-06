@@ -1120,11 +1120,11 @@ def render_html(report: ScanReport, *, report_label: str | None = None) -> str:
         review_count = summary["findings_review"]
         share_answer = "Not yet."
         share_reason = (
-            f"{review_count} "
-            f'item{"s" if review_count != 1 else ""} still '
-            f'{"needs" if review_count == 1 else "need"} a person to decide '
-            f'whether {"it is" if review_count == 1 else "they are"} safe to '
-            "share."
+            f"{review_count} review "
+            f'item{"s" if review_count != 1 else ""} '
+            f'{"remains" if review_count == 1 else "remain"}. A curator must '
+            "classify each as expected, requiring remediation, or needing "
+            "further governance review."
         )
         share_next = (
             "Review every item, record the decision, and run the audit again "

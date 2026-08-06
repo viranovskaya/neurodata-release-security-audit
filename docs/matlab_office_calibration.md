@@ -18,6 +18,10 @@ clearance or a representative study of public datasets.
 The download manifest contains dataset-relative paths, byte sizes, source URLs
 and file SHA-256 values. It remains in the private audit evidence because the
 public repository does not need a second file-level copy of the source index.
+The published counts and report hashes therefore document a controlled internal
+calibration; this page alone is not enough to reconstruct the exact 25-file
+selection independently. The source repository, DOI and snapshot commit remain
+public so that a separate calibration can be designed and reported explicitly.
 
 ## Scanner environment
 

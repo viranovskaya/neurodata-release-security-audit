@@ -3344,7 +3344,7 @@ class ScannerTests(unittest.TestCase):
                 "review",
                 ScanReport(scanner_version="test", findings=[review]),
                 "Not yet.",
-                "1 item still needs a person to decide whether it is safe to share.",
+                "1 review item remains. A curator must classify each as expected",
                 "Review every item, record the decision",
             ),
             (
@@ -3665,6 +3665,31 @@ class ScannerTests(unittest.TestCase):
 
         self.assertEqual(0, code)
         self.assertIn("RELEASE STATE: NOT APPROVED", stdout.getvalue())
+
+    def test_cli_scan_help_explains_reports_and_exit_status(self) -> None:
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout), self.assertRaises(SystemExit) as raised:
+            main(["scan", "--help"])
+
+        self.assertEqual(0, raised.exception.code)
+        rendered = " ".join(stdout.getvalue().split())
+        self.assertIn("new files outside DATASET", rendered)
+        self.assertIn("0 = no high finding", rendered)
+        self.assertIn("1 = high finding and HOLD", rendered)
+        self.assertIn("2 = scan, integrity, or report-write failure", rendered)
+
+    def test_cli_scan_error_does_not_repeat_private_path(self) -> None:
+        private_path = Path(self.temp_dir.name) / "private-user" / "missing-dataset"
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            code = main(["scan", str(private_path)])
+
+        rendered = stderr.getvalue()
+        self.assertEqual(2, code)
+        self.assertIn("scan failed (FileNotFoundError)", rendered)
+        self.assertNotIn(str(private_path), rendered)
 
     def test_cli_release_state_is_safe_on_ascii_stdout(self) -> None:
         (self.root / "notes.txt").write_text(

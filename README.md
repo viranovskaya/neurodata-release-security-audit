@@ -92,9 +92,34 @@ The detailed boundaries are in [v0.2 scope](docs/v0.2_scope.md), the [report sch
 
 Python 3.10 or newer is required.
 
+### Install the exact GitHub beta
+
+Download the `v0.2.1b1` wheel and `SHA256SUMS` from the GitHub prerelease. Check
+the downloaded wheel against the published hash, then install it in a fresh
+environment:
+
+```bash
+shasum -a 256 neurodata_release_security_audit-0.2.1b1-py3-none-any.whl
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install ./neurodata_release_security_audit-0.2.1b1-py3-none-any.whl
+neurodata-security-audit --version
+```
+
+Use the `formats` extra for FIF, EEGLAB SET, KIT, MFF and MATLAB metadata. Use
+`imaging` for NIfTI and DICOM metadata. XLSX, DOCX, BIDS, text and archive checks
+need only the base install. For a mixed release, install both extras:
+
+```bash
+python3 -m pip install "./neurodata_release_security_audit-0.2.1b1-py3-none-any.whl[formats,imaging]"
+```
+
+### Install a development checkout
+
 ```bash
 git clone https://github.com/viranovskaya/neurodata-release-security-audit.git
 cd neurodata-release-security-audit
+git checkout v0.2.1b1
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install .
@@ -119,11 +144,11 @@ neurodata-security-audit scan /path/to/dataset \
 
 The command refuses report paths inside the dataset and refuses to replace an
 existing report. The terminal repeats each supplied output path without
-expanding local home or working-directory context into logs; path spelling may
-be normalized and non-ASCII characters are escaped for terminal safety.
-Relative paths are relative to the directory where the command runs. Exit
-status is `0` with no high-severity finding, `1` with at least one high-severity
-finding, and `2` for scan, integrity, or report-publication failure.
+expanding local home or working-directory context into logs; non-ASCII
+characters are escaped for terminal safety. Relative paths are relative to the
+directory where the command runs. Exit status is `0` with no high-severity
+finding, `1` with at least one high-severity finding, and `2` for scan,
+integrity, or report-publication failure.
 Review-level findings still require a decision when the exit status is `0`.
 
 Try the included synthetic demo before using research data. The demo is meant to
@@ -144,6 +169,10 @@ expected or false-positive match, review findings need a recorded curator
 decision, and coverage gaps need a suitable manual check. Passing integrity
 checks only means the selected files did not change during the scan; it is not
 release clearance.
+
+Documenting an expected or false-positive match records the curator's decision;
+it does not remove the scanner finding or change its exit status. Any decision
+to accept a remaining finding requires a separate authorised release review.
 
 After correcting a private working copy, write the next audit to new paths:
 
