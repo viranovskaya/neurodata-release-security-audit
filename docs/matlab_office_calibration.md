@@ -25,14 +25,14 @@ public so that a separate calibration can be designed and reported explicitly.
 
 ## Scanner environment
 
-- Scanner source commit: `5801f820ebecde18c492e371ad24aa5de4152c72`
+- Scanner source commit: `1f85383cb8bfaf0b67b374434ca2df5fd5fa2fe7`
 - Package version: `0.2.1b1`
 - Python: `3.13.7`
 - SciPy: `1.18.0`
 - h5py: `3.16.0`
 - Office reader: Python standard-library ZIP and XML parsing
 - Deterministic wheel SHA-256:
-  `e955c4cc0840b68616ecde216379a48af15b3c5a6a812b14bed3aaa48871e55f`
+  `5d994f1ca956cb2bda67d4e3c528a2309dbf3cd6bcad6c57333d893ffe34e177`
 
 The source commit includes the bounded MATLAB and Office readers plus the
 first-run report wording and HTML legend. The readers prevent Office
@@ -51,7 +51,7 @@ Two fresh runs produced identical JSON, Markdown and HTML reports:
 - 20 review findings
 - both integrity rechecks passed
 
-The exact installed wheel passed 212 copied functional tests outside the source
+The exact installed wheel passed 190 copied functional tests outside the source
 checkout on both Python 3.10 and Python 3.13. Two controlled wheel builds were
 byte-identical.
 

@@ -3,7 +3,7 @@ message: "If you use this software, please cite this release."
 title: "NeuroData Release Security Audit"
 type: software
 version: 0.2.1b1
-date-released: 2026-08-06
+date-released: 2026-08-14
 authors:
   - family-names: Agafonova
     given-names: Daria
