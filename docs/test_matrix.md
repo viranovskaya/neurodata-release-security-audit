@@ -9,6 +9,7 @@ integration rows are listed after them.
 |---|---|---|
 | Full test matrix | Ubuntu; Python 3.10 and 3.13 | base, format-reader, imaging-reader, and combined installations |
 | Exact wheel | Ubuntu; Python 3.10 and 3.13 | installed wheel outside the checkout with the copied functional suite |
+| Python 3.12 smoke | Ubuntu; Python 3.12 | installed wheel with all optional readers, import boundary, pinned reader versions, CLI version, and clean fixture scan |
 | Clean-install smoke | Ubuntu, macOS, and Windows; Python 3.13 | installed import path, pinned optional-reader versions, CLI version, and a clean fixture scan |
 | Package reproducibility | Ubuntu; Python 3.13 | two byte-identical wheels and schema-valid generated reports |
 

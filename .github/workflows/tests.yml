@@ -56,6 +56,33 @@ jobs:
           neurodata-security-audit --version
           neurodata-security-audit scan "${{ github.workspace }}/tests/fixtures/clean_bids"
 
+  python-312-smoke:
+    name: installed wheel smoke (Ubuntu, Python 3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Build and install the wheel with all optional readers
+        env:
+          SOURCE_DATE_EPOCH: "315532800"
+        run: |
+          python -m pip install build
+          python -m build --wheel --outdir dist
+          wheel="$(find dist -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "${wheel}"
+          python -m pip install "${wheel}[formats,imaging]" \
+            --constraint .github/constraints/calibration-readers.txt
+      - name: Check the installed wheel outside the checkout
+        working-directory: ${{ runner.temp }}
+        env:
+          REPOSITORY_ROOT: ${{ github.workspace }}
+        run: |
+          python -c "import os; from pathlib import Path; import neurodata_security_audit, mne, nibabel, pydicom; path = Path(neurodata_security_audit.__file__).resolve(); print(path); assert Path(os.environ['REPOSITORY_ROOT']).resolve() not in path.parents; assert mne.__version__ == '1.12.1'; assert nibabel.__version__ == '5.4.2'; assert pydicom.__version__ == '3.0.2'"
+          neurodata-security-audit --version
+          neurodata-security-audit scan "${{ github.workspace }}/tests/fixtures/clean_bids"
+
   exact-wheel:
     runs-on: ubuntu-latest
     strategy:
