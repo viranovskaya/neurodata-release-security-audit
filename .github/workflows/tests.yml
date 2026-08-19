@@ -109,6 +109,7 @@ jobs:
           mkdir -p "${isolated}/examples" "${isolated}/tests"
           cp tests/__init__.py \
             tests/test_curator.py \
+            tests/test_local_ui.py \
             tests/test_scanner.py \
             "${isolated}/tests/"
           cp -R examples/reviewer_demo "${isolated}/examples/reviewer_demo"
