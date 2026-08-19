@@ -136,6 +136,24 @@ python3 -m pip install ".[imaging]"
 python3 -m pip install ".[formats,imaging]"
 ```
 
+### Use the local browser interface
+
+Start the private local interface:
+
+```bash
+neurodata-security-audit ui
+```
+
+The command opens a temporary page on `127.0.0.1`. Enter the full path to the
+dataset folder and a separate report folder, then choose **Run local audit**.
+The scanner reads the selected dataset in place and writes `audit.json`,
+`audit.md`, and `audit.html` to the report folder. Dataset files and report
+contents are not uploaded to a remote service.
+
+The page uses a random session token and accepts scan requests only from its
+own loopback origin. Close the terminal process with `Ctrl+C` when the review is
+finished. The command-line workflow below remains available for scripted runs.
+
 Run a local audit and keep reports outside the selected release:
 
 ```bash

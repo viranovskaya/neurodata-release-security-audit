@@ -90,6 +90,25 @@ def _parser() -> argparse.ArgumentParser:
         required=True,
         dest="markdown_path",
     )
+    ui = subparsers.add_parser(
+        "ui",
+        help="open a local browser interface for scanning a dataset",
+        description=(
+            "Start a temporary audit interface on 127.0.0.1. Dataset files "
+            "and reports are not uploaded."
+        ),
+    )
+    ui.add_argument(
+        "--port",
+        type=int,
+        default=0,
+        help="local TCP port; 0 selects an available port",
+    )
+    ui.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="print the local address without opening a browser",
+    )
     return parser
 
 
@@ -262,4 +281,12 @@ def main(argv: list[str] | None = None) -> int:
         return _checklist(args)
     if args.command == "compare":
         return _compare(args)
+    if args.command == "ui":
+        if not 0 <= args.port <= 65535:
+            print("error: port must be between 0 and 65535", file=sys.stderr)
+            return 2
+        from .local_ui import start_local_ui
+
+        start_local_ui(args.port, open_browser=not args.no_browser)
+        return 0
     raise AssertionError(f"Unhandled command: {args.command}")
