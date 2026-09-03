@@ -59,18 +59,20 @@
       <div class="quick-facts" role="list" aria-label="What you will need">
         <div class="fact" role="listitem"><strong>Desktop required</strong><span>macOS, Windows, or Linux</span></div>
         <div class="fact" role="listitem"><strong>Python 3.10–3.13</strong><span>tested in CI on 3.10, 3.12, and 3.13</span></div>
-        <div class="fact" role="listitem"><strong>About 20 minutes</strong><span>for installation and the synthetic demo</span></div>
+        <div class="fact" role="listitem"><strong>Use your own dataset</strong><span>scan time varies with its size and formats</span></div>
       </div>
 
       <section class="card" aria-labelledby="steps-heading">
-        <h2 id="steps-heading">Download and start</h2>
+        <h2 id="steps-heading">Run it on your own dataset</h2>
         <ol>
           <li>Download and unpack the beta archive.</li>
-          <li>Open <code>README_EN.md</code> and install the wheel in a separate Python environment.</li>
-          <li>Run the included synthetic demo, then optionally scan a dataset you are authorised to use.</li>
-          <li>Open the HTML report and assess whether the result and next actions are clear.</li>
+          <li>Open <code>README_EN.md</code> and install the wheel with the optional readers needed for your file formats.</li>
+          <li>Start the local interface with <code>neurodata-security-audit ui</code>.</li>
+          <li>Select a dataset you are authorised to use and a new report folder outside that dataset.</li>
+          <li>Open the generated HTML report and assess whether the findings, coverage, and next actions are clear.</li>
           <li>Complete <code>FEEDBACK_EN.md</code>. Send feedback, not the dataset.</li>
         </ol>
+        <p class="caption">No suitable dataset at hand? The included synthetic demo is an optional installation check. It deliberately contains privacy-relevant metadata and returns <strong>HOLD</strong>.</p>
         <div class="actions">
           <button id="download" disabled>Download the beta package</button>
           <a class="button-link secondary" href="mailto:agafonovadaria97@gmail.com?subject=NeuroData%20Audit%20beta%20feedback&amp;body=Please%20paste%20your%20completed%20FEEDBACK_EN.md%20below.%20Do%20not%20attach%20the%20dataset%20or%20an%20unreviewed%20report.">Send feedback</a>

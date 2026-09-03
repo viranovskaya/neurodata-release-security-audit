@@ -4,10 +4,9 @@ This Python tool with a local browser interface checks neurodata release
 structure and bounded metadata for privacy-relevant patterns. It creates reports
 locally and does not upload or modify the dataset.
 
-Allow about 20 minutes for installation and the synthetic first run. A dataset
-scan may take longer depending on the number, size, and formats of the files.
-This beta supports Python 3.10–3.13 and is tested in CI on Python 3.10, 3.12,
-and 3.13.
+Allow about 20 minutes for installation. A scan of your own dataset may take
+longer depending on the number, size, and formats of the files. This beta
+supports Python 3.10–3.13 and is tested in CI on Python 3.10, 3.12, and 3.13.
 
 ## 1. Verify the download
 
@@ -128,11 +127,38 @@ On Windows without activation:
 
 It should print `{{VERSION}}`.
 
-## 4. Run the synthetic demo first
+## 4. Scan an authorised dataset
 
-The included demo contains deliberately synthetic privacy-relevant metadata and
-should return `HOLD` with exit status `1`. The command creates the new
-`demo-reports` directory.
+Start the local desktop interface:
+
+```bash
+neurodata-security-audit ui
+```
+
+On Windows without activation:
+
+```powershell
+.\neurodata-beta-env\Scripts\neurodata-security-audit.exe ui
+```
+
+The browser opens a temporary page on `127.0.0.1`. Enter the full dataset path
+and a separate, new report directory outside the dataset. Close the terminal
+process with `Ctrl+C` when finished. On macOS, hold Option while right-clicking a
+folder in Finder to copy its pathname. On Windows, Shift-right-click a folder and
+choose **Copy as path**, then remove any surrounding quotation marks before
+pasting the dataset or report-folder path.
+
+If you maintain a private text file of known names or identifiers, the CLI also
+supports `--sensitive-terms`; run `neurodata-security-audit scan --help`. This
+option is not exposed in the local browser interface. Keep that file private.
+
+## 5. Optional: run the synthetic demo
+
+Use this smoke check if you do not have a suitable dataset at hand or want to
+confirm the installation before scanning your own data. It is not required for
+the beta. The included demo contains deliberately synthetic privacy-relevant
+metadata and should return `HOLD` with exit status `1`. The command creates the
+new `demo-reports` directory.
 
 On macOS or Linux:
 
@@ -158,31 +184,6 @@ On Windows without activation:
 Open `demo-reports/audit.html` in a browser. Do not treat the deliberate finding
 as an installation failure. Reports are never overwritten; use a new folder such
 as `demo-reports-2` for another run.
-
-## 5. Scan an authorised dataset
-
-Start the local desktop interface:
-
-```bash
-neurodata-security-audit ui
-```
-
-On Windows without activation:
-
-```powershell
-.\neurodata-beta-env\Scripts\neurodata-security-audit.exe ui
-```
-
-The browser opens a temporary page on `127.0.0.1`. Enter the full dataset path
-and a separate, new report directory outside the dataset. Close the terminal
-process with `Ctrl+C` when finished. On macOS, hold Option while right-clicking a
-folder in Finder to copy its pathname. On Windows, Shift-right-click a folder and
-choose **Copy as path**, then remove any surrounding quotation marks before
-pasting the dataset or report-folder path.
-
-If you maintain a private text file of known names or identifiers, the CLI also
-supports `--sensitive-terms`; run `neurodata-security-audit scan --help`. This
-option is not exposed in the local browser interface. Keep that file private.
 
 ## Command exit status and report decision
 

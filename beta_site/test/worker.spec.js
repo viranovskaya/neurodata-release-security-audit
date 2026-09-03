@@ -1,6 +1,8 @@
 import { env } from "cloudflare:workers";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import landingHtml from "../public/index.html?raw";
+import appScript from "../public/app.js?raw";
 import worker, { cutoff, isSameOrigin, pruneOldSessions } from "../src/index.js";
 import { RELEASE } from "../src/release.js";
 
@@ -15,8 +17,8 @@ const assets = {
         headers: { "Content-Type": "application/zip" },
       });
     }
-    if (path === "/index.html") return new Response("<!doctype html><title>Beta</title>");
-    if (path === "/app.js") return new Response("console.log('beta')");
+    if (path === "/index.html") return new Response(landingHtml);
+    if (path === "/app.js") return new Response(appScript);
     return new Response("missing", { status: 404 });
   },
 };
@@ -38,7 +40,11 @@ describe("researcher beta Worker", () => {
   it("serves public landing assets with hardened headers", async () => {
     const landing = await request("/");
     expect(landing.status).toBe(200);
-    expect(await landing.text()).toContain("<!doctype html>");
+    const html = await landing.text();
+    expect(html).toContain("<!doctype html>");
+    expect(html).toContain("Run it on your own dataset");
+    expect(html).toContain("The included synthetic demo is an optional installation check");
+    expect(html.indexOf("Run it on your own dataset")).toBeLessThan(html.indexOf("synthetic demo"));
     expect(landing.headers.get("X-Frame-Options")).toBe("DENY");
     expect(landing.headers.get("Cache-Control")).toBe("no-store");
 
@@ -53,7 +59,7 @@ describe("researcher beta Worker", () => {
     expect(response.status).toBe(200);
     expect(info.version).toBe("0.3.0b1");
     expect(info.tag).toBe("v0.3.0b1");
-    expect(info.archive).toBe("neurodata-researcher-beta-0.3.0b1.zip");
+    expect(info.archive).toBe("neurodata-researcher-beta-0.3.0b1-r1.zip");
     expect(info.archiveSha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
