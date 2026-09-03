@@ -8,3 +8,7 @@ dist/
 *.egg-info/
 reports/
 outputs/
+beta_site/node_modules/
+beta_site/.wrangler/
+beta_site/.artifacts/
+beta_site/public/downloads/*.zip

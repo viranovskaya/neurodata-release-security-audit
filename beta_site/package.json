@@ -1,0 +1,22 @@
+{
+  "name": "neurodata-researcher-beta-site",
+  "version": "0.3.0-beta.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "wrangler dev --local --test-scheduled",
+    "build:kit": "python3 scripts/build_kit.py",
+    "check:deploy": "python3 scripts/build_kit.py --check && wrangler deploy --dry-run",
+    "deploy": "python3 scripts/build_kit.py --check && wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.1.3",
+    "vitest": "4.1.11",
+    "wrangler": "4.128.0"
+  }
+}
