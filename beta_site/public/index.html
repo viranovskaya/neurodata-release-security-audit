@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow,noarchive" />
+    <title>NeuroData Audit — researcher beta</title>
+    <style>
+      :root { color-scheme:light; --ink:#17201d; --muted:#52605b; --green:#176b57; --green-dark:#0d4f40; --pale:#eef6f3; --line:#d7e1dd; --warn:#fff7df; --error:#8f3127; }
+      * { box-sizing:border-box; }
+      body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink); background:#f7faf9; font-size:16px; line-height:1.58; }
+      main { width:min(860px,calc(100% - 32px)); margin:48px auto 80px; }
+      .eyebrow { color:var(--green); font-weight:750; letter-spacing:.04em; text-transform:uppercase; font-size:.78rem; }
+      h1 { font-size:clamp(2rem,5vw,3.45rem); line-height:1.08; letter-spacing:-.025em; margin:.45rem 0 1rem; max-width:760px; }
+      h2 { margin:0 0 .65rem; font-size:1.35rem; line-height:1.28; }
+      p { margin:.5rem 0 1rem; max-width:72ch; }
+      a { color:var(--green-dark); text-underline-offset:.16em; }
+      .lead { font-size:1.15rem; max-width:68ch; color:var(--muted); }
+      .card { background:white; border:1px solid var(--line); border-radius:18px; padding:24px; margin:20px 0; box-shadow:0 10px 30px rgba(24,45,38,.05); }
+      .quick-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:24px 0 4px; }
+      .fact { background:var(--pale); border-radius:14px; padding:15px 16px; }
+      .fact span { display:block; color:var(--muted); font-size:.9rem; }
+      .stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:14px; }
+      .stat { background:var(--pale); border-radius:14px; padding:16px; }
+      .number { font-size:1.8rem; font-weight:760; display:block; }
+      .caption { color:var(--muted); font-size:.9rem; }
+      ol { padding-left:1.4rem; }
+      li { margin:.7rem 0; max-width:72ch; }
+      code { background:#eef1f0; padding:.14em .35em; border-radius:5px; overflow-wrap:anywhere; }
+      pre { background:#17201d; color:#eff8f4; padding:16px; border-radius:12px; overflow:auto; font-size:.95rem; white-space:pre-wrap; overflow-wrap:anywhere; }
+      button,.button-link { min-height:48px; border:0; border-radius:12px; padding:13px 18px; font:inherit; font-weight:750; cursor:pointer; background:var(--green); color:white; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
+      button:hover,.button-link:hover { background:var(--green-dark); }
+      button.secondary,.button-link.secondary { background:#e4eeea; color:var(--ink); }
+      button.secondary:hover,.button-link.secondary:hover { background:#d3e3dd; }
+      button:disabled { opacity:.5; cursor:not-allowed; }
+      button:focus-visible,.button-link:focus-visible,a:focus-visible,input:focus-visible,.table-wrap:focus-visible { outline:3px solid #fff; outline-offset:2px; box-shadow:0 0 0 7px #111827; }
+      .actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+      .notice { background:var(--warn); border:1px solid #ecdca9; border-radius:14px; padding:18px 20px; margin:20px 0; }
+      .check { display:flex; gap:10px; align-items:flex-start; margin:14px 0; max-width:72ch; }
+      .check input { margin-top:.35rem; min-width:20px; min-height:20px; }
+      .status { min-height:1.55rem; margin:.85rem 0 0; color:var(--green); font-weight:650; }
+      .status.error { color:var(--error); }
+      .table-wrap { overflow-x:auto; border-bottom:1px solid var(--line); }
+      table { width:100%; min-width:690px; border-collapse:collapse; margin-top:14px; }
+      caption { text-align:left; color:var(--muted); font-size:.9rem; padding:0 0 8px; }
+      th,td { border-top:1px solid var(--line); padding:12px 10px; text-align:left; vertical-align:top; }
+      th { font-size:.9rem; color:var(--muted); }
+      footer { color:var(--muted); font-size:.9rem; margin-top:35px; }
+      footer a { display:inline-block; padding:.35rem .1rem; }
+      @media (max-width:700px) { .quick-facts,.stats{grid-template-columns:1fr} main{margin-top:28px}.card{padding:19px} }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="eyebrow">Researcher beta · <span data-version>loading</span></div>
+      <h1>Check a neurodata release locally before sharing it</h1>
+      <p class="lead">NeuroData Release Security Audit checks release structure and bounded metadata for privacy-relevant patterns. It creates reports on your computer without uploading or modifying the dataset.</p>
+
+      <div class="quick-facts" role="list" aria-label="What you will need">
+        <div class="fact" role="listitem"><strong>Desktop required</strong><span>macOS, Windows, or Linux</span></div>
+        <div class="fact" role="listitem"><strong>Python 3.10–3.13</strong><span>tested in CI on 3.10, 3.12, and 3.13</span></div>
+        <div class="fact" role="listitem"><strong>About 20 minutes</strong><span>for installation and the synthetic demo</span></div>
+      </div>
+
+      <section class="card" aria-labelledby="steps-heading">
+        <h2 id="steps-heading">Download and start</h2>
+        <ol>
+          <li>Download and unpack the beta archive.</li>
+          <li>Open <code>README_EN.md</code> and install the wheel in a separate Python environment.</li>
+          <li>Run the included synthetic demo, then optionally scan a dataset you are authorised to use.</li>
+          <li>Open the HTML report and assess whether the result and next actions are clear.</li>
+          <li>Complete <code>FEEDBACK_EN.md</code>. Send feedback, not the dataset.</li>
+        </ol>
+        <div class="actions">
+          <button id="download" disabled>Download the beta package</button>
+          <a class="button-link secondary" href="mailto:agafonovadaria97@gmail.com?subject=NeuroData%20Audit%20beta%20feedback&amp;body=Please%20paste%20your%20completed%20FEEDBACK_EN.md%20below.%20Do%20not%20attach%20the%20dataset%20or%20an%20unreviewed%20report.">Send feedback</a>
+        </div>
+        <p id="download-status" class="status" role="status" aria-live="polite" aria-atomic="true">Checking the beta package…</p>
+        <p class="caption">Archive SHA-256: <code id="archive-sha">loading</code></p>
+      </section>
+
+      <section class="card" aria-labelledby="coverage-heading">
+        <h2 id="coverage-heading">Choose installation options for your file formats</h2>
+        <div class="table-wrap" role="region" aria-label="Installation options by file format" tabindex="0">
+          <table>
+            <caption>The base installation covers common metadata. Optional readers add bounded header and metadata inspection.</caption>
+            <thead><tr><th scope="col">Formats</th><th scope="col">Installation</th><th scope="col">Inspection boundary</th></tr></thead>
+            <tbody>
+              <tr><td>BIDS JSON/TSV/CSV, BrainVision, EDF/BDF, XLSX/DOCX, ZIP/TAR</td><td>Base installation</td><td>Structure, references, and bounded metadata</td></tr>
+              <tr><td>FIF, EEGLAB <code>.set</code>, KIT, MFF, MATLAB</td><td><code>[formats]</code></td><td>Metadata through optional readers; no signal preload</td></tr>
+              <tr><td>NIfTI, DICOM</td><td><code>[imaging]</code></td><td>Headers and metadata; no voxels or pixels</td></tr>
+              <tr><td>Mixed release</td><td><code>[formats,imaging]</code></td><td>Both optional groups</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="caption">Installing optional readers normally downloads dependencies from the package index. The dataset scan itself is local. Unsupported or unreadable objects remain visible as coverage gaps.</p>
+      </section>
+
+      <section class="card" aria-labelledby="confirm-heading">
+        <h2 id="confirm-heading">Confirm the installation</h2>
+        <p>After installing the downloaded wheel, run:</p>
+        <pre>neurodata-security-audit --version</pre>
+        <p>The command should print <code data-version>the beta version</code>.</p>
+        <label class="check"><input type="checkbox" id="ran-check" disabled /> <span>I ran the command and saw version <code data-version>the beta version</code>.</span></label>
+        <button class="secondary" id="confirm" disabled>Confirm installation</button>
+        <p id="confirm-status" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
+      </section>
+
+      <section class="card" aria-labelledby="result-heading">
+        <h2 id="result-heading">Interpret the command and report</h2>
+        <p>The command exit status describes whether the scan completed and whether it found a high-priority item. It is not a release decision.</p>
+        <ul>
+          <li><strong>Exit 2 · STOP:</strong> the scan, integrity check, or report writing failed. Do not use the report as a release decision.</li>
+          <li><strong>Exit 1 · HOLD:</strong> the scan completed and at least one high-priority finding requires review before release.</li>
+          <li><strong>Exit 0 · NOT APPROVED:</strong> the scan completed without a high-priority finding. Review findings, coverage gaps, and format limits still require a human decision.</li>
+        </ul>
+        <p>The HTML report separately summarises the curator decision. It may display <strong>HOLD</strong> for unresolved review findings or coverage gaps even when the command exits with status 0. The local interface may describe the same state as <strong>Review required</strong>. These conservative report labels do not indicate a failed scan, and none of them approves release.</p>
+      </section>
+
+      <section class="card" aria-labelledby="activity-heading">
+        <h2 id="activity-heading">Beta activity for <span data-version>this version</span></h2>
+        <div class="stats">
+          <div class="stat"><span class="number" id="downloads">—</span>downloads started in the last 30 days</div>
+          <div class="stat"><span class="number" id="confirmed">—</span>self-confirmed installations in the last 30 days</div>
+        </div>
+        <p class="caption" id="stats-note" role="status" aria-live="polite" aria-atomic="true">These counters do not represent unique researchers or completed dataset scans.</p>
+      </section>
+
+      <section class="card" aria-labelledby="privacy-heading">
+        <h2 id="privacy-heading">Data and privacy boundary</h2>
+        <p>The scanner does not send dataset files, local paths, or report contents to this site. The site stores a random download-session identifier, release version, and timestamps for download and optional installation confirmation. The random identifier and release version are also kept in this tab's <code>sessionStorage</code> so confirmation can recover after a refresh; they are cleared after confirmation or when the tab session ends.</p>
+        <p>A daily cleanup deletes database records older than 30 days. If a scheduled cleanup is delayed, records remain until the next successful cleanup. No IP address, browser fingerprint, account, or participant identifier is stored in this database.</p>
+        <p>Cloudflare processes ordinary network connection metadata to serve the page. Invocation logs are disabled for this Worker. Review reports manually before sharing them, because a report can still contain project-specific filenames or context.</p>
+      </section>
+
+      <section class="notice" aria-labelledby="warning-heading">
+        <h2 id="warning-heading">Important</h2>
+        <p>The audit identifies items that need human attention. It does not prove anonymity, estimate re-identification risk, approve publication, or provide privacy, security, ethics, or legal certification.</p>
+      </section>
+
+      <noscript><p class="status error" role="alert">JavaScript is required to download and confirm this beta package.</p></noscript>
+      <footer>
+        Daria · <a href="mailto:agafonovadaria97@gmail.com">agafonovadaria97@gmail.com</a> ·
+        <a href="https://github.com/viranovskaya/neurodata-release-security-audit">source project</a> ·
+        <a id="release-link" href="https://github.com/viranovskaya/neurodata-release-security-audit/releases">release notes</a>
+      </footer>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
