@@ -17,6 +17,7 @@
       a { color:var(--green-dark); text-underline-offset:.16em; }
       .lead { font-size:1.15rem; max-width:68ch; color:var(--muted); }
       .card { background:white; border:1px solid var(--line); border-radius:18px; padding:24px; margin:20px 0; box-shadow:0 10px 30px rgba(24,45,38,.05); }
+      .hero-actions { margin:20px 0 6px; }
       .quick-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:24px 0 4px; }
       .fact { background:var(--pale); border-radius:14px; padding:15px 16px; }
       .fact span { display:block; color:var(--muted); font-size:.9rem; }
@@ -29,6 +30,7 @@
       code { background:#eef1f0; padding:.14em .35em; border-radius:5px; overflow-wrap:anywhere; }
       pre { background:#17201d; color:#eff8f4; padding:16px; border-radius:12px; overflow:auto; font-size:.95rem; white-space:pre-wrap; overflow-wrap:anywhere; }
       button,.button-link { min-height:48px; border:0; border-radius:12px; padding:13px 18px; font:inherit; font-weight:750; cursor:pointer; background:var(--green); color:white; display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
+      [hidden] { display:none !important; }
       button:hover,.button-link:hover { background:var(--green-dark); }
       button.secondary,.button-link.secondary { background:#e4eeea; color:var(--ink); }
       button.secondary:hover,.button-link.secondary:hover { background:#d3e3dd; }
@@ -40,6 +42,15 @@
       .check input { margin-top:.35rem; min-width:20px; min-height:20px; }
       .status { min-height:1.55rem; margin:.85rem 0 0; color:var(--green); font-weight:650; }
       .status.error { color:var(--error); }
+      .status:focus-visible { outline:3px solid #111827; outline-offset:4px; border-radius:4px; }
+      details { margin-top:.4rem; color:var(--muted); }
+      summary { width:max-content; cursor:pointer; color:var(--green-dark); font-weight:650; }
+      .install-command { display:block; width:max-content; max-width:100%; margin-top:.3rem; }
+      .result-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:16px; }
+      .result-panel { border:1px solid var(--line); border-radius:14px; padding:16px; }
+      .result-panel h3 { margin:0 0 .45rem; font-size:1.05rem; }
+      .result-panel ul { margin:.4rem 0 0; padding-left:1.2rem; }
+      .activity-card { background:#fbfcfc; box-shadow:none; }
       .table-wrap { overflow-x:auto; border-bottom:1px solid var(--line); }
       table { width:100%; min-width:690px; border-collapse:collapse; margin-top:14px; }
       caption { text-align:left; color:var(--muted); font-size:.9rem; padding:0 0 8px; }
@@ -47,7 +58,7 @@
       th { font-size:.9rem; color:var(--muted); }
       footer { color:var(--muted); font-size:.9rem; margin-top:35px; }
       footer a { display:inline-block; padding:.35rem .1rem; }
-      @media (max-width:700px) { .quick-facts,.stats{grid-template-columns:1fr} main{margin-top:28px}.card{padding:19px} }
+      @media (max-width:700px) { .quick-facts,.stats,.result-grid{grid-template-columns:1fr} main{margin-top:28px}.card{padding:19px} }
     </style>
   </head>
   <body>
@@ -58,8 +69,21 @@
 
       <div class="quick-facts" role="list" aria-label="What you will need">
         <div class="fact" role="listitem"><strong>Desktop required</strong><span>macOS, Windows, or Linux</span></div>
-        <div class="fact" role="listitem"><strong>Python 3.10–3.13</strong><span>tested in CI on 3.10, 3.12, and 3.13</span></div>
+        <div class="fact" role="listitem"><strong>Python 3.10–3.13</strong><span>full tests on 3.10 and 3.13; installed-wheel smoke test on 3.12</span></div>
         <div class="fact" role="listitem"><strong>Use your own dataset</strong><span>scan time varies with its size and formats</span></div>
+      </div>
+
+      <div class="hero-actions">
+        <div class="actions">
+          <button id="download" disabled>Download the beta package</button>
+          <a class="button-link secondary" href="#steps-heading">How it works</a>
+          <button class="secondary" id="retry-load" type="button" hidden>Retry package check</button>
+        </div>
+        <p id="download-status" class="status" role="status" aria-live="polite" aria-atomic="true">Checking the beta package…</p>
+        <details>
+          <summary>Verify archive integrity</summary>
+          <p class="caption">Archive SHA-256: <code id="archive-sha">loading</code></p>
+        </details>
       </div>
 
       <section class="card" aria-labelledby="steps-heading">
@@ -74,11 +98,9 @@
         </ol>
         <p class="caption">No suitable dataset at hand? The included synthetic demo is an optional installation check. It deliberately contains privacy-relevant metadata and returns <strong>HOLD</strong>.</p>
         <div class="actions">
-          <button id="download" disabled>Download the beta package</button>
-          <a class="button-link secondary" href="mailto:agafonovadaria97@gmail.com?subject=NeuroData%20Audit%20beta%20feedback&amp;body=Please%20paste%20your%20completed%20FEEDBACK_EN.md%20below.%20Do%20not%20attach%20the%20dataset%20or%20an%20unreviewed%20report.">Send feedback</a>
+          <a class="button-link secondary" href="mailto:agafonovadaria97@gmail.com?subject=NeuroData%20Audit%20beta%20feedback&amp;body=Please%20paste%20your%20completed%20FEEDBACK_EN.md%20below.%20Do%20not%20attach%20the%20dataset%20or%20an%20unreviewed%20report.">Open feedback email</a>
         </div>
-        <p id="download-status" class="status" role="status" aria-live="polite" aria-atomic="true">Checking the beta package…</p>
-        <p class="caption">Archive SHA-256: <code id="archive-sha">loading</code></p>
+        <p class="caption">This opens your email app; nothing is sent automatically. Paste the completed <code>FEEDBACK_EN.md</code> into the message. Do not attach the dataset or an unreviewed report.</p>
       </section>
 
       <section class="card" aria-labelledby="coverage-heading">
@@ -86,12 +108,12 @@
         <div class="table-wrap" role="region" aria-label="Installation options by file format" tabindex="0">
           <table>
             <caption>The base installation covers common metadata. Optional readers add bounded header and metadata inspection.</caption>
-            <thead><tr><th scope="col">Formats</th><th scope="col">Installation</th><th scope="col">Inspection boundary</th></tr></thead>
+            <thead><tr><th scope="col">Formats</th><th scope="col">Install from the unpacked archive</th><th scope="col">Inspection boundary</th></tr></thead>
             <tbody>
-              <tr><td>BIDS JSON/TSV/CSV, BrainVision, EDF/BDF, XLSX/DOCX, ZIP/TAR</td><td>Base installation</td><td>Structure, references, and bounded metadata</td></tr>
-              <tr><td>FIF, EEGLAB <code>.set</code>, KIT, MFF, MATLAB</td><td><code>[formats]</code></td><td>Metadata through optional readers; no signal preload</td></tr>
-              <tr><td>NIfTI, DICOM</td><td><code>[imaging]</code></td><td>Headers and metadata; no voxels or pixels</td></tr>
-              <tr><td>Mixed release</td><td><code>[formats,imaging]</code></td><td>Both optional groups</td></tr>
+              <tr><td>BIDS JSON/TSV/CSV, BrainVision, EDF/BDF, XLSX/DOCX, ZIP/TAR</td><td>Base installation<code class="install-command" data-install="base">loading</code></td><td>Structure, references, and bounded metadata</td></tr>
+              <tr><td>FIF, EEGLAB <code>.set</code>, KIT, MFF, MATLAB</td><td>Formats readers<code class="install-command" data-install="formats">loading</code></td><td>Metadata through optional readers; no signal preload</td></tr>
+              <tr><td>NIfTI, DICOM</td><td>Imaging readers<code class="install-command" data-install="imaging">loading</code></td><td>Headers and metadata; no voxels or pixels</td></tr>
+              <tr><td>Mixed release</td><td>Both reader groups<code class="install-command" data-install="formats,imaging">loading</code></td><td>Both optional groups</td></tr>
             </tbody>
           </table>
         </div>
@@ -103,25 +125,36 @@
         <p>After installing the downloaded wheel, run:</p>
         <pre>neurodata-security-audit --version</pre>
         <p>The command should print <code data-version>the beta version</code>.</p>
-        <label class="check"><input type="checkbox" id="ran-check" disabled /> <span>I ran the command and saw version <code data-version>the beta version</code>.</span></label>
-        <button class="secondary" id="confirm" disabled>Confirm installation</button>
-        <p id="confirm-status" class="status" role="status" aria-live="polite" aria-atomic="true"></p>
+        <p id="confirm-help" class="caption">First download the package in this tab. The confirmation controls will then become available.</p>
+        <label class="check"><input type="checkbox" id="ran-check" aria-describedby="confirm-help" disabled /> <span>I ran the command and saw version <code data-version>the beta version</code>.</span></label>
+        <button class="secondary" id="confirm" aria-describedby="confirm-help" disabled>Confirm installation</button>
+        <p id="confirm-status" class="status" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></p>
       </section>
 
       <section class="card" aria-labelledby="result-heading">
         <h2 id="result-heading">Interpret the command and report</h2>
-        <p>The command exit status describes whether the scan completed and whether it found a high-priority item. It is not a release decision.</p>
-        <ul>
-          <li><strong>Exit 2 · STOP:</strong> the scan, integrity check, or report writing failed. Do not use the report as a release decision.</li>
-          <li><strong>Exit 1 · HOLD:</strong> the scan completed and at least one high-priority finding requires review before release.</li>
-          <li><strong>Exit 0 · NOT APPROVED:</strong> the scan completed without a high-priority finding. Review findings, coverage gaps, and format limits still require a human decision.</li>
-        </ul>
-        <p>The HTML report separately summarises the curator decision. It may display <strong>HOLD</strong> for unresolved review findings or coverage gaps even when the command exits with status 0. The local interface may describe the same state as <strong>Review required</strong>. These conservative report labels do not indicate a failed scan, and none of them approves release.</p>
+        <div class="result-grid">
+          <div class="result-panel">
+            <h3>1. Did the scan complete?</h3>
+            <ul>
+              <li><strong>Exit 2 · STOP:</strong> the scan, integrity check, or report writing failed.</li>
+              <li><strong>Exit 1 or 0:</strong> the scan completed; continue to the report.</li>
+            </ul>
+          </div>
+          <div class="result-panel">
+            <h3>2. What needs review?</h3>
+            <ul>
+              <li><strong>HOLD / Review required:</strong> resolve high-priority findings, review findings, or coverage gaps.</li>
+              <li><strong>NOT APPROVED:</strong> no high-priority finding was detected, but a human must still review all findings, coverage, and format limits.</li>
+            </ul>
+          </div>
+        </div>
+        <p class="caption">The command exit status describes execution and high-priority findings; the HTML report separately summarises the curator decision. A report may display <strong>HOLD</strong> even when the command exits with status 0. None of these labels approves release.</p>
       </section>
 
-      <section class="card" aria-labelledby="activity-heading">
+      <section class="card activity-card" aria-labelledby="activity-heading">
         <h2 id="activity-heading">Beta activity for <span data-version>this version</span></h2>
-        <div class="stats">
+        <div class="stats" id="activity-stats" role="status" aria-live="polite" aria-atomic="true">
           <div class="stat"><span class="number" id="downloads">—</span>downloads started in the last 30 days</div>
           <div class="stat"><span class="number" id="confirmed">—</span>self-confirmed installations in the last 30 days</div>
         </div>

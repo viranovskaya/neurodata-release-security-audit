@@ -4,9 +4,11 @@ This Python tool with a local browser interface checks neurodata release
 structure and bounded metadata for privacy-relevant patterns. It creates reports
 locally and does not upload or modify the dataset.
 
-Allow about 20 minutes for installation. A scan of your own dataset may take
-longer depending on the number, size, and formats of the files. This beta
-supports Python 3.10–3.13 and is tested in CI on Python 3.10, 3.12, and 3.13.
+Plan approximately 20 minutes for installation; this is a practical estimate,
+not measured timing. A scan of your own dataset may take longer depending on
+the number, size, and formats of the files. This beta supports Python 3.10–3.13.
+The full test suite runs on Python 3.10 and 3.13, and the installed wheel also
+has a dedicated Python 3.12 smoke test.
 
 ## 1. Verify the download
 
@@ -53,8 +55,8 @@ Windows PowerShell:
 py --version
 ```
 
-Use Python 3.10, 3.11, 3.12, or 3.13. The CI matrix currently tests Python
-3.10, 3.12, and 3.13.
+Use Python 3.10, 3.11, 3.12, or 3.13. The full CI test suite runs on Python
+3.10 and 3.13. A separate installed-wheel smoke test runs on Python 3.12.
 
 On macOS or Linux:
 

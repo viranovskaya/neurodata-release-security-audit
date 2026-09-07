@@ -8,10 +8,15 @@ const confirmStatus = document.querySelector("#confirm-status");
 const statsNote = document.querySelector("#stats-note");
 const archiveSha = document.querySelector("#archive-sha");
 const releaseLink = document.querySelector("#release-link");
+const retryLoadButton = document.querySelector("#retry-load");
+const confirmHelp = document.querySelector("#confirm-help");
+const tableWrap = document.querySelector(".table-wrap");
 
 const STORAGE_KEY = "neurodataBetaInstallSession";
 let releaseInfo = null;
 let installSession = "";
+let downloadedInTab = false;
+let installationConfirmed = false;
 
 function setStatus(element, text, isError = false) {
   element.classList.toggle("error", isError);
@@ -49,6 +54,16 @@ function clearStoredSession() {
 function updateConfirmState() {
   ranCheck.disabled = !installSession;
   confirmButton.disabled = !installSession || !ranCheck.checked;
+  downloadButton.textContent = downloadedInTab ? "Download again" : "Download the beta package";
+  confirmHelp.textContent = installationConfirmed
+    ? "Installation confirmed for this download session. Download again only if you need another copy."
+    : installSession
+      ? "Download recorded in this tab. Install the wheel, verify the version, then confirm below."
+      : "First download the package in this tab. The confirmation controls will then become available.";
+}
+
+function updateTableFocus() {
+  tableWrap.tabIndex = tableWrap.scrollWidth > tableWrap.clientWidth ? 0 : -1;
 }
 
 async function responseError(response, fallback) {
@@ -92,13 +107,28 @@ async function loadRelease() {
   archiveSha.textContent = releaseInfo.archiveSha256;
   releaseLink.href = releaseInfo.releaseUrl;
   releaseLink.textContent = `release ${releaseInfo.tag}`;
+  for (const element of document.querySelectorAll("[data-install]")) {
+    const group = element.dataset.install;
+    const suffix = group === "base" ? "" : `[${group}]`;
+    element.textContent = `python -m pip install \"./${releaseInfo.wheel}${suffix}\"`;
+  }
 
   const stored = readStoredSession();
   if (stored?.version === releaseInfo.version) installSession = stored.id;
+  downloadedInTab = Boolean(installSession);
   downloadButton.disabled = false;
+  retryLoadButton.hidden = true;
   updateConfirmState();
-  setStatus(downloadStatus, "Package ready.");
+  setStatus(downloadStatus, installSession ? "Previous download found in this tab." : "Package ready.");
   await refreshStats();
+}
+
+function showLoadError(error) {
+  setStatus(downloadStatus, error.message || "The beta package is unavailable.", true);
+  downloadButton.disabled = true;
+  ranCheck.disabled = true;
+  confirmButton.disabled = true;
+  retryLoadButton.hidden = false;
 }
 
 downloadButton.addEventListener("click", async () => {
@@ -121,13 +151,15 @@ downloadButton.addEventListener("click", async () => {
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
 
     installSession = response.headers.get("X-Install-Session") || "";
+    downloadedInTab = true;
+    installationConfirmed = false;
     if (installSession) storeSession(installSession, releaseInfo.version);
     ranCheck.checked = false;
     updateConfirmState();
     setStatus(
       downloadStatus,
       installSession
-        ? "Archive downloaded. Open README_EN.md next."
+        ? "Downloaded. Open README_EN.md next, or download the archive again if needed."
         : "Archive downloaded. Installation confirmation is temporarily unavailable.",
     );
     await refreshStats();
@@ -160,10 +192,12 @@ confirmButton.addEventListener("click", async () => {
     confirmed.textContent = data.confirmedInstallations;
     statsNote.textContent = "These counters do not represent unique researchers or completed dataset scans.";
     installSession = "";
+    installationConfirmed = true;
     clearStoredSession();
     ranCheck.checked = false;
     updateConfirmState();
     setStatus(confirmStatus, "Thank you — the installation confirmation was recorded.");
+    confirmStatus.focus();
   } catch (error) {
     setStatus(confirmStatus, error.message || "The confirmation was not saved.", true);
   } finally {
@@ -173,9 +207,12 @@ confirmButton.addEventListener("click", async () => {
   }
 });
 
-loadRelease().catch((error) => {
-  setStatus(downloadStatus, error.message || "The beta package is unavailable.", true);
-  downloadButton.disabled = true;
-  ranCheck.disabled = true;
-  confirmButton.disabled = true;
+retryLoadButton.addEventListener("click", () => {
+  retryLoadButton.hidden = true;
+  setStatus(downloadStatus, "Checking the beta package…");
+  loadRelease().catch(showLoadError);
 });
+
+window.addEventListener("resize", updateTableFocus);
+updateTableFocus();
+loadRelease().catch(showLoadError);
