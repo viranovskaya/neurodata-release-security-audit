@@ -22,6 +22,9 @@ The kit builder rejects a wheel whose filename, version or SHA-256 differs from
 `src/release.js`. It builds the ZIP twice and fails if the output is not
 deterministic. The site reads version and package information from
 `/api/info`; do not duplicate release values in the HTML or frontend script.
+The immutable ZIP named in `src/release.js` is tracked under
+`public/downloads/` so that Git-based Cloudflare deployments always include the
+download advertised by the API.
 
 For a production update, apply pending D1 migrations remotely before deploying
 the Worker. Both operations are external changes and require explicit approval.
