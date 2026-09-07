@@ -27,6 +27,7 @@ def release_values() -> dict[str, str]:
 def render_template(path: Path, values: dict[str, str]) -> bytes:
     replacements = {
         "{{VERSION}}": values["version"],
+        "{{KIT_REVISION}}": values["kitRevision"],
         "{{ARCHIVE}}": values["archive"],
         "{{WHEEL}}": values["wheel"],
     }
@@ -58,6 +59,7 @@ def kit_files(wheel_path: Path, values: dict[str, str]) -> dict[str, bytes]:
     files = {
         "README_EN.md": render_template(TEMPLATES / "README_EN.md", values),
         "FEEDBACK_EN.md": render_template(TEMPLATES / "FEEDBACK_EN.md", values),
+        "CALIBRATION_READERS.txt": (REPO / ".github" / "constraints" / "calibration-readers.txt").read_bytes(),
         "LICENSE": (REPO / "LICENSE").read_bytes(),
         values["wheel"]: verify_wheel(wheel_path, values),
     }

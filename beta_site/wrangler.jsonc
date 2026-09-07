@@ -17,6 +17,16 @@
       "migrations_dir": "migrations"
     }
   ],
+  "ratelimits": [
+    {
+      "name": "DOWNLOAD_RATE_LIMITER",
+      "namespace_id": "26090701",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    }
+  ],
   "triggers": {
     "crons": ["17 3 * * *"]
   },

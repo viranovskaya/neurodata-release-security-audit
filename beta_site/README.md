@@ -24,7 +24,12 @@ deterministic. The site reads version and package information from
 `/api/info`; do not duplicate release values in the HTML or frontend script.
 The immutable ZIP named in `src/release.js` is tracked under
 `public/downloads/` so that Git-based Cloudflare deployments always include the
-download advertised by the API.
+download advertised by the API. The kit also includes the direct optional-reader
+versions used in CI, while clearly noting that transitive dependencies may vary.
+
+The download route uses Cloudflare's native per-location rate-limit binding to
+reduce automated counter inflation without storing IP addresses or introducing
+researcher accounts.
 
 For a production update, apply pending D1 migrations remotely before deploying
 the Worker. Both operations are external changes and require explicit approval.

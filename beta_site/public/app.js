@@ -11,6 +11,8 @@ const releaseLink = document.querySelector("#release-link");
 const retryLoadButton = document.querySelector("#retry-load");
 const confirmHelp = document.querySelector("#confirm-help");
 const tableWrap = document.querySelector(".table-wrap");
+const tableScrollHint = document.querySelector("#table-scroll-hint");
+const copyCommandButtons = document.querySelectorAll("[data-copy-install]");
 
 const STORAGE_KEY = "neurodataBetaInstallSession";
 let releaseInfo = null;
@@ -28,16 +30,16 @@ function setStatus(element, text, isError = false) {
 function readStoredSession() {
   try {
     const value = JSON.parse(window.sessionStorage.getItem(STORAGE_KEY) || "null");
-    if (value && typeof value.id === "string" && typeof value.version === "string") return value;
+    if (value && typeof value.id === "string" && typeof value.release === "string") return value;
   } catch {
     // Confirmation still works until this page is closed when storage is unavailable.
   }
   return null;
 }
 
-function storeSession(id, version) {
+function storeSession(id, release) {
   try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, version }));
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ id, release }));
   } catch {
     // Keep the in-memory session so confirmation still works in this page.
   }
@@ -63,7 +65,9 @@ function updateConfirmState() {
 }
 
 function updateTableFocus() {
-  tableWrap.tabIndex = tableWrap.scrollWidth > tableWrap.clientWidth ? 0 : -1;
+  const overflows = tableWrap.scrollWidth > tableWrap.clientWidth;
+  tableWrap.tabIndex = overflows ? 0 : -1;
+  tableScrollHint.hidden = !overflows;
 }
 
 async function responseError(response, fallback) {
@@ -82,7 +86,7 @@ async function refreshStats() {
     const data = await response.json();
     downloads.textContent = data.downloads;
     confirmed.textContent = data.confirmedInstallations;
-    statsNote.textContent = "These counters do not represent unique researchers or completed dataset scans.";
+    statsNote.textContent = "These indicative counters combine kit revisions of this beta version. They do not represent unique researchers or completed dataset scans.";
   } catch {
     downloads.textContent = "—";
     confirmed.textContent = "—";
@@ -104,17 +108,24 @@ async function loadRelease() {
   for (const element of document.querySelectorAll("[data-version]")) {
     element.textContent = releaseInfo.version;
   }
+  for (const element of document.querySelectorAll("[data-kit-revision]")) {
+    element.textContent = releaseInfo.kitRevision;
+  }
   archiveSha.textContent = releaseInfo.archiveSha256;
   releaseLink.href = releaseInfo.releaseUrl;
   releaseLink.textContent = `release ${releaseInfo.tag}`;
   for (const element of document.querySelectorAll("[data-install]")) {
     const group = element.dataset.install;
     const suffix = group === "base" ? "" : `[${group}]`;
-    element.textContent = `python -m pip install \"./${releaseInfo.wheel}${suffix}\"`;
+    const constraint = group === "base" ? "" : " -c CALIBRATION_READERS.txt";
+    element.textContent = `python -m pip install${constraint} \"./${releaseInfo.wheel}${suffix}\"`;
   }
+  for (const button of copyCommandButtons) button.disabled = false;
+  window.requestAnimationFrame(updateTableFocus);
 
   const stored = readStoredSession();
-  if (stored?.version === releaseInfo.version) installSession = stored.id;
+  const releaseKey = `${releaseInfo.version}-${releaseInfo.kitRevision}`;
+  if (stored?.release === releaseKey) installSession = stored.id;
   downloadedInTab = Boolean(installSession);
   downloadButton.disabled = false;
   retryLoadButton.hidden = true;
@@ -153,7 +164,7 @@ downloadButton.addEventListener("click", async () => {
     installSession = response.headers.get("X-Install-Session") || "";
     downloadedInTab = true;
     installationConfirmed = false;
-    if (installSession) storeSession(installSession, releaseInfo.version);
+    if (installSession) storeSession(installSession, `${releaseInfo.version}-${releaseInfo.kitRevision}`);
     ranCheck.checked = false;
     updateConfirmState();
     setStatus(
@@ -174,6 +185,22 @@ downloadButton.addEventListener("click", async () => {
 
 ranCheck.addEventListener("change", updateConfirmState);
 
+for (const button of copyCommandButtons) {
+  button.addEventListener("click", async () => {
+    const commandElement = [...document.querySelectorAll("[data-install]")]
+      .find((element) => element.dataset.install === button.dataset.copyInstall);
+    const command = commandElement?.textContent;
+    if (!command) return;
+    try {
+      await navigator.clipboard.writeText(command);
+      button.textContent = "Copied";
+      window.setTimeout(() => { button.textContent = "Copy command"; }, 1_500);
+    } catch {
+      button.textContent = "Select and copy the command above";
+    }
+  });
+}
+
 confirmButton.addEventListener("click", async () => {
   if (!installSession || confirmButton.dataset.busy === "true") return;
   confirmButton.dataset.busy = "true";
@@ -190,7 +217,7 @@ confirmButton.addEventListener("click", async () => {
     const data = await response.json();
     downloads.textContent = data.downloads;
     confirmed.textContent = data.confirmedInstallations;
-    statsNote.textContent = "These counters do not represent unique researchers or completed dataset scans.";
+    statsNote.textContent = "These indicative counters combine kit revisions of this beta version. They do not represent unique researchers or completed dataset scans.";
     installSession = "";
     installationConfirmed = true;
     clearStoredSession();

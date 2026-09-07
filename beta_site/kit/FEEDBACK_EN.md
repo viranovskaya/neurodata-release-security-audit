@@ -7,6 +7,7 @@ context from any pasted logs or reports.
 ## Setup
 
 - Beta version: {{VERSION}}
+- Kit revision: {{KIT_REVISION}}
 - Operating system:
 - Python version:
 - Installation: base / formats / imaging / formats+imaging
@@ -16,8 +17,8 @@ context from any pasted logs or reports.
 
 ## First run
 
-- Did the synthetic demo complete? yes / no
 - Did your authorised dataset scan complete? yes / no / not attempted
+- Did the optional synthetic demo complete? yes / no / not attempted
 - Approximate runtime, dataset size, or file count without identifiers:
 - Command exit status: 0 / 1 / 2 / not recorded
 - CLI release-state line: STOP / HOLD / NOT APPROVED / not recorded

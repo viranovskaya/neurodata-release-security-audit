@@ -12,4 +12,4 @@ beta_site/node_modules/
 beta_site/.wrangler/
 beta_site/.artifacts/
 beta_site/public/downloads/*.zip
-!beta_site/public/downloads/neurodata-researcher-beta-0.3.0b1-r2.zip
+!beta_site/public/downloads/neurodata-researcher-beta-0.3.0b1-r3.zip

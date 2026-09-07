@@ -1,4 +1,4 @@
-# NeuroData Release Security Audit — researcher beta {{VERSION}}
+# NeuroData Release Security Audit — researcher beta {{VERSION}} · kit {{KIT_REVISION}}
 
 This Python tool with a local browser interface checks neurodata release
 structure and bounded metadata for privacy-relevant patterns. It creates reports
@@ -86,13 +86,13 @@ On macOS or Linux, or in an activated Windows environment:
 python -m pip install ./{{WHEEL}}
 
 # FIF, EEGLAB .set, KIT, MFF, MATLAB
-python -m pip install "./{{WHEEL}}[formats]"
+python -m pip install -c CALIBRATION_READERS.txt "./{{WHEEL}}[formats]"
 
 # NIfTI and DICOM
-python -m pip install "./{{WHEEL}}[imaging]"
+python -m pip install -c CALIBRATION_READERS.txt "./{{WHEEL}}[imaging]"
 
 # Mixed releases
-python -m pip install "./{{WHEEL}}[formats,imaging]"
+python -m pip install -c CALIBRATION_READERS.txt "./{{WHEEL}}[formats,imaging]"
 ```
 
 On Windows without activating the environment:
@@ -102,17 +102,20 @@ On Windows without activating the environment:
 .\neurodata-beta-env\Scripts\python.exe -m pip install .\{{WHEEL}}
 
 # FIF, EEGLAB .set, KIT, MFF, MATLAB
-.\neurodata-beta-env\Scripts\python.exe -m pip install ".\{{WHEEL}}[formats]"
+.\neurodata-beta-env\Scripts\python.exe -m pip install -c .\CALIBRATION_READERS.txt ".\{{WHEEL}}[formats]"
 
 # NIfTI and DICOM
-.\neurodata-beta-env\Scripts\python.exe -m pip install ".\{{WHEEL}}[imaging]"
+.\neurodata-beta-env\Scripts\python.exe -m pip install -c .\CALIBRATION_READERS.txt ".\{{WHEEL}}[imaging]"
 
 # Mixed releases
-.\neurodata-beta-env\Scripts\python.exe -m pip install ".\{{WHEEL}}[formats,imaging]"
+.\neurodata-beta-env\Scripts\python.exe -m pip install -c .\CALIBRATION_READERS.txt ".\{{WHEEL}}[formats,imaging]"
 ```
 
-Optional readers normally require internet access while pip downloads their
-dependencies. The later dataset scan runs locally and does not upload data.
+`CALIBRATION_READERS.txt` selects the direct optional-reader versions used in
+CI. Transitive dependency versions may still vary by operating system and
+Python version. Optional readers normally require internet access while pip
+downloads their dependencies. The later dataset scan runs locally and does not
+upload data.
 
 Confirm the installed version on macOS, Linux, or in an activated Windows
 environment:

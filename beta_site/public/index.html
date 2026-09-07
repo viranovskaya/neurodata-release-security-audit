@@ -11,6 +11,7 @@
       body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink); background:#f7faf9; font-size:16px; line-height:1.58; }
       main { width:min(860px,calc(100% - 32px)); margin:48px auto 80px; }
       .eyebrow { color:var(--green); font-weight:750; letter-spacing:.04em; text-transform:uppercase; font-size:.78rem; }
+      .eyebrow [data-version],.eyebrow [data-kit-revision] { text-transform:none; }
       h1 { font-size:clamp(2rem,5vw,3.45rem); line-height:1.08; letter-spacing:-.025em; margin:.45rem 0 1rem; max-width:760px; }
       h2 { margin:0 0 .65rem; font-size:1.35rem; line-height:1.28; }
       p { margin:.5rem 0 1rem; max-width:72ch; }
@@ -45,25 +46,45 @@
       .status:focus-visible { outline:3px solid #111827; outline-offset:4px; border-radius:4px; }
       details { margin-top:.4rem; color:var(--muted); }
       summary { width:max-content; cursor:pointer; color:var(--green-dark); font-weight:650; }
-      .install-command { display:block; width:max-content; max-width:100%; margin-top:.3rem; }
+      .install-command { display:block; width:max-content; max-width:100%; margin-top:.35rem; font-family:ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",monospace; font-size:.82rem; line-height:1.5; }
+      .copy-command { min-height:38px; margin-top:.55rem; padding:8px 12px; border:1px solid var(--line); background:#e4eeea; color:var(--ink); font-size:.85rem; }
+      .copy-command:hover { background:#d3e3dd; }
       .result-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:16px; }
       .result-panel { border:1px solid var(--line); border-radius:14px; padding:16px; }
       .result-panel h3 { margin:0 0 .45rem; font-size:1.05rem; }
       .result-panel ul { margin:.4rem 0 0; padding-left:1.2rem; }
       .activity-card { background:#fbfcfc; box-shadow:none; }
       .table-wrap { overflow-x:auto; border-bottom:1px solid var(--line); }
+      .table-scroll-hint { margin:.55rem 0 0; }
       table { width:100%; min-width:690px; border-collapse:collapse; margin-top:14px; }
       caption { text-align:left; color:var(--muted); font-size:.9rem; padding:0 0 8px; }
       th,td { border-top:1px solid var(--line); padding:12px 10px; text-align:left; vertical-align:top; }
       th { font-size:.9rem; color:var(--muted); }
       footer { color:var(--muted); font-size:.9rem; margin-top:35px; }
       footer a { display:inline-block; padding:.35rem .1rem; }
-      @media (max-width:700px) { .quick-facts,.stats,.result-grid{grid-template-columns:1fr} main{margin-top:28px}.card{padding:19px} }
+      @media (max-width:700px) {
+        main { width:min(100% - 24px,860px); margin-top:24px; }
+        h1 { font-size:clamp(1.9rem,9vw,2.4rem); }
+        h2 { font-size:1.22rem; }
+        .lead { font-size:1.05rem; }
+        .quick-facts,.stats,.result-grid { grid-template-columns:1fr; }
+        .card { padding:18px; border-radius:16px; }
+        .table-wrap { overflow:visible; border:0; }
+        table,tbody,tr,td { display:block; width:100%; }
+        table { min-width:0; margin-top:14px; }
+        thead { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+        caption { display:block; width:100%; }
+        tr { margin:12px 0; padding:4px 14px 14px; border:1px solid var(--line); border-radius:12px; background:#fbfcfc; }
+        td { padding:10px 0 0; border:0; }
+        td::before { content:attr(data-label); display:block; margin-bottom:2px; color:var(--muted); font-size:.78rem; font-weight:750; text-transform:uppercase; letter-spacing:.035em; }
+        .install-command { width:100%; max-width:none; padding:.7rem .75rem; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; font-size:.78rem; }
+        .copy-command { width:100%; }
+      }
     </style>
   </head>
   <body>
     <main>
-      <div class="eyebrow">Researcher beta · <span data-version>loading</span></div>
+      <div class="eyebrow">Researcher beta · <span data-version>loading</span> · kit <span data-kit-revision>loading</span></div>
       <h1>Check a neurodata release locally before sharing it</h1>
       <p class="lead">NeuroData Release Security Audit checks release structure and bounded metadata for privacy-relevant patterns. It creates reports on your computer without uploading or modifying the dataset.</p>
 
@@ -80,6 +101,7 @@
           <button class="secondary" id="retry-load" type="button" hidden>Retry package check</button>
         </div>
         <p id="download-status" class="status" role="status" aria-live="polite" aria-atomic="true">Checking the beta package…</p>
+        <p class="caption">Starting a download stores a random session ID, beta version, and timestamp for the 30-day activity counter. Installation confirmation is optional. No dataset information is sent.</p>
         <details>
           <summary>Verify archive integrity</summary>
           <p class="caption">Archive SHA-256: <code id="archive-sha">loading</code></p>
@@ -105,23 +127,24 @@
 
       <section class="card" aria-labelledby="coverage-heading">
         <h2 id="coverage-heading">Choose installation options for your file formats</h2>
-        <div class="table-wrap" role="region" aria-label="Installation options by file format" tabindex="0">
+        <div class="table-wrap" role="region" aria-label="Installation options by file format" aria-describedby="table-scroll-hint" tabindex="-1">
           <table>
             <caption>The base installation covers common metadata. Optional readers add bounded header and metadata inspection.</caption>
             <thead><tr><th scope="col">Formats</th><th scope="col">Install from the unpacked archive</th><th scope="col">Inspection boundary</th></tr></thead>
             <tbody>
-              <tr><td>BIDS JSON/TSV/CSV, BrainVision, EDF/BDF, XLSX/DOCX, ZIP/TAR</td><td>Base installation<code class="install-command" data-install="base">loading</code></td><td>Structure, references, and bounded metadata</td></tr>
-              <tr><td>FIF, EEGLAB <code>.set</code>, KIT, MFF, MATLAB</td><td>Formats readers<code class="install-command" data-install="formats">loading</code></td><td>Metadata through optional readers; no signal preload</td></tr>
-              <tr><td>NIfTI, DICOM</td><td>Imaging readers<code class="install-command" data-install="imaging">loading</code></td><td>Headers and metadata; no voxels or pixels</td></tr>
-              <tr><td>Mixed release</td><td>Both reader groups<code class="install-command" data-install="formats,imaging">loading</code></td><td>Both optional groups</td></tr>
+              <tr><td data-label="Formats">BIDS JSON/TSV/CSV, BrainVision, EDF/BDF, XLSX/DOCX, ZIP/TAR</td><td data-label="Installation">Base installation<code class="install-command" data-install="base">loading</code><button type="button" class="copy-command" data-copy-install="base" disabled>Copy command</button></td><td data-label="Inspection boundary">Structure, references, and bounded metadata</td></tr>
+              <tr><td data-label="Formats">FIF, EEGLAB <code>.set</code>, KIT, MFF, MATLAB</td><td data-label="Installation">Formats readers<code class="install-command" data-install="formats">loading</code><button type="button" class="copy-command" data-copy-install="formats" disabled>Copy command</button></td><td data-label="Inspection boundary">Metadata through optional readers; no signal preload</td></tr>
+              <tr><td data-label="Formats">NIfTI, DICOM</td><td data-label="Installation">Imaging readers<code class="install-command" data-install="imaging">loading</code><button type="button" class="copy-command" data-copy-install="imaging" disabled>Copy command</button></td><td data-label="Inspection boundary">Headers and metadata; no voxels or pixels</td></tr>
+              <tr><td data-label="Formats">Mixed release</td><td data-label="Installation">Both reader groups<code class="install-command" data-install="formats,imaging">loading</code><button type="button" class="copy-command" data-copy-install="formats,imaging" disabled>Copy command</button></td><td data-label="Inspection boundary">Both optional groups</td></tr>
             </tbody>
           </table>
         </div>
-        <p class="caption">Installing optional readers normally downloads dependencies from the package index. The dataset scan itself is local. Unsupported or unreadable objects remain visible as coverage gaps.</p>
+        <p class="caption table-scroll-hint" id="table-scroll-hint" hidden>Scroll horizontally to read the complete installation commands and inspection boundaries.</p>
+        <p class="caption">The included constraints file selects the direct optional-reader versions used in CI. Their transitive dependencies may still vary by operating system and Python version. Installing optional readers normally downloads dependencies from the package index. The dataset scan itself is local. Unsupported or unreadable objects remain visible as coverage gaps.</p>
       </section>
 
       <section class="card" aria-labelledby="confirm-heading">
-        <h2 id="confirm-heading">Confirm the installation</h2>
+        <h2 id="confirm-heading">Optional: confirm the installation</h2>
         <p>After installing the downloaded wheel, run:</p>
         <pre>neurodata-security-audit --version</pre>
         <p>The command should print <code data-version>the beta version</code>.</p>
@@ -152,20 +175,21 @@
         <p class="caption">The command exit status describes execution and high-priority findings; the HTML report separately summarises the curator decision. A report may display <strong>HOLD</strong> even when the command exits with status 0. None of these labels approves release.</p>
       </section>
 
+      <section class="card" aria-labelledby="privacy-heading">
+        <h2 id="privacy-heading">Data and privacy boundary</h2>
+        <p><strong>Your dataset stays on your computer.</strong></p>
+        <p>The scanner does not send dataset files, local paths, or report contents to this site. The site stores a random download-session identifier, release version, and timestamps for download and optional installation confirmation. The random identifier and release version are also kept in this tab's <code>sessionStorage</code> so confirmation can recover after a refresh; they are cleared after confirmation or when the tab session ends.</p>
+        <p>A daily cleanup deletes database records older than 30 days. If a scheduled cleanup is delayed, records remain until the next successful cleanup. Download attempts are capped per Cloudflare location to reduce automated counter inflation. No IP address, browser fingerprint, account, or participant identifier is stored in this database.</p>
+        <p>Cloudflare processes ordinary network connection metadata to serve the page. Invocation logs are disabled for this Worker. Review reports manually before sharing them, because a report can still contain project-specific filenames or context.</p>
+      </section>
+
       <section class="card activity-card" aria-labelledby="activity-heading">
-        <h2 id="activity-heading">Beta activity for <span data-version>this version</span></h2>
+        <h2 id="activity-heading">Beta activity for version <span data-version>this version</span></h2>
         <div class="stats" id="activity-stats" role="status" aria-live="polite" aria-atomic="true">
           <div class="stat"><span class="number" id="downloads">—</span>downloads started in the last 30 days</div>
           <div class="stat"><span class="number" id="confirmed">—</span>self-confirmed installations in the last 30 days</div>
         </div>
-        <p class="caption" id="stats-note" role="status" aria-live="polite" aria-atomic="true">These counters do not represent unique researchers or completed dataset scans.</p>
-      </section>
-
-      <section class="card" aria-labelledby="privacy-heading">
-        <h2 id="privacy-heading">Data and privacy boundary</h2>
-        <p>The scanner does not send dataset files, local paths, or report contents to this site. The site stores a random download-session identifier, release version, and timestamps for download and optional installation confirmation. The random identifier and release version are also kept in this tab's <code>sessionStorage</code> so confirmation can recover after a refresh; they are cleared after confirmation or when the tab session ends.</p>
-        <p>A daily cleanup deletes database records older than 30 days. If a scheduled cleanup is delayed, records remain until the next successful cleanup. No IP address, browser fingerprint, account, or participant identifier is stored in this database.</p>
-        <p>Cloudflare processes ordinary network connection metadata to serve the page. Invocation logs are disabled for this Worker. Review reports manually before sharing them, because a report can still contain project-specific filenames or context.</p>
+        <p class="caption" id="stats-note" role="status" aria-live="polite" aria-atomic="true">These indicative counters combine kit revisions of this beta version. They do not represent unique researchers or completed dataset scans.</p>
       </section>
 
       <section class="notice" aria-labelledby="warning-heading">

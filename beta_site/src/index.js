@@ -88,6 +88,15 @@ async function recordDownload(env) {
 }
 
 async function download(request, env) {
+  try {
+    const outcome = await env.DOWNLOAD_RATE_LIMITER.limit({ key: `download:${RELEASE.version}` });
+    if (!outcome.success) {
+      return json({ error: "Too many download attempts. Please wait a minute and try again." }, 429);
+    }
+  } catch {
+    // The package remains available if the abuse-control binding is unavailable.
+  }
+
   const assetUrl = new URL(`/downloads/${RELEASE.archive}`, request.url);
   const asset = await env.ASSETS.fetch(new Request(assetUrl));
   if (!asset.ok) return json({ error: "The beta package is temporarily unavailable." }, 503);
