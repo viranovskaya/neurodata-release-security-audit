@@ -43,6 +43,13 @@ describe("researcher beta Worker", () => {
     const html = await landing.text();
     expect(html).toContain("<!doctype html>");
     expect(html).toContain("Run it on your own dataset");
+    expect(html).toContain("How it works");
+    expect(html).toContain("First download the package in this tab");
+    expect(html).toContain("1. Did the scan complete?");
+    expect(html).toContain("2. What needs review?");
+    expect(html).toContain("Open feedback email");
+    expect(html).toContain("[hidden] { display:none !important; }");
+    expect(html.indexOf("Download the beta package")).toBeLessThan(html.indexOf("Run it on your own dataset"));
     expect(html).toContain("The included synthetic demo is an optional installation check");
     expect(html.indexOf("Run it on your own dataset")).toBeLessThan(html.indexOf("synthetic demo"));
     expect(landing.headers.get("X-Frame-Options")).toBe("DENY");
@@ -50,7 +57,12 @@ describe("researcher beta Worker", () => {
 
     const script = await request("/app.js");
     expect(script.status).toBe(200);
-    await script.text();
+    const javascript = await script.text();
+    expect(javascript).toContain('downloadButton.textContent = downloadedInTab ? "Download again"');
+    expect(javascript).toContain("Installation confirmed for this download session");
+    expect(javascript).toContain("retryLoadButton.addEventListener");
+    expect(javascript).toContain("confirmStatus.focus()");
+    expect(javascript).toContain("tableWrap.scrollWidth > tableWrap.clientWidth");
   });
 
   it("exposes one internally consistent release description", async () => {
@@ -59,7 +71,7 @@ describe("researcher beta Worker", () => {
     expect(response.status).toBe(200);
     expect(info.version).toBe("0.3.0b1");
     expect(info.tag).toBe("v0.3.0b1");
-    expect(info.archive).toBe("neurodata-researcher-beta-0.3.0b1-r1.zip");
+    expect(info.archive).toBe("neurodata-researcher-beta-0.3.0b1-r2.zip");
     expect(info.archiveSha256).toMatch(/^[0-9a-f]{64}$/);
   });
 

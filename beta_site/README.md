@@ -39,8 +39,10 @@ browser interface. It checks a neurodata release for privacy-relevant metadata,
 broken file references and coverage gaps before sharing. The scan runs locally
 and does not upload or modify the dataset.
 
-Installation takes about 20 minutes on macOS, Windows or Linux. The beta
-supports Python 3.10–3.13 and is tested in CI on Python 3.10, 3.12 and 3.13.
+Plan approximately 20 minutes for installation on macOS, Windows or Linux;
+this is a practical estimate, not measured timing. The beta supports Python
+3.10–3.13. The full test suite runs on Python 3.10 and 3.13, and the installed
+wheel also has a dedicated Python 3.12 smoke test.
 Please run it locally on a dataset you are authorised to use; scan time depends
 on its size and formats. Relevant formats include BIDS metadata, EEGLAB `.set`,
 BrainVision, EDF/BDF and FIF. A synthetic demo is included only as an optional
