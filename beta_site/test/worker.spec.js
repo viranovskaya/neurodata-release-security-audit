@@ -71,6 +71,7 @@ describe("researcher beta Worker", () => {
     expect(response.status).toBe(200);
     expect(info.version).toBe("0.3.0b1");
     expect(info.tag).toBe("v0.3.0b1");
+    expect(info.kitRevision).toBe("r2");
     expect(info.archive).toBe("neurodata-researcher-beta-0.3.0b1-r2.zip");
     expect(info.archiveSha256).toMatch(/^[0-9a-f]{64}$/);
   });
