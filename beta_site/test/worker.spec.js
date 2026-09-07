@@ -23,11 +23,15 @@ const assets = {
   },
 };
 
-const testEnv = () => ({ DB: env.DB, ASSETS: assets });
+const testEnv = (rateLimitSuccess = true) => ({
+  DB: env.DB,
+  ASSETS: assets,
+  DOWNLOAD_RATE_LIMITER: { async limit() { return { success: rateLimitSuccess }; } },
+});
 
-async function request(path, init = {}) {
+async function request(path, init = {}, runtimeEnv = testEnv()) {
   const context = createExecutionContext();
-  const response = await worker.fetch(new Request(`${ORIGIN}${path}`, init), testEnv(), context);
+  const response = await worker.fetch(new Request(`${ORIGIN}${path}`, init), runtimeEnv, context);
   await waitOnExecutionContext(context);
   return response;
 }
@@ -63,6 +67,14 @@ describe("researcher beta Worker", () => {
     expect(javascript).toContain("retryLoadButton.addEventListener");
     expect(javascript).toContain("confirmStatus.focus()");
     expect(javascript).toContain("tableWrap.scrollWidth > tableWrap.clientWidth");
+    expect(javascript).toContain("window.requestAnimationFrame(updateTableFocus)");
+    expect(html).toContain("Optional: confirm the installation");
+    expect(html).toContain("Starting a download stores a random session ID");
+    expect(html).toContain("data-kit-revision");
+    expect(html).toContain('data-copy-install="formats"');
+    expect(html).toContain('data-label="Inspection boundary"');
+    expect(html).toContain("word-break:break-word");
+    expect(javascript).toContain("navigator.clipboard.writeText(command)");
   });
 
   it("exposes one internally consistent release description", async () => {
@@ -71,8 +83,8 @@ describe("researcher beta Worker", () => {
     expect(response.status).toBe(200);
     expect(info.version).toBe("0.3.0b1");
     expect(info.tag).toBe("v0.3.0b1");
-    expect(info.kitRevision).toBe("r2");
-    expect(info.archive).toBe("neurodata-researcher-beta-0.3.0b1-r2.zip");
+    expect(info.kitRevision).toBe("r3");
+    expect(info.archive).toBe("neurodata-researcher-beta-0.3.0b1-r3.zip");
     expect(info.archiveSha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
@@ -83,6 +95,18 @@ describe("researcher beta Worker", () => {
       headers: { Origin: "https://other.example.test" },
     });
     expect(response.status).toBe(403);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM install_sessions").first()).toEqual({ count: 0 });
+  });
+
+  it("rate-limits repeated download attempts before writing to D1", async () => {
+    const response = await request("/api/download", {
+      method: "POST",
+      headers: { Origin: ORIGIN },
+    }, testEnv(false));
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error: "Too many download attempts. Please wait a minute and try again.",
+    });
     expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM install_sessions").first()).toEqual({ count: 0 });
   });
 
@@ -193,7 +217,7 @@ describe("researcher beta Worker", () => {
     };
     const response = await worker.fetch(
       new Request(`${ORIGIN}/api/download`, { method: "POST", headers: { Origin: ORIGIN } }),
-      { DB: failingDb, ASSETS: assets },
+      { DB: failingDb, ASSETS: assets, DOWNLOAD_RATE_LIMITER: testEnv().DOWNLOAD_RATE_LIMITER },
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("X-Install-Session")).toBeNull();
