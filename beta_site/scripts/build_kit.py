@@ -4,6 +4,7 @@ import argparse
 import hashlib
 from pathlib import Path
 import re
+import subprocess
 import zipfile
 
 
@@ -93,6 +94,18 @@ def update_archive_hash(digest: str) -> None:
     RELEASE_MODULE.write_text(updated, encoding="utf-8")
 
 
+def require_tracked_archive(path: Path) -> None:
+    result = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "--", path.relative_to(REPO).as_posix()],
+        cwd=REPO,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("The advertised beta archive must be tracked by Git for Cloudflare deployment")
+
+
 def main() -> None:
     values = release_values()
     parser = argparse.ArgumentParser(description="Build the deterministic researcher beta archive")
@@ -117,6 +130,7 @@ def main() -> None:
     if args.check:
         if values["archiveSha256"] != second:
             raise RuntimeError("Archive SHA-256 does not match release.js")
+        require_tracked_archive(archive)
     else:
         update_archive_hash(second)
     print(f"{second}  {archive.name}")
