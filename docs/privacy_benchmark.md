@@ -34,8 +34,15 @@ The development suite reports:
 - duplicate alerts for the same code, severity, file and location;
 - results split by file format and finding class;
 - cross-file reference, archive-member and coverage-state checks;
-- masking failures across JSON, Markdown and HTML;
+- seeded masking failures separately in JSON, Markdown and HTML;
 - release-integrity failures.
+
+The masking oracle checks decoded JSON strings (including keys), HTML entities,
+and the Markdown table escaping used by these renderers. It also checks raw
+rendered text and reports each affected format. Regression tests inject escaped
+synthetic leaks into actual renderers and isolated format outputs. This detects
+a class of misses in the former concatenated raw-substring check; it is not a
+general reconstruction attack or a proof against all possible encodings.
 
 Coverage errors will be reported separately from missed findings: a format that
 the scanner explicitly leaves for manual review is not the same as a format it
@@ -56,9 +63,11 @@ participant contacts, structured free text, subject mappings, private
 configuration paths and hard-negative placeholders. It contains 32 exact
 finding labels and two clean controls. The layer currently matches all 32
 labels, keeps both controls clean and has no masking or integrity failures. The
-combined 50-case report must still be regenerated with all optional format and
-imaging readers before its aggregate result is updated in
-`benchmark/results/`.
+combined 50-case suite was rerun with all optional readers and the corrected
+masking oracle on 2026-09-12: 103/103 labels, 12/12 clean controls, one duplicate
+alert, and zero unexpected findings or seeded masking/integrity failures.
+See [the historical evidence record](publication_evidence.md) for that source,
+reader environment and paired results; old result files remain unchanged.
 
 These cases were used while building the evaluator, so their scores are a
 development check rather than an independent validation result.
@@ -67,8 +76,9 @@ The standalone adversarial result is stored as
 `benchmark/results/development_privacy_adversarial.json` and
 `benchmark/results/development_privacy_adversarial.md`.
 
-Reproducible reports are stored in `benchmark/results/`. The development result
-is regenerated whenever the evaluator or development labels change.
+Historical reports are stored in `benchmark/results/`. A changed evaluator or
+development definition produces a separately identified result, not an
+overwrite of the original run.
 
 The first locked result is retained only as a historical artifact. Independent
 review found that its matcher allowed partial locations and labels without a
@@ -78,8 +88,9 @@ holdout score and must not be quoted. `locked-v2` uses strict labels with exactl
 
 The first strict `locked-v2` run matches 21 of 21 labels across 10 cases, with
 zero unexpected findings, masking failures or integrity failures. This result is
-stored for reproducibility but remains subject to independent review. Even
-after review, it is a small visible holdout rather than a blind validation.
+stored for reproducibility; its exact matcher and artifacts passed an
+independent engineering review at that historical stage. This is not human
+validation, and it is a small visible holdout rather than a blind validation.
 
 `challenge-v1` was then committed before its first run. It adds field-name
 variations and hard-negative controls without optional binary readers. The
@@ -113,6 +124,14 @@ location label and reran the same cases as hidden-v2. The adjudicated result
 matched 31 of 31 labels. It confirms the clarified scoring rule, but it is not a
 second blind test and should not be reported as one.
 
+The original hidden-v1/v2 local review archives were recovered and their member
+hashes and single-label adjudication checked on 2026-09-12. This recovery does
+not replay the old wheel or make the cases newly blind. The v2 result has a
+literal `\\n` trailer after its JSON object; the archive is retained verbatim and
+the recovery reader documents this compatibility exception. Historical masking
+counts used the former oracle. See the current evidence record for provenance
+and remaining historical limitations.
+
 ## Public format smoke checks
 
 Three hash-pinned public fixtures provide a separate reader check:
@@ -142,9 +161,9 @@ The rejected first split remains unchanged in
 `benchmark/cases/locked_v1.json`. Its successor is stored in
 `benchmark/cases/locked_v2.json`, with its SHA-256 pinned in
 `benchmark/locked_v2.json`. The runner stops if the file changes. A locked split
-must not be edited after its first committed version. A later independent
-review should add a small hidden set; a repository-visible split is locked, but
-it is not genuinely blind to the developer.
+must not be edited after its first committed version. The later hidden set
+described above is historical machine-review evidence; neither it nor a
+repository-visible locked split is now genuinely blind to the developer.
 
 ## Scope
 

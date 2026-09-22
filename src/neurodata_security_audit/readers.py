@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import re
+import struct
 import zipfile
+import zlib
 from collections.abc import Mapping
 from datetime import date, datetime
 from math import prod
@@ -12,7 +15,9 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 from xml.etree import ElementTree
 
-from .detectors import KnownTermMatcher, redacted, scan_text
+from .detectors import (
+    BIRTH_DATE_MESSAGE, KnownTermMatcher, participant_name_finding, redacted, scan_text,
+)
 from .models import Finding, ReferenceEntry, Severity
 from .references import inspect_local_reference
 
@@ -44,6 +49,200 @@ _OFFICE_XML_DECLARATIONS = (b"<!DOCTYPE", b"<!ENTITY")
 _MATLAB_MAX_TEXT_ELEMENTS = 10000
 _MATLAB_MAX_TEXT_VARIABLES = 100
 _MATLAB_MAX_TEXT_BYTES = 64 * 1024
+_MAT5_MAX_INFLATED_BYTES = 8 * 1024 * 1024
+_MAT5_MAX_NODES = 1000
+_MAT5_MAX_DEPTH = 8
+
+
+def _read_mat5_text(path: Path) -> tuple[list[tuple[tuple[str, ...], str | None]], bool] | None:
+    """Read bounded Level-5 text only; None delegates older MAT versions.
+
+    Numeric payloads are skipped by offset, never converted to arrays. Compressed
+    blocks need bounded inflation, which can contain raw signal bytes. Nested
+    text inspection does not cover numeric metadata, objects or signal content.
+    """
+    fields: list[tuple[tuple[str, ...], str | None]] = []
+    limited = False
+    nodes = text_elements = text_bytes = inspected_bytes = inflated_bytes = compressed_bytes = 0
+    with path.open("rb") as source:
+        header = source.read(128)
+        if len(header) != 128 or header[126:128] not in {b"IM", b"MI"}:
+            if header.startswith(b"MATLAB 5.0 MAT-file"):
+                return fields, False
+            return None
+        endian = "<" if header[126:128] == b"IM" else ">"
+        if struct.unpack(endian + "H", header[124:126])[0] != 0x0100:
+            return fields, False
+        limited = any(header[116:124])  # A subsystem workspace is not inspected.
+        size = source.seek(0, 2)
+        if size == 128:
+            return fields, False
+        source.seek(128)
+
+        def take(stream, count: int) -> bytes:
+            nonlocal inspected_bytes
+            if count < 0 or count > _MATLAB_MAX_TEXT_BYTES:
+                raise ValueError("MAT metadata read budget")
+            inspected_bytes += count
+            if inspected_bytes > 4 * _MATLAB_MAX_TEXT_BYTES:
+                raise ValueError("MAT metadata read budget")
+            value = stream.read(count)
+            if len(value) != count:
+                raise ValueError("Truncated MAT metadata")
+            return value
+
+        def tag(stream, boundary: int):
+            if stream.tell() + 8 > boundary:
+                raise ValueError("Truncated MAT tag")
+            raw = take(stream, 8)
+            word, count = struct.unpack(endian + "II", raw)
+            if word >> 16:
+                count, kind = word >> 16, word & 0xffff
+                if count > 4:
+                    raise ValueError("Invalid small MAT tag")
+                return kind, count, raw[4:4 + count], stream.tell()
+            end = stream.tell() + count
+            # miCOMPRESSED is not padded in files written by SciPy/MATLAB.
+            finish = end if word == 15 else end + (-count % 8)
+            if finish > boundary:
+                raise ValueError("MAT element outside container")
+            return word, count, None, finish
+
+        def blob(stream, boundary: int, allowed: set[int], maximum: int) -> bytes:
+            kind, count, inline, finish = tag(stream, boundary)
+            if kind not in allowed or count > maximum:
+                raise ValueError("Unsupported MAT metadata element")
+            value = inline if inline is not None else take(stream, count)
+            stream.seek(finish)
+            return value
+
+        def matrix(stream, end: int, parents: tuple[str, ...], depth: int) -> None:
+            nonlocal limited, nodes, text_elements, text_bytes
+            nodes += 1
+            if nodes > _MAT5_MAX_NODES or depth > _MAT5_MAX_DEPTH:
+                raise ValueError("MAT structure budget")
+            flags = blob(stream, end, {6}, 8)
+            if len(flags) != 8:
+                raise ValueError("Invalid MAT flags")
+            flags_word = struct.unpack(endian + "II", flags)[0]
+            kind = flags_word & 0xff
+            dims = blob(stream, end, {5}, 32)
+            if len(dims) < 8 or len(dims) % 4:
+                raise ValueError("Invalid MAT dimensions")
+            shape = struct.unpack(endian + "i" * (len(dims) // 4), dims)
+            if any(n < 0 for n in shape):
+                raise ValueError("Negative MAT dimension")
+            count = prod(shape)
+            name = blob(stream, end, {1, 2, 16}, 256).decode("utf-8").rstrip("\x00")
+            location = parents or (name,)
+            if not parents and not name:
+                raise ValueError("Unnamed MAT variable")
+            if kind != 4:
+                fields.append((location, None))
+            if kind in {1, 2}:
+                limited = True  # Text only, not all nested metadata semantics.
+                if count > _MAT5_MAX_NODES:
+                    raise ValueError("MAT container budget")
+                names = [None]
+                if kind == 2:
+                    width_data = blob(stream, end, {5}, 4)
+                    if len(width_data) != 4:
+                        raise ValueError("Invalid MAT field width")
+                    width = struct.unpack(endian + "i", width_data)[0]
+                    if not 1 <= width <= 256:
+                        raise ValueError("Invalid MAT field width")
+                    raw_names = blob(stream, end, {1}, 100 * 256)
+                    if len(raw_names) % width:
+                        raise ValueError("Invalid MAT field table")
+                    names = [part.split(b"\x00", 1)[0].decode("utf-8")
+                             for part in (raw_names[i:i + width]
+                                          for i in range(0, len(raw_names), width))]
+                    if len(names) > 100 or len(set(names)) != len(names) or not all(names):
+                        raise ValueError("Ambiguous MAT field table")
+                if count * len(names) > _MAT5_MAX_NODES:
+                    raise ValueError("MAT container budget")
+                for _ in range(count):
+                    for field in names:
+                        child_kind, length, inline, finish = tag(stream, end)
+                        if child_kind != 14 or inline is not None:
+                            raise ValueError("Invalid MAT child matrix")
+                        matrix(stream, stream.tell() + length,
+                               location + (field,) if field is not None else location, depth + 1)
+                        stream.seek(finish)
+            elif kind == 4:
+                if count + text_elements > _MATLAB_MAX_TEXT_ELEMENTS or len(shape) != 2:
+                    limited = True
+                    stream.seek(end)
+                    return
+                char_kind, length, inline, finish = tag(stream, end)
+                if length + text_bytes > _MATLAB_MAX_TEXT_BYTES:
+                    limited = True
+                    stream.seek(end)
+                    return
+                encoding = {1: "ascii", 2: "ascii", 4: "utf-16-le" if endian == "<" else "utf-16-be",
+                            16: "utf-8", 17: "utf-16-le" if endian == "<" else "utf-16-be",
+                            18: "utf-32-le" if endian == "<" else "utf-32-be"}.get(char_kind)
+                if encoding is None:
+                    raise ValueError("Unsupported MAT character encoding")
+                text = (inline if inline is not None else take(stream, length)).decode(encoding)
+                stream.seek(finish)
+                if len(text) != count:
+                    raise ValueError("MAT character dimensions do not match")
+                text_elements += count
+                text_bytes += length
+                # Empty arrays may have a huge row dimension but no text to emit.
+                if count:
+                    for row in range(shape[0]):
+                        fields.append((location, text[row::shape[0]].rstrip("\x00 ")))
+            elif kind in {5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}:
+                stream.seek(end)  # Never read/construct numeric or sparse arrays.
+                return
+            else:
+                limited = True  # Objects, functions and opaque workspaces.
+                stream.seek(end)
+                return
+            if stream.tell() != end:
+                raise ValueError("Unconsumed MAT matrix content")
+
+        try:
+            while source.tell() < size:
+                kind, count, inline, finish = tag(source, size)
+                if inline is not None:
+                    raise ValueError("Invalid top-level MAT element")
+                if kind == 14:
+                    matrix(source, source.tell() + count, (), 0)
+                elif kind == 15:
+                    remaining = _MAT5_MAX_INFLATED_BYTES - inflated_bytes
+                    if (count + compressed_bytes > _MAT5_MAX_INFLATED_BYTES
+                            or remaining <= 0):
+                        limited = True
+                        source.seek(finish)
+                        continue
+                    # Bound both input and output. No unbounded decompress()/flush().
+                    compressed = source.read(count)
+                    compressed_bytes += count
+                    if len(compressed) != count:
+                        raise ValueError("Truncated compressed MAT element")
+                    decoder = zlib.decompressobj()
+                    raw = decoder.decompress(compressed, remaining + 1)
+                    inflated_bytes += len(raw)
+                    if len(raw) > remaining:
+                        limited = True
+                        source.seek(finish)
+                        continue
+                    if not decoder.eof or decoder.unused_data or decoder.unconsumed_tail:
+                        raise ValueError("Invalid compressed MAT stream")
+                    with io.BytesIO(raw) as unpacked:
+                        inner_kind, length, inner_inline, inner_finish = tag(unpacked, len(raw))
+                        if inner_kind != 14 or inner_inline is not None or inner_finish != len(raw):
+                            raise ValueError("Invalid compressed MAT matrix")
+                        matrix(unpacked, unpacked.tell() + length, (), 0)
+                else:
+                    limited = True
+                source.seek(finish)
+        except (ValueError, UnicodeError, struct.error, zlib.error):
+            limited = True
+    return fields, not limited
 
 
 class FormatReaderUnavailable(RuntimeError):
@@ -85,6 +284,8 @@ def _metadata_finding(
     text = _metadata_value(value)
     if text is None:
         return None
+    if code == "SUBJECT_NAME_FIELD":
+        return participant_name_finding(text, path=path, location=location, kind=kind)
     return Finding(
         code=code,
         severity=severity,
@@ -160,7 +361,7 @@ def inspect_mne_info(
             location="MNE Info subject_info.birthday",
             kind="birth-date",
             value=subject.get("birthday"),
-            message="Remove this date of birth or replace it according to the release policy.",
+            message=BIRTH_DATE_MESSAGE,
         )
         if finding is not None:
             findings.append(finding)
@@ -372,10 +573,48 @@ def _read_classic_eeglab_metadata(path: Path) -> tuple[dict[str, list[str]], boo
             "Install the 'formats' extra to inspect EEGLAB metadata"
         ) from error
 
-    variable_info = {name: class_name for name, _, class_name in whosmat(path)}
+    variable_info = {
+        name: (shape, class_name)
+        for name, shape, class_name in whosmat(path, chars_as_strings=False)
+    }
     variables = set(variable_info)
-    available = sorted(variables & _EEGLAB_TEXT_FIELDS)
+    complete = "EEG" not in variables and "ALLEEG" not in variables
     metadata: dict[str, list[str]] = {}
+    if not complete:
+        selected = _read_mat5_text(path)
+        if selected is not None:
+            for field_path, value in selected[0]:
+                if len(field_path) > 1 and value:
+                    field = field_path[-1]
+                    if field == "data" and not (
+                        len(field_path) == 1 or
+                        len(field_path) == 2 and field_path[0] in {"EEG", "ALLEEG"}
+                    ):
+                        field = "nested_data"
+                    metadata.setdefault(field, []).append(value)
+        # Keep the original flat-field pass independent of nested parsing budgets.
+        # Text selection does not make nested numeric metadata fully inspected.
+    available: list[str] = []
+    elements_selected = 0
+    for name in sorted(variables & (_EEGLAB_TEXT_FIELDS | {"data"})):
+        shape, class_name = variable_info[name]
+        # Numeric data is deliberately never loaded. Text data names a linked file.
+        if name == "data" and class_name != "char":
+            continue
+        elements = prod(shape) if shape else 1
+        if elements == 0:
+            continue
+        if name == "session" and elements == 1 and class_name in {
+            "double", "single", "int8", "uint8", "int16", "uint16",
+            "int32", "uint32", "int64", "uint64", "logical",
+        }:
+            # A numeric session index has no text to inspect; do not load it.
+            continue
+        if class_name != "char" or elements_selected + elements > _MATLAB_MAX_TEXT_ELEMENTS:
+            complete = False
+            continue
+        available.append(name)
+        elements_selected += elements
     if available:
         document = loadmat(
             path,
@@ -384,16 +623,7 @@ def _read_classic_eeglab_metadata(path: Path) -> tuple[dict[str, list[str]], boo
             struct_as_record=False,
         )
         for field in available:
-            metadata[field] = _plain_text_values(document.get(field))
-    if variable_info.get("data") == "char":
-        document = loadmat(
-            path,
-            variable_names=["data"],
-            squeeze_me=True,
-            struct_as_record=False,
-        )
-        metadata["data"] = _plain_text_values(document.get("data"))
-    complete = "EEG" not in variables and "ALLEEG" not in variables
+            metadata.setdefault(field, []).extend(_plain_text_values(document.get(field)))
     return metadata, complete
 
 
@@ -512,7 +742,8 @@ def inspect_eeglab_metadata(
             location = f"EEGLAB field {field}"
             if len(values) > 1:
                 location += f"[{index}]"
-            findings.extend(scan_text(f"{field}: {value}\n", relative_path, known_terms))
+            text = value if field in {"comments", "history"} else f"{field}: {value}"
+            findings.extend(scan_text(text + "\n", relative_path, known_terms))
             if field == "data":
                 reference_inspection = inspect_local_reference(
                     root=root,
@@ -610,10 +841,12 @@ def inspect_eeglab_metadata(
                 severity="review",
                 path=relative_path,
                 location="EEGLAB MATLAB structure",
-                evidence="<nested-matlab-structure>",
+                evidence="<incomplete-eeglab-metadata>",
                 message=(
-                    "Review this legacy nested EEGLAB structure manually; loading it without "
-                    "the signal data is not supported by this metadata pass."
+                    "Selected text may have been checked, but nested numeric metadata, "
+                    "objects, references or oversized fields remain outside this pass. "
+                    "Review incomplete coverage manually; compressed blocks may require "
+                    "bounded byte decompression, but signal arrays are not constructed."
                 ),
             )
         )
@@ -716,11 +949,20 @@ def inspect_matlab_metadata(
             raise FormatReaderUnavailable(
                 "Install the 'formats' extra to inspect MATLAB metadata"
             ) from error
-        variables = whosmat(path)
+        # Keep character dimensions: the default collapses a long string to (1,).
+        variables = whosmat(path, chars_as_strings=False)
         limited_layouts = sum(
             class_name in {"cell", "function", "object", "opaque", "struct", "unknown"}
             for _, _, class_name in variables
         )
+        if limited_layouts:
+            selected = _read_mat5_text(path)
+            if selected is not None:
+                for field_path, value in selected[0]:
+                    if len(field_path) > 1 and value:
+                        field = field_path[-1]
+                        text = value if field in {"comments", "history", "notes"} else f"{field}: {value}"
+                        findings.extend(scan_text(text + "\n", relative_path, known_terms))
         text_names: list[str] = []
         selected_text_elements = 0
         for name, shape, class_name in variables:
@@ -769,8 +1011,9 @@ def inspect_matlab_metadata(
                 location="MATLAB variable structure",
                 evidence=f"<nested-or-reference-variables,count={limited_layouts}>",
                 message=(
-                    "Review these nested or reference-backed variables manually; "
-                    "their contents were not loaded."
+                    "Selected nested text may have been checked, but numeric metadata, "
+                    "objects and reference-backed content were not fully inspected. "
+                    "Review these variables manually; no signal arrays were constructed."
                 ),
             )
         )
@@ -1078,24 +1321,23 @@ def inspect_edf_header(
                 path=relative_path,
                 location="EDF patient field",
                 evidence=f"<redacted:edf-birth-date,length={len(birth_date.group(0))}>",
-                message="Remove this date of birth or replace it according to the release policy.",
+                message=BIRTH_DATE_MESSAGE,
             )
         )
 
     parts = patient.split()
     if len(parts) >= 4 and (parts[2].upper() == "X" or _EDF_BIRTH_DATE.fullmatch(parts[2])):
         patient_name = parts[3]
-        if patient_name.upper() not in {"X", "N/A", "NA", "NONE"} and _looks_like_person_name(
-            patient_name
+        if patient_name.upper() not in {"X", "N/A", "NA", "NONE"} and (
+            _looks_like_person_name(patient_name)
+            or re.fullmatch(r"sub-[0-9]+", patient_name, re.I)
         ):
             findings.append(
-                Finding(
-                    code="SUBJECT_NAME_FIELD",
-                    severity="high",
+                participant_name_finding(
+                    patient_name,
                     path=relative_path,
                     location="EDF patient field",
-                    evidence=f"<redacted:edf-patient-name,length={len(patient_name)}>",
-                    message="Remove or replace this participant name before release.",
+                    kind="edf-patient-name",
                 )
             )
 

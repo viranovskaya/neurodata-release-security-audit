@@ -11,7 +11,9 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterator
 from pathlib import Path
 
-from .detectors import KnownTermMatcher, redacted, scan_text
+from .detectors import (
+    BIRTH_DATE_MESSAGE, KnownTermMatcher, participant_name_finding, redacted, scan_text,
+)
 from .models import Finding, Severity
 
 _DOB_KEYS = {"date_of_birth", "birth_date", "birthdate", "birthday", "dob"}
@@ -232,6 +234,12 @@ def _finding_for_field(
     allow_context_id: bool = False,
 ) -> Finding | None:
     normalised = _normalise_key(key)
+    # Match explicit aliases without changing their existing report-safe locations.
+    normalised = {
+        "participant_full_name": "participant_name",
+        "subject_dob": "dob",
+        "emergency_contact_number": "emergency_phone",
+    }.get(normalised, normalised)
     text = _display_value(value)
     if text is None:
         return None
@@ -254,7 +262,7 @@ def _finding_for_field(
             path=relative_path,
             location=location,
             evidence=redacted("birth-date", text),
-            message="Remove this date of birth or replace it according to the release policy.",
+            message=BIRTH_DATE_MESSAGE,
         )
     if _is_phone_key(normalised):
         return Finding(
@@ -268,13 +276,11 @@ def _finding_for_field(
     if normalised in _NAME_KEYS or (
         allow_plain_name and normalised in {"name", "full_name"}
     ):
-        return Finding(
-            code="SUBJECT_NAME_FIELD",
-            severity="high",
+        return participant_name_finding(
+            text,
             path=relative_path,
             location=location,
-            evidence=redacted("subject-name", text),
-            message="Remove or replace this participant name before release.",
+            kind="subject-name",
         )
     if normalised in _DIRECT_ID_KEYS:
         return Finding(

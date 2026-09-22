@@ -34,7 +34,8 @@ _BIRTH_DATE = re.compile(
     re.I,
 )
 _SUBJECT_NAME = re.compile(
-    r"^\s*(?:subject|patient|participant)[ _-]*name\s*[:=,\t]\s*(?!x\b|n/?a\b|none\b).+",
+    r"^\s*(?:subject|patient|participant)[ _-]*name\s*[:=,\t]"
+    r"(?!\s*(?:x|n/?a|none)\s*$)\s*(\S.*)",
     re.I,
 )
 _DIRECT_PERSONAL_ID = re.compile(
@@ -42,19 +43,19 @@ _DIRECT_PERSONAL_ID = re.compile(
     r"passport[ _-]*number|driver[ _-]*licen[cs]e[ _-]*(?:number|id)|"
     r"tax(?:payer)?[ _-]*id|personal[ _-]*number|social[ _-]*security[ _-]*number|"
     r"ssn|nhs[ _-]*number|health[ _-]*(?:insurance[ _-]*(?:number|id)|id))"
-    r"\s*[:=,\t]\s*(?!x\b|n/?a\b|none\b).+",
+    r"\s*[:=,\t](?!\s*(?:x|n/?a|none)\s*$)\s*\S.*",
     re.I,
 )
 _LINKED_SOURCE_ID = re.compile(
     r"^\s*(?:original|source|legacy|hospital)[ _-]*"
-    r"(?:subject|participant|patient)?[ _-]*id\s*[:=,\t]\s*"
-    r"(?!x\b|n/?a\b|none\b).+",
+    r"(?:subject|participant|patient)?[ _-]*id\s*[:=,\t]"
+    r"(?!\s*(?:x|n/?a|none)\s*$)\s*\S.*",
     re.I,
 )
 _SUBJECT_ADDRESS = re.compile(
     r"^\s*(?:subject|patient|participant)[ _-]*"
-    r"(?:(?:home|postal|street)[ _-]*)?address\s*[:=,\t]\s*"
-    r"(?!x\b|n/?a\b|none\b).+",
+    r"(?:(?:home|postal|street)[ _-]*)?address\s*[:=,\t]"
+    r"(?!\s*(?:x|n/?a|none)\s*$)\s*\S.*",
     re.I,
 )
 _ACQUISITION_DATE = re.compile(
@@ -167,6 +168,34 @@ _PATH_RECORDING_DATE = re.compile(
 
 def redacted(kind: str, value: str) -> str:
     return f"<redacted:{kind},length={len(value)}>"
+
+
+BIRTH_DATE_MESSAGE = (
+    "This populated birth-date field may be original, shifted or a placeholder. "
+    "Verify its provenance and the release policy; remove or transform it if required."
+)
+
+
+def participant_name_finding(
+    value: str, *, path: str, location: str, kind: str,
+) -> Finding:
+    # Only exact placeholders or a narrow code shape qualify, never name prefixes.
+    coded = value.strip().casefold() == "anonymous" or bool(
+        re.fullmatch(r"sub-[0-9]+", value.strip(), re.I)
+    )
+    return Finding(
+        code="SUBJECT_NAME_FIELD",
+        severity="review" if coded else "high",
+        path=path,
+        location=location,
+        evidence=redacted(kind, value),
+        message=(
+            "This name field resembles a placeholder or participant code, not a "
+            "verified personal name. Confirm it is an approved pseudonym; this "
+            "does not establish de-identification."
+            if coded else "Remove or replace this participant name before release."
+        ),
+    )
 
 
 class KnownTermMatcher:
@@ -381,22 +410,17 @@ def scan_text(
                     path=relative_path,
                     location=location,
                     evidence=redacted("birth-date-field", match.group(0)),
-                    message=(
-                        "Remove this date of birth or replace it according to "
-                        "the release policy."
-                    ),
+                    message=BIRTH_DATE_MESSAGE,
                 )
             )
         match = _SUBJECT_NAME.search(line)
         if match:
             findings.append(
-                Finding(
-                    code="SUBJECT_NAME_FIELD",
-                    severity="high",
+                participant_name_finding(
+                    match.group(1).strip(),
                     path=relative_path,
                     location=location,
-                    evidence=redacted("subject-name-field", match.group(0)),
-                    message="Remove or replace this participant name before release.",
+                    kind="subject-name-field",
                 )
             )
         match = _DIRECT_PERSONAL_ID.search(line)
@@ -498,8 +522,14 @@ def scan_text(
                     message="Confirm this timestamp is allowed or has been shifted as required.",
                 )
             )
+        secret_spans: list[tuple[int, int]] = []
         for secret_kind, pattern in _SECRET_PATTERNS:
             for match in pattern.finditer(line):
+                start, end = match.span()
+                if any(start < previous_end and previous_start < end
+                       for previous_start, previous_end in secret_spans):
+                    continue
+                secret_spans.append((start, end))
                 findings.append(
                     Finding(
                         code="POTENTIAL_SECRET",

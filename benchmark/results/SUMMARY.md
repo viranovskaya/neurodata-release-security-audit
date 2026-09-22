@@ -1,11 +1,13 @@
 # Benchmark evidence
 
 The benchmark has separate layers because no single dataset answers every
-question.
+question. The table below preserves the historical runs; it is not a table of
+one current version. See [the historical evidence record](../../docs/publication_evidence.md)
+for the 2026-09-12 paired replay with the corrected masking evaluator.
 
 | Layer | Data | Result | What it checks | Main limitation |
 |---|---|---|---|---|
-| Development | 40 labelled synthetic releases; 71 findings | 71/71 findings; 10/10 clean controls | detector regressions, masking, references, archives and coverage | used while developing the scanner |
+| Historical development | 40 labelled synthetic releases; 71 findings | 71/71 findings; 10/10 clean controls | detector regressions, masking, references, archives and coverage | old definition; superseded by the current 50-case replay |
 | Locked v2 | 10 visible synthetic cases; 21 findings | 21/21 findings; 2/2 clean controls | exact code, severity, file and location matching | repository-visible, not blind |
 | Challenge v1 | 14 precommitted alias and hard-negative cases; 25 findings | 23/25; no pass | field-name variation and false-positive resistance | missed `clientSecret` and `refreshToken` in structured JSON |
 | Challenge v1 successor | unchanged challenge-v1 cases and labels | 25/25 listed findings; no pass | first structured-credential fix | short non-placeholder credentials were still missed |
@@ -15,7 +17,7 @@ question.
 | Public formats v1 | one EEGLAB SET and one KIT/Yokogawa CON file | 2/2 reader checks | real reader execution, `preload=False`, source hashes and integrity gates | no privacy ground truth; MFF unscored |
 | Public formats v2 | the same files plus one EGI MFF directory | 3/3 reader checks | file and directory provenance, real readers, `preload=False` and integrity gates | no privacy ground truth |
 
-## Current development result
+## Historical 40-case development result
 
 - Findings: 71/71
 - Unexpected findings: 0
@@ -31,7 +33,7 @@ sleep release, an imaging release and a clean BrainVision release. The first
 sleep run exposed a missed `emergency_phone` alias. The detector was fixed and
 the case remains in the suite as a regression test.
 
-## Reproducibility hashes
+## Historical reproducibility hashes
 
 | Artifact | SHA-256 |
 |---|---|
@@ -57,3 +59,9 @@ These results support the scanner's engineering and regression claims. They do
 not show that an arbitrary dataset is anonymous, legally compliant or free from
 all disclosure risk. Statistical re-identification risk, signal-based
 identification and malicious local actors remain outside this benchmark.
+
+Historical zero-masking-failure counts used an encoding-naive seeded-string
+check. They must not be described as proof that recoverable escaped values were
+absent. The corrected oracle inspects JSON strings and the renderer's Markdown
+and HTML encodings separately. Its fault-injection tests and current reruns do
+not retroactively improve the historical evaluator.

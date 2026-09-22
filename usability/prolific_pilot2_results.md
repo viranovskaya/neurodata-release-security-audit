@@ -68,15 +68,30 @@ accuracy was also above 80%.
 
 ## Interpretation
 
-The changes to Reports C and D worked in this sample. The remaining errors were
+Reports C and D reached 8/8 in this sample; this descriptive observation alone
+does not establish a causal effect of the revisions. The remaining errors were
 concentrated in the distinction between Reports A and B, plus one error each on
-Reports F and J. These are targets for small wording changes rather than a broad
-redesign.
+Reports F and J. These are candidate targets for further wording review; this
+sample does not establish which changes will resolve them.
 
-This result does **not** pass the original ten-person gate because only eight
-people completed the clean study. It also does not establish expert usability,
-anonymity, legal compliance or security certification.
+There were **three incorrect critical decisions** (45/48), specifically one on
+Report A and two on Report B. These must remain visible alongside the overall
+accuracy; the result does not show uniformly correct critical comprehension.
 
-The next meaningful test should use at least five people who have prepared EEG,
-MEG, MRI or related research data for sharing. It should use the next frozen
-report version and keep the same critical-decision thresholds.
+This result does **not** complete the web follow-up's ten-person gate because
+only eight people completed the clean study. The recovered local web plan sets
+C/D targets of 10/10 and the integrity pair at 20/20, distinct from the current
+source-workflow `usability/spec.json` (minimum five and all-critical accuracy
+1.0). Its later analysis section also contains stale 5/5 wording. A current
+local file is not proof of exactly which protocol was frozen at launch. We
+therefore report observations and the incomplete sample, not a retroactively
+reconstructed preregistered pass/fail. Adding two responses would not by itself
+erase the three observed critical errors.
+
+This does not establish expert usability, anonymity, legal compliance or
+security certification. No private responses were reanalysed for the 2026-09-12
+documentation reconciliation; the counts above remain the historical aggregate.
+
+If a claim about intended-user usability is pursued, a separate prospectively
+specified study with relevant research-data users is needed. Machine reviews
+and the software engineering evidence cannot substitute for that study.

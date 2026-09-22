@@ -1,8 +1,10 @@
 # Benchmark result status
 
-- `SUMMARY.md` is the short evidence matrix for the complete benchmark.
-- `development.*` is regenerated while the evaluator and development labels
-  are being refined.
+- `SUMMARY.md` is the historical evidence matrix, not a single current snapshot.
+- [The September 13 evidence record](../../docs/publication_evidence.md) binds the
+  paired 50-case replay to the revised evaluator and reader environment.
+- `development.*` preserves an earlier 40-case result. Do not overwrite it when
+  the evaluator or development labels change.
 - `locked_v1.*` is preserved as a rejected historical result. Its matcher
   allowed partial locations and an under-specified filename label, so the
   reported score is not a valid strict holdout result.
@@ -26,3 +28,6 @@
   source files are not stored in this repository.
 
 None of these reports proves that a dataset is anonymous or legally compliant.
+Historical zero masking counts used the old raw-substring oracle, not the
+current per-format escape-aware check. Keep that limitation with any quotation
+of the older results.
