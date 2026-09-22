@@ -5,10 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import tempfile
+from collections.abc import Iterator
+from html import unescape
 from pathlib import Path
 
 from benchmark.builders import build_case_data
 from neurodata_security_audit.html_report import render_html
+from neurodata_security_audit.models import ScanReport
 from neurodata_security_audit.reporting import render_json, render_markdown
 from neurodata_security_audit.scanner import ScanPolicy, scan_dataset
 
@@ -159,6 +162,57 @@ def _finding_identity(finding: dict[str, str]) -> tuple[str, str, str, str]:
     )
 
 
+def _json_strings(value: object) -> Iterator[str]:
+    """Inspect decoded strings, including keys, without joining field boundaries."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield key
+            yield from _json_strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _json_strings(item)
+
+
+def _masking_failures_by_format(
+    report: ScanReport, seeds: list[str],
+) -> dict[str, list[str]]:
+    return _masking_failures_from_text(
+        render_json(report), render_markdown(report), render_html(report), seeds,
+    )
+
+
+def _masking_failures_from_text(
+    json_text: str, markdown_text: str, html_text: str, seeds: list[str],
+) -> dict[str, list[str]]:
+    """Check the encodings emitted by each report format independently.
+
+    This is a seeded regression oracle, not a general reconstruction attack.
+    Keep it independent of the renderers' escaping helpers.
+    """
+    json_strings = tuple(_json_strings(json.loads(json_text)))
+    markdown_decoded = unescape(markdown_text)
+    html_decoded = unescape(html_text)
+    failures = {"json": [], "markdown": [], "html": []}
+    for seed in seeds:
+        if seed in json_text or any(seed in text for text in json_strings):
+            failures["json"].append(seed)
+        markdown_seed = seed.replace("\r", "\\r").replace("\n", "\\n").replace("|", "\\|")
+        if (
+            seed in markdown_text or seed in markdown_decoded
+            or markdown_seed in markdown_decoded
+        ):
+            failures["markdown"].append(seed)
+        html_seed = "\n".join(line.rstrip() for line in seed.splitlines())
+        if (
+            seed in html_text or seed in html_decoded
+            or (html_seed and html_seed in html_decoded)
+        ):
+            failures["html"].append(seed)
+    return failures
+
+
 def _score_case(case: dict[str, object], root: Path) -> dict[str, object]:
     _validate_finding_labels(case)
     for relative_path, content in case["files"].items():
@@ -287,11 +341,10 @@ def _score_case(case: dict[str, object], root: Path) -> dict[str, object]:
         expected_coverage_results.append(
             {"expected": expected, "matched": matched}
         )
-    rendered = "\n".join(
-        (render_json(report), render_markdown(report), render_html(report))
-    )
+    masking_by_format = _masking_failures_by_format(report, case["seeded_values"])
     masking_failures = [
-        value for value in case["seeded_values"] if value in rendered
+        value for value in case["seeded_values"]
+        if any(value in failures for failures in masking_by_format.values())
     ]
 
     return {
@@ -307,6 +360,7 @@ def _score_case(case: dict[str, object], root: Path) -> dict[str, object]:
         "unexpected_container_members": unexpected_container_members,
         "expected_coverage": expected_coverage_results,
         "masking_failures": masking_failures,
+        "masking_failures_by_format": masking_by_format,
         "integrity_passed": (
             report.manifest_recheck_passed
             and report.release_tree_recheck_passed

@@ -15,12 +15,12 @@ creates a readable HTML report without uploading the dataset or modifying it.
 ## Quick start
 
 Python 3.10 or newer is required. Download the wheel and `SHA256SUMS` from the
-[`v0.3.0b1` prerelease](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b1), then install it in a fresh environment:
+[`v0.3.0b2` prerelease](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b2), then install it in a fresh environment:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python3 -m pip install ./neurodata_release_security_audit-0.3.0b1-py3-none-any.whl
+python3 -m pip install ./neurodata_release_security_audit-0.3.0b2-py3-none-any.whl
 ```
 
 Start the local browser interface:
@@ -70,8 +70,8 @@ extend metadata coverage:
 | EDF/BDF | common fixed header, not signal samples | base |
 | XLSX/DOCX | bounded text, comments, core metadata, macros and external links | base |
 | ZIP/TAR | member names and archive structure, not member payloads | base |
-| FIF, EEGLAB SET, KIT, MFF | metadata through optional MNE readers, without preload | `formats` |
-| MATLAB | variable names, classes, shapes and small string values | `formats` |
+| FIF, KIT, MFF | metadata through optional MNE readers, without preload | `formats` |
+| EEGLAB SET, MATLAB | bounded metadata and selected text; classic MAT5 nested structures have explicit partial-coverage limits | `formats` |
 | NIfTI | header metadata, not voxels | `imaging` |
 | DICOM | metadata before Pixel Data, not pixels | `imaging` |
 
@@ -79,7 +79,7 @@ For mixed datasets, install both optional groups:
 
 ```bash
 python3 -m pip install \
-  "./neurodata_release_security_audit-0.3.0b1-py3-none-any.whl[formats,imaging]"
+  "./neurodata_release_security_audit-0.3.0b2-py3-none-any.whl[formats,imaging]"
 ```
 
 Format support is intentionally bounded. A supported extension does not mean
@@ -188,6 +188,13 @@ Current evidence includes:
 - exploratory report-comprehension pilots, which are not leak-detection or
   psychometric validation.
 
+The [historical evidence record](docs/publication_evidence.md) separates the
+corrected masking-evaluator replay from historical scores and records a narrow
+[MNE-plus-audit workflow comparison](docs/workflow_comparison_protocol.md).
+These are bounded engineering checks, not a ranking of privacy tools.
+See [the v0.3.0b2 changes and limits](docs/release_0.3.0b2.md) for the later
+MATLAB/EEGLAB reader and detection changes.
+
 The 50-dataset run is an engineering calibration, not a representative privacy
 study and not evidence that any source dataset is unsafe. Its exact scope is in
 the [calibration record](docs/public_50_dataset_calibration.md).
@@ -201,7 +208,7 @@ and Windows, deterministic builds and report-schema validation.
 ```bash
 git clone https://github.com/viranovskaya/neurodata-release-security-audit.git
 cd neurodata-release-security-audit
-git checkout v0.3.0b1
+git checkout v0.3.0b2
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install ".[formats,imaging]"

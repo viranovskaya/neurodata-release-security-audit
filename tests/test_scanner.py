@@ -5,12 +5,13 @@ import csv
 from datetime import date, datetime, timezone
 import hashlib
 from html.parser import HTMLParser
-from importlib import metadata
+from importlib import metadata, util
 import io
 import json
 from numbers import Number
 import os
 import socket
+import struct
 import tarfile
 import tempfile
 from types import SimpleNamespace
@@ -18,6 +19,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import zipfile
+import zlib
 
 from neurodata_security_audit.cli import main
 from neurodata_security_audit.containers import inspect_archive
@@ -33,6 +35,7 @@ from neurodata_security_audit.models import (
 from neurodata_security_audit.readers import (
     FormatReaderUnavailable,
     _hdf5_text_values,
+    _read_mat5_text,
     inspect_eeglab_metadata,
     inspect_matlab_metadata,
     inspect_mne_info,
@@ -72,6 +75,512 @@ class _VisibleTextParser(HTMLParser):
 
 
 class ScannerTests(unittest.TestCase):
+    @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
+    def test_selective_mat5_nested_text_and_signal_skip(self) -> None:
+        import numpy as np
+        from scipy.io import savemat
+
+        for compressed in (False, True):
+            path = self.root / "nested.mat"
+            savemat(path, {"EEG": {"data": np.full((2, 30000), 1234567.125),
+                                   "comments": "participant_name: Zorava Synthperson",
+                                   "nested": {"note": "zorava.synthetic@example.invalid"}}},
+                    do_compression=compressed)
+            fields, complete = _read_mat5_text(path)
+            self.assertFalse(complete)
+            self.assertIn((("EEG", "data"), None), fields)
+            self.assertIn((("EEG", "comments"), "participant_name: Zorava Synthperson"), fields)
+            self.assertIn((("EEG", "nested", "note"), "zorava.synthetic@example.invalid"), fields)
+            if not compressed:
+                raw = path.read_bytes()
+                marker = struct.pack("<d", 1234567.125)
+                start = raw.index(marker)
+                stream = io.BytesIO(raw)
+                original = stream.read
+                reads = []
+
+                def tracked(count=-1):
+                    reads.append((stream.tell(), count))
+                    return original(count)
+
+                stream.read = tracked
+                with patch.object(Path, "open", return_value=stream):
+                    observed, _ = _read_mat5_text(path)
+                self.assertEqual(fields, observed)
+                self.assertLess(sum(n for _, n in reads), 4096)
+                self.assertTrue(all(p+n <= start or p >= start+480000 for p,n in reads))
+
+    @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
+    def test_selective_mat5_character_rows_cells_and_unicode(self) -> None:
+        import numpy as np
+        from scipy.io import savemat
+
+        path = self.root / "strings.mat"
+        savemat(path, {"record": {"rows": np.array(["alpha", "bravo"]),
+                                  "notes": np.array(["one", "два"], dtype=object),
+                                  "empty": ""}})
+        fields, complete = _read_mat5_text(path)
+        self.assertFalse(complete)
+        self.assertIn((("record", "rows"), "alpha"), fields)
+        self.assertIn((("record", "rows"), "bravo"), fields)
+        self.assertIn((("record", "notes"), "два"), fields)
+
+    @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
+    def test_selective_mat5_zero_product_dimensions_have_bounded_work(self) -> None:
+        from scipy.io import whosmat
+
+        # Bound the probe itself: a regression must fail, not exhaust memory.
+        def bounded_range(*args):
+            result = range(*args)
+            self.assertLessEqual(len(result), 10000)
+            return result
+
+        for endian in ("<", ">"):
+            def element(kind, payload):
+                return (struct.pack(endian + "II", kind, len(payload)) + payload
+                        + b"\0" * (-len(payload) % 8))
+
+            def matrix(kind, shape, name, body):
+                return element(14, element(6, struct.pack(endian + "II", kind, 0))
+                               + element(5, struct.pack(endian + "ii", *shape))
+                               + element(1, name) + body)
+
+            header = (b"MATLAB 5.0 MAT-file, synthetic empty matrix".ljust(116, b" ")
+                      + b"\0" * 8 + struct.pack(endian + "H", 256)
+                      + (b"IM" if endian == "<" else b"MI"))
+            for shape in ((20000, 0), (0, 20000), (2147483647, 0),
+                          (0, 2147483647), (0, 0)):
+                child = matrix(4, shape, b"", element(16, b""))
+                root = matrix(2, (1, 1), b"EEG", element(5, struct.pack(endian + "i", 9))
+                              + element(1, b"comments\0") + child)
+                seed = b"zorava.synthetic@example.invalid"
+                sibling = matrix(4, (1, len(seed)), b"comments", element(16, seed))
+                for compressed in (False, True):
+                    body = root
+                    if compressed:
+                        packed = zlib.compress(root)
+                        body = struct.pack(endian + "II", 15, len(packed)) + packed
+                    path = self.root / "empty.set"
+                    path.write_bytes(header + body + sibling)
+                    with self.subTest(endian=endian, shape=shape, compressed=compressed):
+                        self.assertEqual(whosmat(path, chars_as_strings=False)[0],
+                                         ("EEG", (1, 1), "struct"))
+                        with patch("neurodata_security_audit.readers.range",
+                                   bounded_range, create=True):
+                            fields, complete = _read_mat5_text(path)
+                            mat = inspect_matlab_metadata(path, "synthetic.mat")
+                            eeg = inspect_eeglab_metadata(path, "synthetic.set")
+                        self.assertFalse(complete)
+                        self.assertEqual(fields, [(("EEG",), None),
+                                                  (("comments",), seed.decode())])
+                        for findings, warning in ((mat, "MATLAB_METADATA_COVERAGE_LIMIT"),
+                                                  (eeg, "EEGLAB_METADATA_COVERAGE_LIMIT")):
+                            self.assertTrue(any(f.code == warning for f in findings))
+                            self.assertTrue(any(f.code == "DIRECT_EMAIL" for f in findings))
+
+    def test_selective_mat5_empty_arrays_still_validate_content(self) -> None:
+        def element(kind, payload):
+            return struct.pack("<II", kind, len(payload)) + payload + b"\0" * (-len(payload) % 8)
+
+        header = (b"MATLAB 5.0 MAT-file, synthetic empty validation".ljust(116, b" ")
+                  + b"\0" * 8 + struct.pack("<H", 256) + b"IM")
+        prefix = (element(6, struct.pack("<II", 4, 0))
+                  + element(5, struct.pack("<ii", 20000, 0)) + element(1, b"empty"))
+        for content, expected_complete in ((element(16, b""), True),
+                                           (element(16, b"x"), False),
+                                           (element(16, b"\xff"), False),
+                                           (element(99, b""), False),
+                                           (element(16, b"") + b"\0" * 8, False)):
+            for compressed in (False, True):
+                body = element(14, prefix + content)
+                if compressed:
+                    packed = zlib.compress(body)
+                    body = struct.pack("<II", 15, len(packed)) + packed
+                path = self.root / "empty-validation.mat"
+                path.write_bytes(header + body)
+                with self.subTest(content=content, compressed=compressed):
+                    fields, complete = _read_mat5_text(path)
+                    self.assertEqual(fields, [])
+                    self.assertEqual(complete, expected_complete)
+
+    @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
+    def test_selective_mat5_compressed_budget_is_visible(self) -> None:
+        import numpy as np
+        from scipy.io import savemat
+
+        path = self.root / "compressed.mat"
+        savemat(path, {"record": {"data": np.zeros((1, 100000)),
+                                  "note": "zorava.synthetic@example.invalid"}},
+                do_compression=True)
+        with patch("neurodata_security_audit.readers._MAT5_MAX_INFLATED_BYTES", 65536):
+            fields, complete = _read_mat5_text(path)
+        self.assertFalse(complete)
+        self.assertEqual([], fields)
+
+    @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
+    def test_selective_mat5_budgets_are_cumulative_and_nested(self) -> None:
+        from scipy.io import savemat
+
+        path = self.root / "budget.mat"
+        savemat(path, {"record": {"first": "a" * 6000, "second": "b" * 6000}})
+        fields, complete = _read_mat5_text(path)
+        self.assertFalse(complete)
+        self.assertIn((("record", "first"), "a" * 6000), fields)
+        self.assertFalse(any(v == "b" * 6000 for _,v in fields))
+        for compressed in (False, True):
+            value = {"note": "private synthetic text"}
+            for _ in range(12):
+                value = {"nested": value}
+            savemat(path, {"record": value}, do_compression=compressed)
+            self.assertFalse(_read_mat5_text(path)[1])
+        savemat(path, {"record": {f"field{i}": "synthetic" for i in range(101)}})
+        self.assertFalse(_read_mat5_text(path)[1])
+
+    @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
+    def test_selective_mat5_corruption_fails_closed(self) -> None:
+        from scipy.io import savemat
+
+        path = self.root / "damaged.mat"
+        for compressed in (False, True):
+            savemat(path, {"record": {"participant_name": "Zorava Synthperson"}},
+                    do_compression=compressed)
+            raw = path.read_bytes()
+            variants = [raw[:n] for n in (128, 129, 135, len(raw)-1, len(raw)-7)]
+            variants += [raw[:132] + struct.pack("<I", 0xffffffff) + raw[136:],
+                         raw[:124] + b"\xff\xff" + raw[126:]]
+            if compressed:
+                variants.append(raw[:-1] + bytes([raw[-1] ^ 0xff]))
+            for damaged in variants:
+                path.write_bytes(damaged)
+                with self.subTest(compressed=compressed, size=len(damaged)):
+                    self.assertFalse(_read_mat5_text(path)[1])
+
+    @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
+    def test_selective_mat5_big_endian_small_tags(self) -> None:
+        # Independent big-endian fixture; not generated by the new reader.
+        def element(kind, value):
+            return struct.pack(">II", kind, len(value)) + value + b"\0" * (-len(value) % 8)
+
+        header = b"MATLAB 5.0 MAT-file, synthetic big endian".ljust(116, b" ")
+        header += b"\0" * 8 + struct.pack(">H", 0x0100) + b"MI"
+        content = element(6, struct.pack(">II", 4, 0))
+        content += element(5, struct.pack(">ii", 1, 3))
+        content += struct.pack(">I", (1 << 16) | 1) + b"s\0\0\0"
+        content += struct.pack(">I", (3 << 16) | 16) + b"abc\0"
+        path = self.root / "big.mat"
+        path.write_bytes(header + element(14, content))
+        fields, complete = _read_mat5_text(path)
+        self.assertTrue(complete)
+        self.assertEqual([(("s",), "abc")], fields)
+        from scipy.io import loadmat
+        self.assertEqual("abc", str(loadmat(path, squeeze_me=True)["s"]))
+
+    @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
+    def test_selective_mat5_unknown_class_and_bad_encoding_stay_partial(self) -> None:
+        from scipy.io import savemat
+
+        path = self.root / "unknown.mat"
+        savemat(path, {"note": "synthetic"})
+        raw = bytearray(path.read_bytes())
+        # First top-level matrix: tag[128:136], flags tag[136:144], flags[144:152].
+        for kind in (3, 16, 17, 18):
+            changed = raw.copy()
+            changed[144:148] = struct.pack("<I", kind)
+            path.write_bytes(changed)
+            fields, complete = _read_mat5_text(path)
+            self.assertFalse(complete)
+            self.assertTrue(all(value is None for _,value in fields))
+        raw[raw.index(b"synthetic")] = 0xff
+        path.write_bytes(raw)
+        self.assertFalse(_read_mat5_text(path)[1])
+
+    @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
+    def test_selective_mat5_compressed_budget_applies_across_variables(self) -> None:
+        from scipy.io import savemat
+
+        path = self.root / "several.mat"
+        savemat(path, {"first": {"note": "a" * 1000},
+                       "second": {"note": "b" * 1000}}, do_compression=True)
+        raw = path.read_bytes()
+        compressed_size = struct.unpack("<I", raw[132:136])[0]
+        first_size = len(zlib.decompress(raw[136:136+compressed_size]))
+        with patch("neurodata_security_audit.readers._MAT5_MAX_INFLATED_BYTES", first_size + 1):
+            fields, complete = _read_mat5_text(path)
+        self.assertFalse(complete)
+        self.assertIn((("first", "note"), "a" * 1000), fields)
+        self.assertFalse(any(value == "b" * 1000 for _,value in fields))
+
+    @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
+    def test_selective_mat5_cli_preserves_sibling_and_masks_nested_fields(self) -> None:
+        from scipy.io import savemat
+
+        path = self.root / "nested.set"
+        savemat(path, {"EEG": {"comments": "participant_name: Zorava Synthperson"}},
+                do_compression=True)
+        (self.root / "control.json").write_text('{"TaskName":"rest"}')
+        for damaged in (False, True):
+            if damaged:
+                path.write_bytes(path.read_bytes()[:-3])
+            report = scan_dataset(self.root)
+            self.assertIn("control.json", report.files_inspected)
+            self.assertTrue(any(f.code in {"EEGLAB_METADATA_COVERAGE_LIMIT", "EEGLAB_METADATA_UNREADABLE"}
+                                for f in report.findings))
+            for text in (render_json(report), render_markdown(report), render_html(report)):
+                self.assertNotIn("Zorava Synthperson", text)
+            if not damaged:
+                self.assertIn("SUBJECT_NAME_FIELD", {f.code for f in report.findings})
+
+    @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
+    def test_nested_mat5_and_eeglab_find_names_without_loadmat_or_mne(self) -> None:
+        from scipy.io import savemat
+
+        for suffix, document in (
+            ("mat", {"record": {"participant_name": "Zorava Synthperson"}}),
+            ("set", {"EEG": {"data": [[1., 2.]],
+                              "comments": "participant_name: Zorava Synthperson"}}),
+        ):
+            path = self.root / ("nested." + suffix)
+            savemat(path, document, do_compression=True)
+            before = hashlib.sha256(path.read_bytes()).hexdigest()
+            with patch("scipy.io.loadmat") as load, patch(
+                "neurodata_security_audit.readers._load_mne"
+            ) as mne:
+                findings = (inspect_matlab_metadata(path, path.name) if suffix == "mat"
+                            else inspect_eeglab_metadata(path, path.name))
+            load.assert_not_called()
+            mne.assert_not_called()
+            self.assertIn("SUBJECT_NAME_FIELD", {f.code for f in findings})
+            self.assertTrue(any(f.code.endswith("COVERAGE_LIMIT") for f in findings))
+            self.assertNotIn("Zorava", json.dumps([f.to_dict() for f in findings]))
+            self.assertEqual(before, hashlib.sha256(path.read_bytes()).hexdigest())
+
+    @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
+    def test_selective_eeglab_never_replaces_flat_sibling_results(self) -> None:
+        import numpy as np
+        from scipy.io import loadmat, savemat
+
+        path = self.root / "mixed.set"
+        for compressed in (False, True):
+            savemat(path, {"EEG": {"data": np.zeros((1, 100000)),
+                                   "comments": "participant_name: Zorava Synthperson"},
+                           "comments": "zorava.synthetic@example.invalid"},
+                    do_compression=compressed)
+            with patch("neurodata_security_audit.readers._MAT5_MAX_INFLATED_BYTES", 65536), \
+                    patch("scipy.io.loadmat", wraps=loadmat) as load:
+                findings = inspect_eeglab_metadata(path, path.name)
+            self.assertIn("DIRECT_EMAIL", {f.code for f in findings})
+            self.assertIn("EEGLAB_METADATA_COVERAGE_LIMIT", {f.code for f in findings})
+            self.assertEqual(["comments"], load.call_args.kwargs["variable_names"])
+            if not compressed:
+                self.assertIn("SUBJECT_NAME_FIELD", {f.code for f in findings})
+
+    def test_name_placeholder_policy_is_consistent_and_not_silent(self) -> None:
+        from neurodata_security_audit.detectors import KnownTermMatcher, scan_text
+        from neurodata_security_audit.readers import inspect_edf_header
+        from neurodata_security_audit.structured import inspect_json, inspect_xml
+
+        for value in ("Anonymous", " ANONYMOUS ", "sub-001", "SUB-002"):
+            with self.subTest(value=value):
+                edf = self.root / "coded.edf"
+                _write_edf(edf, f"X X X {value.strip()}", "X", "01.01.85")
+                groups = (
+                    scan_text(f"participant_name: {value}", "sample.txt"),
+                    inspect_json(json.dumps({"participant_name": value}), "sample.json"),
+                    inspect_xml(f"<participant_name>{value}</participant_name>", "sample.xml"),
+                    inspect_delimited(f"participant_name\n{value}\n", "sample.csv", ","),
+                    inspect_mne_info({"subject_info": {"first_name": value}}, "sample.fif"),
+                    inspect_edf_header(edf.read_bytes(), "sample.edf"),
+                )
+                for findings in groups:
+                    names = [f for f in findings if f.code == "SUBJECT_NAME_FIELD"]
+                    self.assertEqual(1, len(names))
+                    self.assertEqual("review", names[0].severity)
+                    self.assertIn("does not establish de-identification", names[0].message)
+                    self.assertNotIn(value.strip(), names[0].evidence)
+        found = scan_text("participant_name: Anonymous", "sample.txt",
+                          KnownTermMatcher(("Anonymous",)))
+        self.assertTrue(any(f.severity == "high" for f in found))
+
+    def test_name_placeholder_prefixes_do_not_hide_real_values(self) -> None:
+        from neurodata_security_audit.detectors import scan_text
+        from neurodata_security_audit.structured import inspect_json
+
+        for value in ("Anonymous Zorava", "Anonymous_Zorava", "sub-001 Zorava",
+                      "sub-001@example.invalid", "sub-001; private", "sub-Zorava"):
+            with self.subTest(value=value):
+                for findings in (
+                    scan_text(f"participant_name: {value}", "sample.txt"),
+                    inspect_json(json.dumps({"participant_name": value}), "sample.json"),
+                ):
+                    self.assertTrue(any(f.code == "SUBJECT_NAME_FIELD" and f.severity == "high"
+                                        for f in findings))
+
+    def test_claimed_shifted_date_does_not_authorise_release(self) -> None:
+        from neurodata_security_audit.structured import inspect_json
+
+        findings = inspect_json(json.dumps({
+            "date_of_birth": "1900-01-01", "Description": "shifted and approved",
+        }), "sample.json")
+        birth, = [f for f in findings if f.code == "BIRTH_DATE_FIELD"]
+        self.assertEqual("high", birth.severity)
+        self.assertIn("may be original, shifted or a placeholder", birth.message)
+        self.assertNotIn("1900", birth.evidence)
+
+    def test_secret_overlap_is_deduplicated_without_losing_distinct_values(self) -> None:
+        from neurodata_security_audit.detectors import scan_text
+
+        token = "ghp_" + "SYNTHETIC" * 4
+        for text, expected in ((f"api_key={token}", 1),
+                               (f"api_key={token}\napi_key={token}", 2),
+                               (f"api_key={token} password=syntheticPassword", 2)):
+            found = [f for f in scan_text(text, ".env") if f.code == "POTENTIAL_SECRET"]
+            self.assertEqual(expected, len(found))
+            self.assertTrue(all(token not in f.evidence for f in found))
+
+    def test_classic_eeglab_selects_only_bounded_text_not_structs_or_samples(self) -> None:
+        try:
+            from scipy.io import loadmat, savemat
+        except ImportError:
+            self.skipTest("scipy is not installed")
+        from neurodata_security_audit.readers import _read_classic_eeglab_metadata
+
+        for compressed in (False, True):
+            with self.subTest(compressed=compressed):
+                path = self.root / "bounded.set"
+                savemat(path, {"comments": "a" * 6000, "history": "b" * 6000,
+                               "subject": {"nested": "Zorava Synthperson"},
+                               "data": [[1., 2., 3.]]}, do_compression=compressed)
+                with patch("scipy.io.loadmat", wraps=loadmat) as reader:
+                    metadata, complete = _read_classic_eeglab_metadata(path)
+                self.assertFalse(complete)
+                self.assertEqual(["comments"], list(metadata))
+                self.assertEqual(["comments"], reader.call_args.kwargs["variable_names"])
+                self.assertEqual(1, reader.call_count)
+
+    def test_oversized_eeglab_text_preserves_sibling_and_visible_warning(self) -> None:
+        try:
+            from scipy.io import loadmat, savemat
+        except ImportError:
+            self.skipTest("scipy is not installed")
+        path = self.root / "oversize.set"
+        savemat(path, {"comments": "a" * 11000,
+                       "history": "zorava.synthetic@example.invalid", "data": "sample.fdt"})
+        (self.root / "sample.fdt").write_bytes(b"synthetic samples not inspected")
+        with patch("scipy.io.loadmat", wraps=loadmat) as reader:
+            findings = inspect_eeglab_metadata(path, path.name)
+        self.assertEqual(["data", "history"], reader.call_args.kwargs["variable_names"])
+        self.assertTrue({"EEGLAB_METADATA_COVERAGE_LIMIT", "DIRECT_EMAIL"}
+                        <= {f.code for f in findings})
+
+    def test_empty_eeglab_fields_and_numeric_session_are_not_coverage_gaps(self) -> None:
+        try:
+            from scipy.io import loadmat, savemat
+        except ImportError:
+            self.skipTest("scipy is not installed")
+        from neurodata_security_audit.readers import _read_classic_eeglab_metadata
+
+        for session in ([], 1, 1.0):
+            path = self.root / "session.set"
+            savemat(path, {"session": session, "group": [], "subject": "",
+                           "comments": "small note", "data": [[1., 2.]]})
+            with patch("scipy.io.loadmat", wraps=loadmat) as reader:
+                metadata, complete = _read_classic_eeglab_metadata(path)
+            self.assertTrue(complete)
+            self.assertEqual({"comments": ["small note"]}, metadata)
+            self.assertEqual(["comments"], reader.call_args.kwargs["variable_names"])
+
+    def test_nonempty_eeglab_session_struct_or_array_is_still_limited(self) -> None:
+        try:
+            from scipy.io import loadmat, savemat
+        except ImportError:
+            self.skipTest("scipy is not installed")
+        from neurodata_security_audit.readers import _read_classic_eeglab_metadata
+
+        for session in ({"name": "Zorava Synthperson"}, [1., 2.]):
+            path = self.root / "session.set"
+            savemat(path, {"session": session, "comments": "small note"})
+            with patch("scipy.io.loadmat", wraps=loadmat) as reader:
+                metadata, complete = _read_classic_eeglab_metadata(path)
+            self.assertFalse(complete)
+            self.assertEqual({"comments": ["small note"]}, metadata)
+            self.assertEqual(["comments"], reader.call_args.kwargs["variable_names"])
+
+    def test_text_identity_placeholders_do_not_depend_on_whitespace(self) -> None:
+        from neurodata_security_audit.detectors import scan_text
+
+        for label in ("participant_name", "medical_record_number", "source_id", "participant_address"):
+            for separator in (":", "=", ",", "\t"):
+                for whitespace in ("", " ", "\t", "  \t"):
+                    for value in ("x", "N/A", "na", "none", "", "   "):
+                        with self.subTest(label=label, separator=separator, whitespace=whitespace, value=value):
+                            self.assertEqual([], scan_text(f"{label}{separator}{whitespace}{value}  ", "sample.txt"))
+
+    def test_text_identity_values_starting_like_placeholders_still_flag(self) -> None:
+        from neurodata_security_audit.detectors import scan_text
+
+        for label, code in (("participant_name", "SUBJECT_NAME_FIELD"),
+                            ("medical_record_number", "DIRECT_PERSONAL_ID"),
+                            ("source_id", "LINKED_SOURCE_ID"),
+                            ("participant_address", "POSTAL_ADDRESS_FIELD")):
+            for value in ("Zorava Synthperson", "Xander Example", "None Such", "X 123"):
+                with self.subTest(label=label, value=value):
+                    self.assertIn(code, {f.code for f in scan_text(f"{label}: {value}", "sample.txt")})
+
+    def test_exact_identity_aliases_keep_masked_locations(self) -> None:
+        from neurodata_security_audit.structured import inspect_json, inspect_xml
+
+        for key, value, code in (("participant_full_name", "Zorava Synthperson", "SUBJECT_NAME_FIELD"),
+                                 ("subject_dob", "1987-03-19", "BIRTH_DATE_FIELD"),
+                                 ("emergency_contact_number", "+1 202 555 0146", "DIRECT_PHONE")):
+            with self.subTest(key=key):
+                found = inspect_json(json.dumps({"participant": {key: value}}), "sample.json")
+                self.assertEqual([(code, "high", "JSON field participant.<field>")],
+                                 [(f.code, f.severity, f.location) for f in found])
+                table = inspect_delimited(f"{key}\n{value}\n", "sample.csv", ",")
+                self.assertEqual([code], [f.code for f in table])
+                xml = inspect_xml(f"<participant><{key}>{value}</{key}></participant>", "sample.xml")
+                self.assertEqual([code], [f.code for f in xml])
+                for placeholder in ("n/a", "none", ""):
+                    self.assertEqual([], inspect_json(json.dumps({key: placeholder}), "sample.json"))
+
+    def test_identity_alias_lookalikes_are_not_generalised(self) -> None:
+        from neurodata_security_audit.structured import inspect_json
+
+        metadata = {"participant_full_name_format": "Family Given",
+                    "subject_dob_policy": "shifted",
+                    "emergency_contact_number_count": 3,
+                    "emergency_contact_number_format": "international"}
+        self.assertEqual([], inspect_json(json.dumps(metadata), "sample.json"))
+
+    def test_real_classic_matlab_char_dimensions_bound_loading(self) -> None:
+        try:
+            from scipy.io import loadmat, savemat, whosmat
+        except ImportError:
+            self.skipTest("scipy is not installed")
+        for compressed in (False, True):
+            with self.subTest(compressed=compressed):
+                path = self.root / "bounded.mat"
+                savemat(path, {"huge": "x" * 11037, "small": "participant: seed@example.invalid"},
+                        do_compression=compressed)
+                self.assertEqual((1,), whosmat(path)[0][1])
+                with patch("scipy.io.loadmat", wraps=loadmat) as reader:
+                    findings = inspect_matlab_metadata(path, path.name)
+                self.assertEqual(["small"], reader.call_args.kwargs["variable_names"])
+                self.assertIn("MATLAB_METADATA_COVERAGE_LIMIT", {f.code for f in findings})
+                self.assertIn("DIRECT_EMAIL", {f.code for f in findings})
+
+    def test_classic_matlab_char_budget_is_cumulative(self) -> None:
+        try:
+            from scipy.io import loadmat, savemat
+        except ImportError:
+            self.skipTest("scipy is not installed")
+        path = self.root / "budget.mat"
+        savemat(path, {"first": "a" * 6000, "second": "b" * 6000})
+        with patch("scipy.io.loadmat", wraps=loadmat) as reader:
+            findings = inspect_matlab_metadata(path, path.name)
+        self.assertEqual(["first"], reader.call_args.kwargs["variable_names"])
+        self.assertIn("MATLAB_METADATA_COVERAGE_LIMIT", {f.code for f in findings})
+
     def test_release_state_has_one_shared_precedence(self) -> None:
         summary = {
             "manifest_recheck_passed": True,
