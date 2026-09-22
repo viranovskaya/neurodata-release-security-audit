@@ -13,3 +13,4 @@ beta_site/.wrangler/
 beta_site/.artifacts/
 beta_site/public/downloads/*.zip
 !beta_site/public/downloads/neurodata-researcher-beta-0.3.0b1-r3.zip
+!beta_site/public/downloads/neurodata-researcher-beta-0.3.0b2-r1.zip

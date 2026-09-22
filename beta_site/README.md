@@ -1,6 +1,6 @@
 # NeuroData researcher beta site
 
-This Worker serves the reviewed `v0.3.0b1` researcher kit and records only
+This Worker serves the reviewed `v0.3.0b2` researcher kit and records only
 random, unlinked download sessions and optional installation confirmations.
 Dataset files, local paths, scan reports, names, email addresses and participant
 IDs are not sent to the Worker or stored in D1.
