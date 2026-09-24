@@ -1,12 +1,23 @@
 # NeuroData Release Security Audit
 
-[![tests](https://github.com/viranovskaya/neurodata-release-security-audit/actions/workflows/tests.yml/badge.svg)](https://github.com/viranovskaya/neurodata-release-security-audit/actions/workflows/tests.yml)
+[![Tests](https://github.com/viranovskaya/neurodata-release-security-audit/actions/workflows/tests.yml/badge.svg)](https://github.com/viranovskaya/neurodata-release-security-audit/actions/workflows/tests.yml)
+[![Beta release](https://img.shields.io/github/v/release/viranovskaya/neurodata-release-security-audit?include_prereleases&label=beta)](https://github.com/viranovskaya/neurodata-release-security-audit/releases)
+[![MIT license](https://img.shields.io/github/license/viranovskaya/neurodata-release-security-audit)](LICENSE)
 
-A local final check for EEG and neuroimaging datasets before sharing them.
+**A local final check for EEG and neuroimaging datasets before sharing them.**
 
-The audit looks for privacy-relevant metadata, forgotten files, broken
-references, unsupported content and changes made while the scan is running. It
-creates a readable HTML report without uploading the dataset or modifying it.
+[Get the researcher beta package](https://neurodata-audit-researcher-beta.viranovskaya.workers.dev/)
+· [Download v0.3.0b2 from GitHub](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b2)
+· [See supported formats](#supported-formats)
+
+Point the audit at a dataset on your computer. It checks privacy-relevant
+metadata, forgotten files, broken references and scan coverage, then writes a
+readable report. Dataset files are not uploaded or modified.
+
+![Top of an HTML audit report: a hold, the reason, next step and coverage summary](docs/assets/synthetic-report-preview.png)
+
+*Actual report generated from the included [synthetic reviewer demo](examples/reviewer_demo).
+The demo deliberately produces a hold; no participant data appears in this image.*
 
 > **Beta software:** this tool helps a human curator find things to review. It
 > does not prove anonymity, approve a release, or replace legal, ethical or
@@ -14,8 +25,11 @@ creates a readable HTML report without uploading the dataset or modifying it.
 
 ## Quick start
 
-Python 3.10 or newer is required. Download the wheel and `SHA256SUMS` from the
+Use Python 3.10–3.13 (CI covers 3.10, 3.12 and 3.13). Download the wheel and
+`SHA256SUMS` from the
 [`v0.3.0b2` prerelease](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b2), then install it in a fresh environment:
+
+macOS or Linux:
 
 ```bash
 python3 -m venv .venv
@@ -23,11 +37,20 @@ source .venv/bin/activate
 python3 -m pip install ./neurodata_release_security_audit-0.3.0b2-py3-none-any.whl
 ```
 
+Windows PowerShell:
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install .\neurodata_release_security_audit-0.3.0b2-py3-none-any.whl
+```
+
 Start the local browser interface:
 
 ```bash
 neurodata-security-audit ui
 ```
+
+On Windows, run `.\.venv\Scripts\neurodata-security-audit.exe ui` instead.
 
 Your browser will open a temporary page on `127.0.0.1`.
 
