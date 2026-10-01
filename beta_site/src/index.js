@@ -87,15 +87,23 @@ async function recordDownload(env) {
   return id;
 }
 
-async function download(request, env) {
+async function checkRateLimit(request, env, action) {
+  // Cloudflare sets this header at ingress. The address is used only as a
+  // short-lived limiter key; it is not written to the installation database.
+  const address = request.headers.get("CF-Connecting-IP") || "unknown-client";
   try {
-    const outcome = await env.DOWNLOAD_RATE_LIMITER.limit({ key: `download:${RELEASE.version}` });
-    if (!outcome.success) {
-      return json({ error: "Too many download attempts. Please wait a minute and try again." }, 429);
-    }
+    const outcome = await env.DOWNLOAD_RATE_LIMITER.limit({
+      key: `${action}:${RELEASE.version}:${address}`,
+    });
+    return outcome.success ? null : json({ error: "Too many attempts. Please wait a minute and try again." }, 429);
   } catch {
-    // The package remains available if the abuse-control binding is unavailable.
+    return json({ error: "Abuse control is temporarily unavailable. Please try again." }, 503);
   }
+}
+
+async function download(request, env) {
+  const limited = await checkRateLimit(request, env, "download");
+  if (limited) return limited;
 
   const assetUrl = new URL(`/downloads/${RELEASE.archive}`, request.url);
   const asset = await env.ASSETS.fetch(new Request(assetUrl));
@@ -117,6 +125,8 @@ async function download(request, env) {
 }
 
 async function confirm(request, env) {
+  const limited = await checkRateLimit(request, env, "confirm");
+  if (limited) return limited;
   let body;
   try {
     const rawBody = await readSmallText(request, MAX_CONFIRM_BYTES);

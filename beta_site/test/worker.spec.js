@@ -105,8 +105,63 @@ describe("researcher beta Worker", () => {
     }, testEnv(false));
     expect(response.status).toBe(429);
     expect(await response.json()).toEqual({
-      error: "Too many download attempts. Please wait a minute and try again.",
+      error: "Too many attempts. Please wait a minute and try again.",
     });
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM install_sessions").first()).toEqual({ count: 0 });
+  });
+
+  it("uses separate per-client buckets for downloads and confirmations", async () => {
+    const keys = [];
+    const limitedEnv = {
+      ...testEnv(),
+      DOWNLOAD_RATE_LIMITER: {
+        async limit({ key }) {
+          keys.push(key);
+          return { success: true };
+        },
+      },
+    };
+    const first = await request("/api/download", {
+      method: "POST",
+      headers: { Origin: ORIGIN, "CF-Connecting-IP": "192.0.2.1" },
+    }, limitedEnv);
+    const second = await request("/api/download", {
+      method: "POST",
+      headers: { Origin: ORIGIN, "CF-Connecting-IP": "192.0.2.2" },
+    }, limitedEnv);
+    await request("/api/confirm", {
+      method: "POST",
+      headers: { Origin: ORIGIN, "CF-Connecting-IP": "192.0.2.1" },
+      body: JSON.stringify({ installSession: first.headers.get("X-Install-Session") }),
+    }, limitedEnv);
+    expect(second.status).toBe(200);
+    expect(keys).toHaveLength(3);
+    expect(keys[0]).not.toBe(keys[1]);
+    expect(keys[0]).not.toBe(keys[2]);
+  });
+
+  it("rejects confirmation before D1 access when its rate limit fails", async () => {
+    const response = await request("/api/confirm", {
+      method: "POST",
+      headers: { Origin: ORIGIN },
+      body: JSON.stringify({ installSession: "11111111-1111-4111-8111-111111111111" }),
+    }, testEnv(false));
+    expect(response.status).toBe(429);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM install_sessions").first()).toEqual({ count: 0 });
+  });
+
+  it("does not bypass abuse control when the limiter is unavailable", async () => {
+    const unavailable = {
+      ...testEnv(),
+      DOWNLOAD_RATE_LIMITER: { async limit() { throw new Error("limiter unavailable"); } },
+    };
+    for (const path of ["/api/download", "/api/confirm"]) {
+      const response = await request(path, {
+        method: "POST",
+        headers: { Origin: ORIGIN },
+      }, unavailable);
+      expect(response.status).toBe(503);
+    }
     expect(await env.DB.prepare("SELECT COUNT(*) AS count FROM install_sessions").first()).toEqual({ count: 0 });
   });
 

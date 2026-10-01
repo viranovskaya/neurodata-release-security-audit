@@ -27,7 +27,21 @@ The demo deliberately produces a hold; no participant data appears in this image
 
 Use Python 3.10–3.13 (CI covers 3.10, 3.12 and 3.13). Download the wheel and
 `SHA256SUMS` from the
-[`v0.3.0b2` prerelease](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b2), then install it in a fresh environment:
+[`v0.3.0b2` prerelease](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b2). In the download folder, calculate the wheel hash and compare it with the wheel's line in `SHA256SUMS` before installing:
+
+```bash
+shasum -a 256 neurodata_release_security_audit-0.3.0b2-py3-none-any.whl
+# Linux: sha256sum neurodata_release_security_audit-0.3.0b2-py3-none-any.whl
+```
+
+On Windows PowerShell, compare this result with the wheel entry in
+`SHA256SUMS`:
+
+```powershell
+(Get-FileHash .\neurodata_release_security_audit-0.3.0b2-py3-none-any.whl -Algorithm SHA256).Hash
+```
+
+Then install it in a fresh environment:
 
 macOS or Linux:
 
@@ -77,8 +91,9 @@ Close the terminal process with `Ctrl+C` when you finish.
 - whether a file was fully inspected, inspected only at header level, skipped,
   unsupported or left for manual review.
 
-Findings are masked in the reports. The audit tells you where to look without
-copying the detected value into a shareable report.
+Finding values are masked in reports, but paths and other metadata may still
+identify people or reveal private information. Keep reports private until a
+human has reviewed and redacted them.
 
 ## Supported formats
 
@@ -105,9 +120,12 @@ python3 -m pip install \
   "./neurodata_release_security_audit-0.3.0b2-py3-none-any.whl[formats,imaging]"
 ```
 
-Format support is intentionally bounded. A supported extension does not mean
-that every payload or every re-identification risk inside that format is
-inspected.
+Format support is intentionally bounded. XLSX inline-string cells are scanned
+within the Office XML budgets; numeric cells and formula results are not read
+as text metadata. ZIP directories declaring over 10,000 members or over 8 MiB
+of metadata are left for manual review before their member list is loaded. A
+supported extension does not mean that every payload or every re-identification
+risk inside that format is inspected.
 
 ## How to read the result
 
@@ -138,7 +156,9 @@ is `0` when there is no high-priority finding, `1` when a high-priority finding
 creates a hold, and `2` when scanning, integrity checking or report publication
 fails. Exit status `0` still requires human review.
 
-Try the included synthetic demo first. It deliberately returns a hold:
+If you downloaded the researcher beta ZIP or cloned this repository, you can
+try its synthetic demo from the unpacked kit or repository root. The standalone
+wheel does not include the demo. It deliberately returns a hold:
 
 ```bash
 mkdir -p /tmp/neurodata-audit-demo-reports
@@ -153,7 +173,10 @@ release, keep them in a text file outside the dataset and add:
 
 ```bash
 neurodata-security-audit scan /path/to/dataset \
-  --sensitive-terms /private/path/known_identifiers.txt
+  --sensitive-terms /private/path/known_identifiers.txt \
+  --json /path/to/reports/audit.json \
+  --markdown /path/to/reports/audit.md \
+  --html /path/to/reports/audit.html
 ```
 
 Treat audit reports and sensitive-term files as private working material.

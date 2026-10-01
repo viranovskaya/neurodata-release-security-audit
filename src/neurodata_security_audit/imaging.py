@@ -417,9 +417,16 @@ def inspect_dicom_metadata(
 
             vr = str(getattr(element, "VR", ""))
             if vr == "SQ":
-                visit(element.value, depth + 1)
-                if elements_seen > max_elements:
-                    return
+                for nested_dataset in element.value:
+                    elements_seen += 1  # Empty sequence items still consume work.
+                    if elements_seen > max_elements:
+                        add_limit_finding(
+                            "DICOM metadata exceeded the element/item limit; review it manually."
+                        )
+                        return
+                    visit(nested_dataset, depth + 1)
+                    if limit_reported:
+                        return
                 continue
             if vr not in _DICOM_TEXT_VRS:
                 continue
