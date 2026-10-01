@@ -7,7 +7,7 @@
 **A local final check for EEG and neuroimaging datasets before sharing them.**
 
 [Get the researcher beta package](https://neurodata-audit-researcher-beta.viranovskaya.workers.dev/)
-· [Download v0.3.0b2 from GitHub](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b2)
+· [Download v0.3.0b3 from GitHub](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b3)
 · [See supported formats](#supported-formats)
 
 Point the audit at a dataset on your computer. It checks privacy-relevant
@@ -27,18 +27,18 @@ The demo deliberately produces a hold; no participant data appears in this image
 
 Use Python 3.10–3.13 (CI covers 3.10, 3.12 and 3.13). Download the wheel and
 `SHA256SUMS` from the
-[`v0.3.0b2` prerelease](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b2). In the download folder, calculate the wheel hash and compare it with the wheel's line in `SHA256SUMS` before installing:
+[`v0.3.0b3` prerelease](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b3). In the download folder, calculate the wheel hash and compare it with the wheel's line in `SHA256SUMS` before installing:
 
 ```bash
-shasum -a 256 neurodata_release_security_audit-0.3.0b2-py3-none-any.whl
-# Linux: sha256sum neurodata_release_security_audit-0.3.0b2-py3-none-any.whl
+shasum -a 256 neurodata_release_security_audit-0.3.0b3-py3-none-any.whl
+# Linux: sha256sum neurodata_release_security_audit-0.3.0b3-py3-none-any.whl
 ```
 
 On Windows PowerShell, compare this result with the wheel entry in
 `SHA256SUMS`:
 
 ```powershell
-(Get-FileHash .\neurodata_release_security_audit-0.3.0b2-py3-none-any.whl -Algorithm SHA256).Hash
+(Get-FileHash .\neurodata_release_security_audit-0.3.0b3-py3-none-any.whl -Algorithm SHA256).Hash
 ```
 
 Then install it in a fresh environment:
@@ -48,14 +48,14 @@ macOS or Linux:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python3 -m pip install ./neurodata_release_security_audit-0.3.0b2-py3-none-any.whl
+python3 -m pip install ./neurodata_release_security_audit-0.3.0b3-py3-none-any.whl
 ```
 
 Windows PowerShell:
 
 ```powershell
 py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install .\neurodata_release_security_audit-0.3.0b2-py3-none-any.whl
+.\.venv\Scripts\python.exe -m pip install .\neurodata_release_security_audit-0.3.0b3-py3-none-any.whl
 ```
 
 Start the local browser interface:
@@ -117,7 +117,7 @@ For mixed datasets, install both optional groups:
 
 ```bash
 python3 -m pip install \
-  "./neurodata_release_security_audit-0.3.0b2-py3-none-any.whl[formats,imaging]"
+  "./neurodata_release_security_audit-0.3.0b3-py3-none-any.whl[formats,imaging]"
 ```
 
 Format support is intentionally bounded. XLSX inline-string cells are scanned
@@ -240,6 +240,8 @@ corrected masking-evaluator replay from historical scores and records a narrow
 These are bounded engineering checks, not a ranking of privacy tools.
 See [the v0.3.0b2 changes and limits](docs/release_0.3.0b2.md) for the later
 MATLAB/EEGLAB reader and detection changes.
+The [v0.3.0b3 update](docs/release_0.3.0b3.md) adds archive safety limits,
+nested DICOM and XLSX coverage fixes, and Windows report-writing checks.
 
 The 50-dataset run is an engineering calibration, not a representative privacy
 study and not evidence that any source dataset is unsafe. Its exact scope is in
@@ -254,7 +256,7 @@ and Windows, deterministic builds and report-schema validation.
 ```bash
 git clone https://github.com/viranovskaya/neurodata-release-security-audit.git
 cd neurodata-release-security-audit
-git checkout v0.3.0b2
+git checkout v0.3.0b3
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install ".[formats,imaging]"

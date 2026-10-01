@@ -1,6 +1,6 @@
 """Check neurodata for release-time privacy leaks."""
 
-__version__ = "0.3.0b2"
+__version__ = "0.3.0b3"
 
 from .scanner import ScanPolicy, scan_dataset
 
