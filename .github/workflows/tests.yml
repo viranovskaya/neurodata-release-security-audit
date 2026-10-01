@@ -54,6 +54,7 @@ jobs:
         run: |
           python -c "import os; from pathlib import Path; import neurodata_security_audit, mne, nibabel, pydicom; path = Path(neurodata_security_audit.__file__).resolve(); print(path); assert Path(os.environ['REPOSITORY_ROOT']).resolve() not in path.parents; assert mne.__version__ == '1.12.1'; assert nibabel.__version__ == '5.4.2'; assert pydicom.__version__ == '3.0.2'"
           neurodata-security-audit --version
+          python -c "from pathlib import Path; from neurodata_security_audit.curator import write_text_new; write_text_new(Path('writer-probe.txt'), 'probe')"
           neurodata-security-audit scan "${{ github.workspace }}/tests/fixtures/clean_bids" --json audit.json --markdown audit.md --html audit.html
           python -c "from pathlib import Path; assert all(Path(name).is_file() and Path(name).stat().st_size > 0 for name in ('audit.json', 'audit.md', 'audit.html'))"
 
