@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import tempfile
 from typing import Any
 
@@ -672,6 +673,9 @@ def _unlink_if_identity(path: Path, identity: tuple[int, int]) -> None:
 
 
 def _fsync_directory(path: Path) -> None:
+    if sys.platform == "win32":
+        # Windows cannot open a directory with os.open; file fsync still runs.
+        return
     descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
     try:
         os.fsync(descriptor)

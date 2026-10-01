@@ -367,6 +367,25 @@ class CuratorWorkflowTests(unittest.TestCase):
             self.assertEqual(0o600, metadata.st_mode & 0o777)
             self.assertEqual(1, metadata.st_nlink)
 
+    def test_windows_writer_does_not_open_directory_for_sync(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "report.md"
+            original_open = os.open
+
+            def reject_directory(path, *args, **kwargs):
+                if Path(path).is_dir():
+                    raise PermissionError("Windows cannot open directories this way")
+                return original_open(path, *args, **kwargs)
+
+            with (
+                mock.patch("sys.platform", "win32"),
+                mock.patch("neurodata_security_audit.curator.os.open", new=reject_directory),
+            ):
+                write_text_new(output, "Private report\n")
+
+            self.assertEqual("Private report\n", output.read_text(encoding="utf-8"))
+            self.assertEqual(1, output.stat().st_nlink)
+
     def test_cli_builds_checklist_and_comparison_without_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
