@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import stat
+import struct
 import tarfile
 import zipfile
 
@@ -44,6 +45,7 @@ _SUPPORTED_ARCHIVE_SUFFIXES = (
 _LARGE_ARCHIVE_BYTES = 50 * 1024 * 1024 * 1024
 _HIGH_RATIO_MIN_BYTES = 100 * 1024 * 1024
 _HIGH_COMPRESSION_RATIO = 1000
+_ZIP_MAX_DIRECTORY_BYTES = 8 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -165,6 +167,34 @@ def _zip_member_type(info: zipfile.ZipInfo) -> ContainerMemberType:
     return "file"
 
 
+def _zip_directory_bounds(path: Path) -> tuple[int, int]:
+    """Read ZIP/ZIP64 directory budgets before ZipFile allocates its member list."""
+    with path.open("rb") as source:
+        file_size = source.seek(0, 2)
+        source.seek(max(0, file_size - (22 + 65535)))
+        tail = source.read()
+        position = tail.rfind(b"PK\x05\x06")
+        if position < 0 or len(tail) - position < 22:
+            raise zipfile.BadZipFile("ZIP end-of-directory record is missing")
+        record = struct.unpack_from("<4sHHHHIIH", tail, position)
+        count, directory_bytes = record[4], record[5]
+        if count == 0xFFFF or directory_bytes == 0xFFFFFFFF:
+            record_offset = file_size - len(tail) + position
+            if record_offset < 20:
+                raise zipfile.BadZipFile("ZIP64 directory locator is missing")
+            source.seek(record_offset - 20)
+            locator = source.read(20)
+            if len(locator) != 20 or locator[:4] != b"PK\x06\x07":
+                raise zipfile.BadZipFile("ZIP64 directory locator is missing")
+            zip64_offset = struct.unpack_from("<Q", locator, 8)[0]
+            source.seek(zip64_offset)
+            zip64 = source.read(56)
+            if len(zip64) != 56 or zip64[:4] != b"PK\x06\x06":
+                raise zipfile.BadZipFile("ZIP64 directory record is missing")
+            count, directory_bytes = struct.unpack_from("<QQ", zip64, 32)
+        return count, directory_bytes
+
+
 def _tar_member_type(info: tarfile.TarInfo) -> ContainerMemberType:
     if info.isdir():
         return "directory"
@@ -223,6 +253,7 @@ def inspect_archive(
     *,
     max_members: int = 10000,
     max_name_chars: int = 4096,
+    max_directory_bytes: int = _ZIP_MAX_DIRECTORY_BYTES,
 ) -> ArchiveInspection:
     """Inspect ZIP or TAR member tables without extracting files."""
     known_terms = known_terms or KnownTermMatcher()
@@ -259,8 +290,10 @@ def inspect_archive(
             )
             return False
 
-        member_paths.append(member_path)
+        safe_name = _safe_member_name(member_path, member_index, max_name_chars)
         if len(member_path) > max_name_chars:
+            complete = False
+            reason = "An archive member name exceeded the inspection limit; collision coverage is partial"
             findings.append(
                 Finding(
                     code="ARCHIVE_MEMBER_NAME_LIMIT",
@@ -271,7 +304,8 @@ def inspect_archive(
                     message="Rename this unusually long archive member before release.",
                 )
             )
-        safe_name = _safe_member_name(member_path, member_index, max_name_chars)
+        # Retain only a bounded placeholder for collision checks and reports.
+        member_paths.append(safe_name)
         members.append(
             ContainerMember(
                 container_path=relative_path,
@@ -307,6 +341,30 @@ def inspect_archive(
         return True
 
     if path.name.lower().endswith(".zip"):
+        declared_members, directory_bytes = _zip_directory_bounds(path)
+        if declared_members > max_members or directory_bytes > max_directory_bytes:
+            count_limited = declared_members > max_members
+            code = "ARCHIVE_MEMBER_LIMIT" if count_limited else "ARCHIVE_DIRECTORY_LIMIT"
+            reason = (
+                "Archive member count exceeded the configured safety limit"
+                if count_limited
+                else "ZIP directory exceeded the configured metadata-size limit"
+            )
+            return ArchiveInspection(
+                members=(),
+                findings=(
+                    Finding(
+                        code=code,
+                        severity="review",
+                        path=relative_path,
+                        location="archive directory",
+                        evidence="<archive-directory-limit>",
+                        message="Review this archive manually; its member table was not loaded.",
+                    ),
+                ),
+                complete=False,
+                reason=reason,
+            )
         encrypted_members = 0
         with zipfile.ZipFile(path) as archive:
             for info in archive.infolist():
@@ -338,7 +396,7 @@ def inspect_archive(
             )
     else:
         with tarfile.open(path, mode="r:*") as archive:
-            for info in archive:
+            while (info := archive.next()) is not None:
                 if not add_member(
                     info.name,
                     _tar_member_type(info),
@@ -365,6 +423,9 @@ def inspect_archive(
                                 ),
                             )
                         )
+                # TarFile otherwise retains every TarInfo even though this
+                # reader needs only the current header and bounded summaries.
+                archive.members.clear()
 
     findings.extend(_collision_findings(relative_path, member_paths))
     total_size = sum(member.size_bytes for member in members)

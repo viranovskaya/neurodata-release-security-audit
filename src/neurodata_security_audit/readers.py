@@ -1045,6 +1045,7 @@ def _office_member_is_text(format_name: str, name: str) -> bool:
             lower in {"xl/sharedstrings.xml", "xl/workbook.xml"}
             or lower.startswith("xl/comments")
             or lower.startswith("xl/persons/")
+            or lower.startswith("xl/worksheets/")
         ) and lower.endswith(".xml")
     return (
         lower == "word/document.xml"
@@ -1141,7 +1142,19 @@ def inspect_office_metadata(
                         )
                     )
                 continue
-            text = "\n".join(part.strip() for part in root.itertext() if part.strip())
+            if format_name == "xlsx" and lower.startswith("xl/worksheets/"):
+                # Only inline string cells are text metadata; numeric values and
+                # formula results are not part of this bounded metadata pass.
+                parts = (
+                    part.strip()
+                    for node in root.iter()
+                    if node.tag.rsplit("}", 1)[-1] == "is"
+                    for part in node.itertext()
+                    if part.strip()
+                )
+            else:
+                parts = (part.strip() for part in root.itertext() if part.strip())
+            text = "\n".join(parts)
             if text:
                 findings.extend(
                     scan_text(

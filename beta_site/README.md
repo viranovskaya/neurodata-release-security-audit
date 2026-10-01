@@ -27,9 +27,11 @@ The immutable ZIP named in `src/release.js` is tracked under
 download advertised by the API. The kit also includes the direct optional-reader
 versions used in CI, while clearly noting that transitive dependencies may vary.
 
-The download route uses Cloudflare's native per-location rate-limit binding to
-reduce automated counter inflation without storing IP addresses or introducing
-researcher accounts.
+Download and confirmation routes use separate, per-client Cloudflare rate-limit
+buckets to reduce automated counter inflation. Cloudflare's connecting address
+is used only as a short-lived limiter key, not written to D1; people behind a
+shared address can share a bucket. If the limiter is unavailable, these two
+routes return a temporary error rather than writing unbounded counter rows.
 
 For a production update, apply pending D1 migrations remotely before deploying
 the Worker. Both operations are external changes and require explicit approval.

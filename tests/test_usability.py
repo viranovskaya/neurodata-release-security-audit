@@ -421,7 +421,7 @@ class UsabilityBenchmarkTests(unittest.TestCase):
         )
         self.assertIn('aria-label="Filter findings"', rendered)
         self.assertIn("Find a file, field or value:", rendered)
-        self.assertIn("Distinct evidence", rendered)
+        self.assertIn("Masked evidence seen once", rendered)
         self.assertIn("finding-code-", rendered)
         self.assertIn("Review 124", rendered)
         self.assertNotIn('id="findings-high"', rendered)

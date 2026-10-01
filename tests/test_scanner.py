@@ -22,7 +22,8 @@ import zipfile
 import zlib
 
 from neurodata_security_audit.cli import main
-from neurodata_security_audit.containers import inspect_archive
+from neurodata_security_audit.containers import _zip_directory_bounds, inspect_archive
+from neurodata_security_audit.imaging import inspect_dicom_metadata
 from neurodata_security_audit.html_report import render_html
 from neurodata_security_audit.models import (
     CoverageEntry,
@@ -1170,7 +1171,8 @@ class ScannerTests(unittest.TestCase):
 
     def test_encrypted_zip_is_an_explicit_high_severity_boundary(self) -> None:
         archive_path = self.root / "release.zip"
-        archive_path.write_bytes(b"synthetic-zip-placeholder")
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("placeholder", b"fixture")
         info = SimpleNamespace(
             filename="data/sub-01.txt",
             flag_bits=1,
@@ -1207,7 +1209,8 @@ class ScannerTests(unittest.TestCase):
 
     def test_zip_expansion_risk_uses_member_metadata_only(self) -> None:
         archive_path = self.root / "release.zip"
-        archive_path.write_bytes(b"synthetic-zip-placeholder")
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("placeholder", b"fixture")
         info = SimpleNamespace(
             filename="data/large.bin",
             flag_bits=0,
@@ -1252,11 +1255,88 @@ class ScannerTests(unittest.TestCase):
         )
 
         self.assertFalse(result.complete)
-        self.assertEqual(1, len(result.members))
+        self.assertEqual(0, len(result.members))
         self.assertIn(
             "ARCHIVE_MEMBER_LIMIT",
             {item.code for item in result.findings},
         )
+
+    def test_zip_directory_budget_fails_before_loading_member_table(self) -> None:
+        archive_path = self.root / "release.zip"
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("first.txt", b"one")
+
+        result = inspect_archive(
+            archive_path,
+            "release.zip",
+            max_directory_bytes=20,
+        )
+
+        self.assertFalse(result.complete)
+        self.assertEqual((), result.members)
+        self.assertIn("ARCHIVE_DIRECTORY_LIMIT", {item.code for item in result.findings})
+
+    def test_zip64_directory_budget_is_read_without_loading_members(self) -> None:
+        archive_path = self.root / "large.zip"
+        zip64_record = struct.pack(
+            "<4sQHHIIQQQQ", b"PK\x06\x06", 44, 45, 45, 0, 0, 7, 7, 123, 0
+        )
+        locator = struct.pack("<4sIQI", b"PK\x06\x07", 0, 0, 1)
+        end_record = struct.pack(
+            "<4sHHHHIIH", b"PK\x05\x06", 0, 0, 0xFFFF, 0xFFFF,
+            0xFFFFFFFF, 0xFFFFFFFF, 0,
+        )
+        archive_path.write_bytes(zip64_record + locator + end_record)
+
+        self.assertEqual((7, 123), _zip_directory_bounds(archive_path))
+        result = inspect_archive(archive_path, "large.zip", max_members=6)
+        self.assertFalse(result.complete)
+        self.assertIn("ARCHIVE_MEMBER_LIMIT", {item.code for item in result.findings})
+
+    def test_tar_reader_does_not_cache_every_member(self) -> None:
+        archive_path = self.root / "release.tar"
+        with tarfile.open(archive_path, "w") as archive:
+            for index in range(4):
+                archive.addfile(tarfile.TarInfo(f"item-{index}.txt"))
+
+        original_next = tarfile.TarFile.next
+
+        def checked_next(handle):
+            self.assertLessEqual(len(handle.members), 1)
+            return original_next(handle)
+
+        with patch.object(tarfile.TarFile, "next", checked_next):
+            result = inspect_archive(archive_path, "release.tar")
+
+        self.assertTrue(result.complete)
+        self.assertEqual(4, len(result.members))
+
+    def test_tar_pax_long_names_remain_visible_after_cache_release(self) -> None:
+        archive_path = self.root / "release.tar"
+        names = [f"sub-{index}/" + "x" * 140 + ".txt" for index in range(2)]
+        with tarfile.open(archive_path, "w", format=tarfile.PAX_FORMAT) as archive:
+            for name in names:
+                archive.addfile(tarfile.TarInfo(name))
+
+        result = inspect_archive(archive_path, "release.tar")
+
+        self.assertTrue(result.complete)
+        self.assertEqual(names, [member.member_path for member in result.members])
+
+    def test_overlong_archive_name_marks_collision_coverage_partial(self) -> None:
+        archive_path = self.root / "release.zip"
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("very-long-synthetic-name.txt", b"fixture")
+
+        result = inspect_archive(
+            archive_path,
+            "release.zip",
+            max_name_chars=8,
+        )
+
+        self.assertFalse(result.complete)
+        self.assertIn("ARCHIVE_MEMBER_NAME_LIMIT", {item.code for item in result.findings})
+        self.assertNotIn("very-long", result.members[0].member_path)
 
     def test_corrupt_archive_fails_visibly(self) -> None:
         (self.root / "release.zip").write_bytes(b"not a zip")
@@ -2287,9 +2367,7 @@ class ScannerTests(unittest.TestCase):
                 self.value = value
                 self.tag = FakeTag()
 
-        nested = [
-            FakeElement("PatientAddress", "LO", values[8]),
-        ]
+        nested = [[FakeElement("PatientAddress", "LO", values[8])]]
         dataset = [
             FakeElement("PatientName", "PN", values[0]),
             FakeElement("PatientBirthDate", "DA", values[1]),
@@ -2357,6 +2435,28 @@ class ScannerTests(unittest.TestCase):
         rendered = render_json(report) + render_markdown(report)
         for value in values:
             self.assertNotIn(value, rendered)
+
+    @unittest.skipUnless(util.find_spec("pydicom"), "pydicom is not installed")
+    def test_real_dicom_sequence_dataset_is_inspected(self) -> None:
+        from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
+        from pydicom.sequence import Sequence
+        from pydicom.uid import ExplicitVRLittleEndian, generate_uid
+
+        dicom = self.root / "nested.dcm"
+        metadata = FileMetaDataset()
+        metadata.TransferSyntaxUID = ExplicitVRLittleEndian
+        metadata.MediaStorageSOPClassUID = generate_uid()
+        metadata.MediaStorageSOPInstanceUID = generate_uid()
+        dataset = FileDataset(str(dicom), {}, file_meta=metadata, preamble=b"\0" * 128)
+        nested = Dataset()
+        nested.PatientName = "Zorava^Synthperson"
+        dataset.ReferencedStudySequence = Sequence([Dataset(), nested])
+        dataset.save_as(dicom, enforce_file_format=True)
+
+        report = scan_dataset(self.root)
+
+        self.assertIn("SUBJECT_NAME_FIELD", {item.code for item in report.findings})
+        self.assertNotIn("Zorava", render_json(report))
 
     def test_dicom_private_binary_and_documents_are_not_opened(self) -> None:
         dicom = self.root / "sub-01_scan.dcm"
@@ -2436,19 +2536,19 @@ class ScannerTests(unittest.TestCase):
             )
         ]
         for _ in range(18):
-            nested = [
+            nested = [[
                 SimpleNamespace(
                     keyword="ReferencedStudySequence",
                     VR="SQ",
                     value=nested,
                     tag=tag,
                 )
-            ]
+            ]]
 
         with patch(
             "neurodata_security_audit.imaging._load_pydicom",
             return_value=SimpleNamespace(
-                dcmread=lambda *args, **kwargs: nested,
+                dcmread=lambda *args, **kwargs: nested[0],
             ),
         ):
             report = scan_dataset(self.root)
@@ -2462,6 +2562,23 @@ class ScannerTests(unittest.TestCase):
             dicom.name,
             {item.path for item in report.skipped_files},
         )
+
+    def test_empty_dicom_sequence_items_obey_element_budget(self) -> None:
+        dicom = self.root / "many-items.dcm"
+        dicom.write_bytes(b"synthetic-dicom-placeholder")
+        sequence = SimpleNamespace(
+            keyword="ReferencedStudySequence",
+            VR="SQ",
+            value=[[], [], []],
+            tag=SimpleNamespace(is_private=False),
+        )
+        with patch(
+            "neurodata_security_audit.imaging._load_pydicom",
+            return_value=SimpleNamespace(dcmread=lambda *args, **kwargs: [sequence]),
+        ):
+            findings = inspect_dicom_metadata(dicom, dicom.name, max_elements=2)
+
+        self.assertIn("DICOM_METADATA_LIMIT", {item.code for item in findings})
 
     def test_extensionless_dicom_preamble_is_detected(self) -> None:
         dicom = self.root / "scan0001"
@@ -3009,6 +3126,22 @@ class ScannerTests(unittest.TestCase):
         rendered = render_json(report)
         self.assertNotIn("alice@example.org", rendered)
         self.assertNotIn("/Users/alice", rendered)
+
+    def test_xlsx_inline_string_is_inspected_without_numeric_cells(self) -> None:
+        workbook = self.root / "inline.xlsx"
+        with zipfile.ZipFile(workbook, "w") as document:
+            document.writestr("[Content_Types].xml", "<Types />")
+            document.writestr("xl/workbook.xml", "<workbook />")
+            document.writestr(
+                "xl/worksheets/sheet1.xml",
+                '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+                '<sheetData><row><c t="inlineStr"><is><t>alice@example.org</t></is></c>'
+                '<c><v>123456</v></c></row></sheetData></worksheet>',
+            )
+
+        report = scan_dataset(self.root)
+        self.assertIn("DIRECT_EMAIL", {item.code for item in report.findings})
+        self.assertNotIn("alice@example.org", render_json(report))
 
     def test_office_relationship_member_name_is_not_reported(self) -> None:
         workbook = self.root / "metadata.xlsx"

@@ -64,8 +64,15 @@ def kit_files(wheel_path: Path, values: dict[str, str]) -> dict[str, bytes]:
         values["wheel"]: verify_wheel(wheel_path, values),
     }
     demo = REPO / "examples" / "reviewer_demo"
-    for path in sorted(item for item in demo.rglob("*") if item.is_file()):
-        files[path.relative_to(REPO).as_posix()] = path.read_bytes()
+    if demo.is_symlink():
+        raise RuntimeError("Synthetic demo directory cannot be a symlink")
+    for path in sorted(demo.rglob("*")):
+        if path.is_symlink():
+            raise RuntimeError("Synthetic demo cannot contain a symlink")
+        if path.is_file():
+            if not path.resolve().is_relative_to(demo.resolve()):
+                raise RuntimeError("Synthetic demo file escapes its directory")
+            files[path.relative_to(REPO).as_posix()] = path.read_bytes()
     checksums = "".join(
         f"{sha256_bytes(files[name])}  {name}\n" for name in sorted(files)
     )

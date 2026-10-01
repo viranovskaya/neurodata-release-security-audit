@@ -663,7 +663,7 @@ def _filterable_findings_table(
         )
     distinct_filter = (
         '<input type="radio" name="finding-filter" id="findings-distinct">'
-        f'<label for="findings-distinct">Distinct evidence {distinct_count}</label>'
+        f'<label for="findings-distinct">Masked evidence seen once {distinct_count}</label>'
         if distinct_count
         else ""
     )
@@ -684,8 +684,8 @@ def _filterable_findings_table(
           {"findings" if len(findings) != 1 else "finding"} shown.</span>
           {"".join(severity_statuses)}
           <span class="filter-status-distinct">{distinct_count}
-          {"findings" if distinct_count != 1 else "finding"} with evidence
-          seen once shown.</span>
+          {"findings" if distinct_count != 1 else "finding"} whose masked
+          evidence appears once shown.</span>
           {code_statuses}
         </div>
         <div class="find-help"><strong>Find a file, field or value:</strong>
