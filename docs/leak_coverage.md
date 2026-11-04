@@ -75,11 +75,11 @@ This matrix separates implemented checks from explicit review boundaries.
 - schema, documentation and code describe the same boundary;
 - the exact local candidate is frozen and hashed.
 
-## Unreleased audit hardening
+## v0.3.0b4 audit hardening
 
-The local successor to `v0.3.0b3` tightens the following boundaries. These
-changes do not replace the published wheel or the kit advertised by the beta
-site until a separately approved release and deployment.
+Version `v0.3.0b4` tightens the following boundaries. The website installation
+kit is pinned separately to an exact release wheel; check the advertised
+version and checksum rather than assuming an older kit contains these fixes.
 
 - Arbitrary phone-field names are replaced with a safe location placeholder;
   recognising a phone suffix does not make its identifying prefix public.
