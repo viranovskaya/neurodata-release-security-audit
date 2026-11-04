@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 import csv
 from datetime import date, datetime, timezone
 import hashlib
@@ -22,6 +22,8 @@ from pathlib import Path
 from unittest.mock import patch
 import zipfile
 import zlib
+from xml.etree.ElementTree import ParseError
+from xml.parsers.expat import ExpatError
 
 from neurodata_security_audit.cli import main
 from neurodata_security_audit.containers import _zip_directory_bounds, inspect_archive
@@ -79,6 +81,229 @@ class _VisibleTextParser(HTMLParser):
 
 
 class ScannerTests(unittest.TestCase):
+    @unittest.skipUnless(util.find_spec("h5py"), "h5py is not installed")
+    def test_eeglab_rejects_unbounded_strings_before_dataset_read(self) -> None:
+        import h5py
+        import numpy as np
+
+        for dtype in (h5py.string_dtype("utf-8"), "S3000000",
+                      np.dtype([("payload", h5py.string_dtype("utf-8"))])):
+            with self.subTest(dtype=dtype), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "wide.set"
+                with h5py.File(path, "w") as document:
+                    subject = document.create_group("EEG").create_dataset("subject", (1,), dtype=dtype)
+                    if np.dtype(dtype).fields:
+                        subject[0] = ("x" * 3000000,)
+                        subject.attrs["MATLAB_class"] = np.bytes_("char")
+                    else:
+                        subject[0] = "x" * 3000000
+                reads = []
+                original = h5py.Dataset.__getitem__
+
+                def tracked(item, key, *args, **kwargs):
+                    reads.append(item.name)
+                    return original(item, key, *args, **kwargs)
+
+                with patch.object(h5py.Dataset, "__getitem__", tracked):
+                    report = scan_dataset(Path(directory))
+                self.assertEqual([], reads)
+                self.assertEqual("unsupported_manual_review", report.coverage[0].status)
+
+    @unittest.skipUnless(util.find_spec("h5py"), "h5py is not installed")
+    def test_eeglab_text_reads_share_one_byte_budget(self) -> None:
+        import h5py
+        import numpy as np
+
+        path = self.root / "budget.set"
+        with h5py.File(path, "w") as document:
+            eeg = document.create_group("EEG")
+            for field in ("comments", "subject"):
+                eeg.create_dataset(field, data=np.array([b"x"], dtype="S40000"))
+        sizes = []
+        original = h5py.Dataset.__getitem__
+
+        def tracked(item, key, *args, **kwargs):
+            sizes.append(item.nbytes)
+            return original(item, key, *args, **kwargs)
+
+        with patch.object(h5py.Dataset, "__getitem__", tracked):
+            report = scan_dataset(self.root)
+        self.assertLessEqual(sum(sizes), 65536)
+        self.assertEqual("unsupported_manual_review", report.coverage[0].status)
+
+    @unittest.skipUnless(util.find_spec("h5py"), "h5py is not installed")
+    def test_eeglab_reference_cannot_read_a_signal_alias(self) -> None:
+        import h5py
+        import numpy as np
+
+        path = self.root / "reference.set"
+        with h5py.File(path, "w") as document:
+            eeg = document.create_group("EEG")
+            data = eeg.create_dataset("data", data=np.array([65, 66, 67], dtype="uint16"))
+            data.attrs["MATLAB_class"] = np.bytes_("char")
+            subject = eeg.create_dataset("subject", (1,), dtype=h5py.ref_dtype)
+            subject[0] = data.ref
+        reads = []
+        original = h5py.Dataset.__getitem__
+
+        def tracked(item, key, *args, **kwargs):
+            reads.append(item.name)
+            return original(item, key, *args, **kwargs)
+
+        with patch.object(h5py.Dataset, "__getitem__", tracked):
+            report = scan_dataset(self.root)
+        self.assertNotIn("/EEG/data", reads)
+        self.assertEqual("unsupported_manual_review", report.coverage[0].status)
+
+    @unittest.skipUnless(util.find_spec("h5py"), "h5py is not installed")
+    def test_hdf5_variable_length_class_is_not_loaded(self) -> None:
+        import h5py
+        import numpy as np
+
+        for extension in ("set", "mat"):
+            with self.subTest(extension=extension), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / f"attribute.{extension}"
+                with h5py.File(path, "w") as document:
+                    text = document.create_dataset("subject", data=np.array([65], dtype="uint16"))
+                    text.attrs["MATLAB_class"] = "x" * 3000000
+                reads = []
+                original = h5py.AttributeManager.__getitem__
+
+                def tracked(attrs, key):
+                    reads.append(key)
+                    return original(attrs, key)
+
+                with patch.object(h5py.AttributeManager, "__getitem__", tracked):
+                    report = scan_dataset(Path(directory))
+                self.assertNotIn("MATLAB_class", reads)
+                self.assertEqual("unsupported_manual_review", report.coverage[0].status)
+
+    @unittest.skipUnless(util.find_spec("h5py"), "h5py is not installed")
+    def test_eeglab_bounded_reference_text_is_still_inspected(self) -> None:
+        import h5py
+        import numpy as np
+
+        path = self.root / "text-reference.set"
+        with h5py.File(path, "w") as document:
+            text = document.create_group("#refs#").create_dataset(
+                "text", data=np.array([ord(x) for x in "synthetic@example.org"], dtype="uint16"),
+            )
+            text.attrs["MATLAB_class"] = np.bytes_("char")
+            subject = document.create_group("EEG").create_dataset("subject", (1,), dtype=h5py.ref_dtype)
+            subject[0] = text.ref
+        report = scan_dataset(self.root)
+        self.assertIn("DIRECT_EMAIL", {x.code for x in report.findings})
+        self.assertNotIn("synthetic@example.org", render_json(report))
+
+    def test_office_rejects_declarations_in_every_xml_encoding(self) -> None:
+        for encoding in ("utf-8", "utf-16", "utf-16-be", "utf-32"):
+            with self.subTest(encoding=encoding):
+                path = self.root / "entities.docx"
+                xml = '<!DOCTYPE doc [<!ENTITY x "synthetic@example.org">]><doc>&x;</doc>'
+                with zipfile.ZipFile(path, "w") as document:
+                    document.writestr("[Content_Types].xml", "<Types />")
+                    document.writestr("word/document.xml", xml.encode(encoding))
+                with self.assertRaises((ValueError, ParseError, ExpatError)):
+                    inspect_office_metadata(path, path.name, "docx")
+
+    def test_office_keeps_safe_utf16_text_coverage(self) -> None:
+        path = self.root / "unicode.docx"
+        xml = '<document><p>synthetic@example.org</p></document>'
+        with zipfile.ZipFile(path, "w") as document:
+            document.writestr("[Content_Types].xml", "<Types />")
+            document.writestr("word/document.xml", xml.encode("utf-16"))
+        findings = inspect_office_metadata(path, path.name, "docx")
+        self.assertIn("DIRECT_EMAIL", {finding.code for finding in findings})
+
+    @unittest.skipUnless(util.find_spec("h5py"), "h5py is not installed")
+    def test_eeglab_signal_identity_cannot_hide_in_the_text_pool(self) -> None:
+        import h5py
+        import numpy as np
+
+        path = self.root / "hard-alias.set"
+        with h5py.File(path, "w") as document:
+            data = document.create_group("EEG").create_dataset("data", data=np.array([65], dtype="uint16"))
+            data.attrs["MATLAB_class"] = np.bytes_("char")
+            document.create_group("#refs#")["alias"] = data
+            excluded = {int(h5py.h5o.get_info(data.id).addr)}
+            with patch.object(h5py.Dataset, "__getitem__", side_effect=AssertionError("Signal payload read")), \
+                 self.assertRaisesRegex(ValueError, "signal references"):
+                _hdf5_text_values(document["#refs#/alias"], h5py, excluded=excluded)
+
+    @unittest.skipUnless(util.find_spec("h5py"), "h5py is not installed")
+    def test_eeglab_unknown_signal_layout_is_refused_before_indirect_reads(self) -> None:
+        import h5py
+        import numpy as np
+
+        for layout in ("group", "softlink"):
+            with self.subTest(layout=layout), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "signal-layout.set"
+                with h5py.File(path, "w") as document:
+                    eeg = document.create_group("EEG")
+                    pool = document.create_group("#refs#")
+                    if layout == "group":
+                        data = eeg.create_group("data").create_dataset("samples", data=np.array([65], dtype="uint16"))
+                        pool["alias"] = data
+                    else:
+                        data = pool.create_dataset("alias", data=np.array([65], dtype="uint16"))
+                        eeg["data"] = h5py.SoftLink("/#refs#/alias")
+                    data.attrs["MATLAB_class"] = np.bytes_("char")
+                    eeg.create_dataset("subject", (1,), dtype=h5py.ref_dtype)[0] = data.ref
+                reads = []
+                original = h5py.Dataset.__getitem__
+
+                def tracked(item, key, *args, **kwargs):
+                    reads.append(item.name)
+                    return original(item, key, *args, **kwargs)
+
+                with patch.object(h5py.Dataset, "__getitem__", tracked):
+                    report = scan_dataset(Path(directory))
+                self.assertEqual([], reads)
+                self.assertEqual("unsupported_manual_review", report.coverage[0].status)
+
+    @unittest.skipUnless(util.find_spec("h5py"), "h5py is not installed")
+    def test_eeglab_indirect_signal_and_unknown_eeg_roots_are_not_read(self) -> None:
+        import h5py
+        import numpy as np
+
+        for layout in ("reference-data", "soft-eeg", "dataset-eeg"):
+            with self.subTest(layout=layout), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "indirect.set"
+                with h5py.File(path, "w") as document:
+                    signal = document.create_group("#refs#").create_dataset(
+                        "signal", data=np.array([65, 66, 67], dtype="uint16"))
+                    signal.attrs["MATLAB_class"] = np.bytes_("char")
+                    if layout == "reference-data":
+                        eeg = document.create_group("EEG")
+                        eeg.create_dataset("data", (1,), dtype=h5py.ref_dtype)[0] = signal.ref
+                        eeg.create_dataset("subject", (1,), dtype=h5py.ref_dtype)[0] = signal.ref
+                    else:
+                        document.create_dataset("subject", (1,), dtype=h5py.ref_dtype)[0] = signal.ref
+                        if layout == "soft-eeg":
+                            document.create_group("hidden")["data"] = signal
+                            document["EEG"] = h5py.SoftLink("/hidden")
+                        else:
+                            document["EEG"] = signal
+                reads = []
+                original = h5py.Dataset.__getitem__
+
+                def tracked(item, key, *args, **kwargs):
+                    reads.append(item.name)
+                    return original(item, key, *args, **kwargs)
+
+                with patch.object(h5py.Dataset, "__getitem__", tracked):
+                    report = scan_dataset(Path(directory))
+                self.assertEqual([], reads)
+                self.assertEqual("unsupported_manual_review", report.coverage[0].status)
+
+    def test_markdown_keeps_archive_names_as_literal_text(self) -> None:
+        marker = "![synthetic](https://example.invalid/pixel)"
+        with zipfile.ZipFile(self.root / "markup.zip", "w") as archive:
+            archive.writestr(marker, b"")
+        markdown = render_markdown(scan_dataset(self.root))
+        self.assertNotIn(marker, markdown)
+        self.assertIn(r"\!\[synthetic\]\(https://example.invalid/pixel\)", markdown)
+
     def test_office_budget_accepts_a_valid_zip64_directory(self) -> None:
         path = self.root / "small-zip64.docx"
         with patch.object(zipfile, "ZIP64_LIMIT", 0), zipfile.ZipFile(path, "w") as document:
@@ -3344,10 +3569,7 @@ class ScannerTests(unittest.TestCase):
                 context = (
                     patch(f"neurodata_security_audit.readers.{constant}", limit)
                     if constant is not None
-                    else patch(
-                        "neurodata_security_audit.readers._OFFICE_XML_DECLARATIONS",
-                        (b"<!DOCTYPE", b"<!ENTITY"),
-                    )
+                    else nullcontext()
                 )
                 with context, self.assertRaises(ValueError):
                     inspect_office_metadata(path, filename, "docx")
@@ -3420,7 +3642,8 @@ class ScannerTests(unittest.TestCase):
                 "participant_note",
                 data=np.array([ord(char) for char in "alice@example.org"], dtype="uint16"),
             )
-            text.attrs["MATLAB_class"] = b"char"
+            # Fixed-width class metadata has a trustworthy pre-read byte size.
+            text.attrs["MATLAB_class"] = np.bytes_("char")
             document.create_group("nested")
 
         report = scan_dataset(self.root)
@@ -3461,7 +3684,7 @@ class ScannerTests(unittest.TestCase):
                     f"note_{index}",
                     data=np.array([ord(char) for char in value], dtype="uint16"),
                 )
-                text.attrs["MATLAB_class"] = b"char"
+                text.attrs["MATLAB_class"] = np.bytes_("char")
 
         for element_limit, variable_limit in ((40, 100), (1000, 2)):
             with self.subTest(

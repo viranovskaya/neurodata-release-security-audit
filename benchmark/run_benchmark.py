@@ -46,6 +46,7 @@ def main() -> int:
         != summary["expected_container_members"]
         or summary["unexpected_container_members"] != 0
         or summary["matched_coverage"] != summary["expected_coverage"]
+        or summary["unexpected_coverage"] != 0
         or summary["masking_failures"] != 0
         or summary["integrity_failures"] != 0
     )

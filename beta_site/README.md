@@ -1,6 +1,6 @@
 # NeuroData researcher beta site
 
-This Worker serves the reviewed `v0.3.0b3` researcher kit and records only
+This Worker serves the versioned researcher kit declared in `src/release.js` and records only
 random, unlinked download sessions and optional installation confirmations.
 Dataset files, local paths, scan reports, names, email addresses and participant
 IDs are not sent to the Worker or stored in D1.
@@ -20,18 +20,27 @@ npm run check:deploy
 
 The kit builder rejects a wheel whose filename, version or SHA-256 differs from
 `src/release.js`. It builds the ZIP twice and fails if the output is not
-deterministic. The site reads version and package information from
+deterministic. An existing versioned ZIP cannot be replaced with different
+bytes: choose a new kit revision and archive filename. Check mode compares
+the tracked archive without rewriting it. The site reads version and package information from
 `/api/info`; do not duplicate release values in the HTML or frontend script.
 The immutable ZIP named in `src/release.js` is tracked under
 `public/downloads/` so that Git-based Cloudflare deployments always include the
 download advertised by the API. The kit also includes the direct optional-reader
 versions used in CI, while clearly noting that transitive dependencies may vary.
 
-Download and confirmation routes use separate, per-client Cloudflare rate-limit
+Download, confirmation and public statistics routes use separate, per-client Cloudflare rate-limit
 buckets to reduce automated counter inflation. Cloudflare's connecting address
 is used only as a short-lived limiter key, not written to D1; people behind a
-shared address can share a bucket. If the limiter is unavailable, these two
-routes return a temporary error rather than writing unbounded counter rows.
+shared address can share a bucket. If the limiter is unavailable, these routes
+return a temporary error before accessing D1.
+
+Keep the site's metadata, kit template and archive tied to the currently
+published wheel while preparing a scanner successor. Publish the new scanner
+only after its approved checks, then update the site metadata, instructions and
+new kit revision together. The site's CI fetches the advertised published wheel;
+pointing it at an unpublished tag is not a valid intermediate state. Each
+publication and deployment step requires its own approval.
 
 For a production update, apply pending D1 migrations remotely before deploying
 the Worker. Both operations are external changes and require explicit approval.

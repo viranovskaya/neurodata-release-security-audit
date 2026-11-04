@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import landingHtml from "../public/index.html?raw";
 import appScript from "../public/app.js?raw";
 import worker, { cutoff, isSameOrigin, pruneOldSessions } from "../src/index.js";
@@ -41,6 +41,36 @@ beforeEach(async () => {
 });
 
 describe("researcher beta Worker", () => {
+  it("limits public stats before touching D1", async () => {
+    const response = await request("/api/stats", {}, {
+      ...testEnv(false),
+      DB: { prepare() { throw new Error("Stats reached D1 before its limit"); } },
+    });
+    expect(response.status).toBe(429);
+  });
+
+  it("acknowledges a persisted confirmation even if aggregate reads fail", async () => {
+    const download = await request("/api/download", { method: "POST", headers: { Origin: ORIGIN } });
+    const session = download.headers.get("X-Install-Session");
+    const runtime = {
+      ...testEnv(),
+      DB: {
+        prepare(sql) {
+          if (sql.startsWith("SELECT COUNT")) {
+            return { bind() { return this; }, async first() { throw new Error("Stats unavailable"); } };
+          }
+          return env.DB.prepare(sql);
+        },
+      },
+    };
+    const response = await request("/api/confirm", {
+      method: "POST", headers: { Origin: ORIGIN }, body: JSON.stringify({ installSession: session }),
+    }, runtime);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+    const row = await env.DB.prepare("SELECT confirmed_at FROM install_sessions WHERE id = ?").bind(session).first();
+    expect(row.confirmed_at).not.toBeNull();
+  });
   it("serves public landing assets with hardened headers", async () => {
     const landing = await request("/");
     expect(landing.status).toBe(200);
@@ -300,5 +330,224 @@ describe("researcher beta Worker", () => {
   it("supports direct deterministic cleanup checks", async () => {
     await pruneOldSessions(env, new Date("2026-09-03T00:00:00.000Z"));
     expect(cutoff(new Date("2026-09-03T00:00:00.000Z"))).toBe("2026-08-04T00:00:00.000Z");
+  });
+});
+
+// Exercise the actual browser script without an extra DOM dependency or network.
+async function frontend(fetcher, storedSession = null) {
+  const nodes = new Map();
+  const handlers = new Map();
+  const saved = [];
+  const storage = new Map(storedSession ? [["neurodataBetaInstallSession", JSON.stringify(storedSession)]] : []);
+  function element(name) {
+    if (!nodes.has(name)) nodes.set(name, {
+      dataset: {}, disabled: name === "#download", checked: false, textContent: "", hidden: false,
+      classList: { toggle() {} }, setAttribute() {}, focus() {}, scrollWidth: 300, clientWidth: 300,
+      addEventListener(type, handler) { handlers.set(`${name}:${type}`, handler); },
+    });
+    return nodes.get(name);
+  }
+  const document = {
+    querySelector: element,
+    querySelectorAll(selector) {
+      if (selector === "[data-version]") return [element("#version")];
+      if (selector === "[data-kit-revision]") return [element("#kit-revision")];
+      if (selector === "[data-install]") {
+        const command = element("#base-install");
+        command.dataset.install = "base";
+        return [command];
+      }
+      return [];
+    },
+    createElement() {
+      return { click() { saved.push(this.download); }, remove() {} };
+    },
+    body: { append() {} },
+  };
+  const window = {
+    location: { protocol: "https:" }, setTimeout() {}, addEventListener() {},
+    requestAnimationFrame(callback) { callback(); },
+    sessionStorage: {
+      getItem: (key) => storage.get(key), setItem: (key, value) => storage.set(key, value),
+      removeItem: (key) => storage.delete(key),
+    },
+  };
+  new Function("document", "window", "fetch", "URL", appScript)(
+    document, window, fetcher, { createObjectURL: () => "blob:synthetic", revokeObjectURL() {} },
+  );
+  await vi.waitFor(() => expect(element("#download").disabled).toBe(false));
+  return { nodes, saved, storage, click: (id) => handlers.get(`${id}:click`)(),
+    check() { element("#ran-check").checked = true; handlers.get("#ran-check:change")(); } };
+}
+
+const oldRelease = { ...RELEASE, archiveSha256: "a".repeat(64) };
+function frontendFetch(downloadResponse, confirmResponse = () => Response.json({ ok: true })) {
+  return async (path) => {
+    if (path === "api/info") return Response.json(oldRelease);
+    if (path === "api/stats") return Response.json({ downloads: 1, confirmedInstallations: 0 });
+    if (path === "api/download") return downloadResponse();
+    if (path === "api/confirm") return confirmResponse();
+    throw new Error(`Unexpected local request: ${path}`);
+  };
+}
+
+describe("researcher beta frontend", () => {
+  it("unlocks confirmation after a verified download even while stats hangs", async () => {
+    let finishStats;
+    let statsCalls = 0;
+    const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("synthetic archive"))),
+      (value) => value.toString(16).padStart(2, "0")).join("");
+    const fallback = frontendFetch(() => new Response("synthetic archive", { headers: {
+      "X-Archive-SHA256": digest, "X-Install-Session": "11111111-1111-4111-8111-111111111111",
+    } }));
+    const page = await frontend((path) => {
+      if (path === "api/info") return Response.json({ ...oldRelease, archiveSha256: digest });
+      if (path === "api/stats" && ++statsCalls > 1) return new Promise((resolve) => { finishStats = resolve; });
+      return fallback(path);
+    });
+    const pending = page.click("#download");
+    try {
+      await vi.waitFor(() => {
+        expect(page.saved).toEqual([RELEASE.archive]);
+        expect(page.nodes.get("#ran-check").disabled).toBe(false);
+        expect(page.nodes.get("#download").disabled).toBe(false);
+      });
+    } finally {
+      if (finishStats) finishStats(new Response("unavailable", { status: 503 }));
+      await pending;
+    }
+  });
+
+  it("acknowledges a saved confirmation before optional stats finishes", async () => {
+    let finishStats;
+    let statsCalls = 0;
+    const fallback = frontendFetch(() => new Response("unused"));
+    const page = await frontend((path) => {
+      if (path === "api/stats" && ++statsCalls > 1) return new Promise((resolve) => { finishStats = resolve; });
+      return fallback(path);
+    }, { id: "11111111-1111-4111-8111-111111111111", release: `${RELEASE.version}-${RELEASE.kitRevision}` });
+    page.check();
+    const pending = page.click("#confirm");
+    try {
+      await vi.waitFor(() => {
+        expect(page.nodes.get("#confirm-status").textContent).toMatch(/recorded/);
+        expect(page.nodes.get("#download").disabled).toBe(false);
+        expect(page.storage.has("neurodataBetaInstallSession")).toBe(false);
+      });
+    } finally {
+      if (finishStats) finishStats(new Response("unavailable", { status: 503 }));
+      await pending;
+    }
+  });
+
+  it("does not restore an older session after an untracked successful redownload", async () => {
+    const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("synthetic archive"))),
+      (value) => value.toString(16).padStart(2, "0")).join("");
+    const fallback = frontendFetch(() => new Response("synthetic archive", { headers: { "X-Archive-SHA256": digest } }));
+    const fetcher = (path) => path === "api/info" ? Response.json({ ...oldRelease, archiveSha256: digest }) : fallback(path);
+    const page = await frontend(fetcher,
+      { id: "11111111-1111-4111-8111-111111111111", release: `${RELEASE.version}-${RELEASE.kitRevision}` });
+    await page.click("#download");
+    expect(page.saved).toEqual([RELEASE.archive]);
+    expect(page.storage.has("neurodataBetaInstallSession")).toBe(false);
+    const stored = page.storage.get("neurodataBetaInstallSession");
+    const reloaded = await frontend(fetcher, stored ? JSON.parse(stored) : null);
+    expect(reloaded.nodes.get("#ran-check").disabled).toBe(true);
+  });
+
+  it("restores the normal stats note when confirmation returns fresh counters", async () => {
+    const fallback = frontendFetch(() => new Response("unused"),
+      () => Response.json({ ok: true, downloads: 2, confirmedInstallations: 1 }));
+    const page = await frontend((path) => path === "api/stats" ? new Response("unavailable", { status: 503 }) : fallback(path),
+      { id: "11111111-1111-4111-8111-111111111111", release: `${RELEASE.version}-${RELEASE.kitRevision}` });
+    await vi.waitFor(() => expect(page.nodes.get("#stats-note").textContent).toMatch(/temporarily unavailable/));
+    page.check();
+    await page.click("#confirm");
+    expect(page.nodes.get("#downloads").textContent).toBe(2);
+    expect(page.nodes.get("#confirmed").textContent).toBe(1);
+    expect(page.nodes.get("#stats-note").textContent).toMatch(/indicative counters/);
+  });
+
+  it("refreshes release metadata before a successful retry of the new kit", async () => {
+    const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("synthetic next kit"))),
+      (value) => value.toString(16).padStart(2, "0")).join("");
+    const next = { ...oldRelease, version: "0.0.99", kitRevision: "r2", archive: "next-kit.zip", wheel: "next-wheel.whl", archiveSha256: digest };
+    let infoCalls = 0;
+    const fallback = frontendFetch(() => new Response("synthetic next kit", {
+      headers: { "X-Archive-SHA256": digest, "X-Install-Session": "11111111-1111-4111-8111-111111111111" },
+    }));
+    const page = await frontend((path) => path === "api/info" ? Response.json(++infoCalls === 1 ? oldRelease : next) : fallback(path));
+    await page.click("#download");
+    expect(page.saved).toEqual([]);
+    expect(page.nodes.get("#version").textContent).toBe("0.0.99");
+    expect(page.nodes.get("#base-install").textContent).toContain("next-wheel.whl");
+    await page.click("#download");
+    expect(page.saved).toEqual(["next-kit.zip"]);
+    expect(JSON.parse(page.storage.get("neurodataBetaInstallSession")).release).toBe("0.0.99-r2");
+  });
+
+  it("prevents confirmation while a download is pending", async () => {
+    let finish;
+    let confirmations = 0;
+    const page = await frontend(frontendFetch(() => new Promise((resolve) => { finish = resolve; }),
+      () => { confirmations++; return Response.json({ ok: true }); }),
+    { id: "11111111-1111-4111-8111-111111111111", release: `${RELEASE.version}-${RELEASE.kitRevision}` });
+    page.check();
+    const pending = page.click("#download");
+    expect(page.nodes.get("#confirm").disabled).toBe(true);
+    await page.click("#confirm");
+    expect(confirmations).toBe(0);
+    finish(new Response("unavailable", { status: 503 }));
+    await pending;
+  });
+
+  it("saves verified bytes under their release filename and keeps the confirmation session", async () => {
+    const bytes = new TextEncoder().encode("synthetic archive");
+    const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+      (value) => value.toString(16).padStart(2, "0")).join("");
+    const info = { ...oldRelease, archiveSha256: digest };
+    const session = "11111111-1111-4111-8111-111111111111";
+    const fallback = frontendFetch(() => new Response(bytes, {
+      headers: { "X-Archive-SHA256": digest, "X-Install-Session": session },
+    }));
+    const page = await frontend((path) => path === "api/info" ? Response.json(info) : fallback(path));
+    await page.click("#download");
+    expect(page.saved).toEqual([RELEASE.archive]);
+    expect(JSON.parse(page.storage.get("neurodataBetaInstallSession")).id).toBe(session);
+    page.check();
+    expect(page.nodes.get("#confirm").disabled).toBe(false);
+  });
+
+  it("does not save an archive from a newly deployed release under the old filename", async () => {
+    const page = await frontend(frontendFetch(() => new Response("new release bytes", {
+      headers: { "X-Archive-SHA256": "b".repeat(64) },
+    })));
+    await page.click("#download");
+    expect(page.saved).toEqual([]);
+    expect(page.nodes.get("#download-status").textContent).toMatch(/version changed/i);
+  });
+
+  it("does not save bytes that disagree with the declared archive digest", async () => {
+    const page = await frontend(frontendFetch(() => new Response("corrupt bytes", {
+      headers: { "X-Archive-SHA256": oldRelease.archiveSha256 },
+    })));
+    await page.click("#download");
+    expect(page.saved).toEqual([]);
+    expect(page.nodes.get("#download-status").textContent).toMatch(/integrity/i);
+  });
+
+  it("prevents a new download while a confirmation is pending", async () => {
+    let finish;
+    let downloads = 0;
+    const page = await frontend(frontendFetch(() => { downloads++; return new Response("unused"); },
+      () => new Promise((resolve) => { finish = resolve; })),
+    { id: "11111111-1111-4111-8111-111111111111", release: `${RELEASE.version}-${RELEASE.kitRevision}` });
+    page.check();
+    const pending = page.click("#confirm");
+    expect(page.nodes.get("#download").disabled).toBe(true);
+    await page.click("#download");
+    expect(downloads).toBe(0);
+    finish(Response.json({ ok: true, downloads: 1, confirmedInstallations: 1 }));
+    await pending;
   });
 });

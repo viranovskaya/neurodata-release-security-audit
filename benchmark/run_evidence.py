@@ -186,7 +186,7 @@ def run(output: Path, hidden_archives: Path | None) -> dict[str, object]:
                      for metric in ("findings", "references", "container_members", "coverage"))
         passed = passed and all(summary[metric] == 0 for metric in (
             "unexpected_findings", "unexpected_references", "unexpected_container_members",
-            "masking_failures", "integrity_failures",
+            "unexpected_coverage", "masking_failures", "integrity_failures",
         ))
         passed = passed and summary["clean_controls"] == summary["control_cases"]
         summaries[name] = {"input": relative, "summary": summary, "hashes": hashes,

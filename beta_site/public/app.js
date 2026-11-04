@@ -54,8 +54,10 @@ function clearStoredSession() {
 }
 
 function updateConfirmState() {
-  ranCheck.disabled = !installSession;
-  confirmButton.disabled = !installSession || !ranCheck.checked;
+  const busy = downloadButton.dataset.busy === "true" || confirmButton.dataset.busy === "true";
+  downloadButton.disabled = !releaseInfo || busy;
+  ranCheck.disabled = !installSession || busy;
+  confirmButton.disabled = !installSession || !ranCheck.checked || busy;
   downloadButton.textContent = downloadedInTab ? "Download again" : "Download the beta package";
   confirmHelp.textContent = installationConfirmed
     ? "Installation confirmed for this download session. Download again only if you need another copy."
@@ -84,14 +86,18 @@ async function refreshStats() {
     const response = await fetch("api/stats", { cache: "no-store" });
     if (!response.ok) throw new Error("unavailable");
     const data = await response.json();
-    downloads.textContent = data.downloads;
-    confirmed.textContent = data.confirmedInstallations;
-    statsNote.textContent = "These indicative counters combine kit revisions of this beta version. They do not represent unique researchers or completed dataset scans.";
+    showStats(data);
   } catch {
     downloads.textContent = "—";
     confirmed.textContent = "—";
     statsNote.textContent = "Activity counters are temporarily unavailable; this does not prevent local scanner use.";
   }
+}
+
+function showStats(data) {
+  downloads.textContent = data.downloads;
+  confirmed.textContent = data.confirmedInstallations;
+  statsNote.textContent = "These indicative counters combine kit revisions of this beta version. They do not represent unique researchers or completed dataset scans.";
 }
 
 async function loadRelease() {
@@ -125,7 +131,7 @@ async function loadRelease() {
 
   const stored = readStoredSession();
   const releaseKey = `${releaseInfo.version}-${releaseInfo.kitRevision}`;
-  if (stored?.release === releaseKey) installSession = stored.id;
+  installSession = stored?.release === releaseKey ? stored.id : "";
   downloadedInTab = Boolean(installSession);
   downloadButton.disabled = false;
   retryLoadButton.hidden = true;
@@ -143,15 +149,24 @@ function showLoadError(error) {
 }
 
 downloadButton.addEventListener("click", async () => {
-  if (!releaseInfo || downloadButton.dataset.busy === "true") return;
+  if (!releaseInfo || downloadButton.dataset.busy === "true" || confirmButton.dataset.busy === "true") return;
   downloadButton.dataset.busy = "true";
-  downloadButton.disabled = true;
+  updateConfirmState();
   setStatus(downloadStatus, "Preparing the archive…");
   try {
     const response = await fetch("api/download", { method: "POST" });
     if (!response.ok) throw new Error(await responseError(response, "The archive could not be downloaded."));
+    if (response.headers.get("X-Archive-SHA256") !== releaseInfo.archiveSha256) {
+      await loadRelease();
+      throw new Error("The beta version changed. The page has been refreshed; please download again.");
+    }
 
     const blob = await response.blob();
+    const digest = await crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+    const actualSha = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
+    if (actualSha !== releaseInfo.archiveSha256) {
+      throw new Error("Archive integrity check failed. Reload the page and try again; do not install this file.");
+    }
     const link = document.createElement("a");
     const objectUrl = URL.createObjectURL(blob);
     link.href = objectUrl;
@@ -165,6 +180,7 @@ downloadButton.addEventListener("click", async () => {
     downloadedInTab = true;
     installationConfirmed = false;
     if (installSession) storeSession(installSession, `${releaseInfo.version}-${releaseInfo.kitRevision}`);
+    else clearStoredSession();
     ranCheck.checked = false;
     updateConfirmState();
     setStatus(
@@ -173,12 +189,12 @@ downloadButton.addEventListener("click", async () => {
         ? "Downloaded. Open README_EN.md next, or download the archive again if needed."
         : "Archive downloaded. Installation confirmation is temporarily unavailable.",
     );
-    await refreshStats();
+    void refreshStats();
   } catch (error) {
     setStatus(downloadStatus, error.message || "The archive could not be downloaded.", true);
   } finally {
     downloadButton.dataset.busy = "false";
-    downloadButton.disabled = !releaseInfo;
+    updateConfirmState();
     downloadButton.focus();
   }
 });
@@ -202,9 +218,9 @@ for (const button of copyCommandButtons) {
 }
 
 confirmButton.addEventListener("click", async () => {
-  if (!installSession || confirmButton.dataset.busy === "true") return;
+  if (!installSession || confirmButton.dataset.busy === "true" || downloadButton.dataset.busy === "true") return;
   confirmButton.dataset.busy = "true";
-  confirmButton.disabled = true;
+  updateConfirmState();
   setStatus(confirmStatus, "Saving the confirmation…");
   try {
     const response = await fetch("api/confirm", {
@@ -215,9 +231,6 @@ confirmButton.addEventListener("click", async () => {
     if (!response.ok) throw new Error(await responseError(response, "The confirmation was not saved."));
 
     const data = await response.json();
-    downloads.textContent = data.downloads;
-    confirmed.textContent = data.confirmedInstallations;
-    statsNote.textContent = "These indicative counters combine kit revisions of this beta version. They do not represent unique researchers or completed dataset scans.";
     installSession = "";
     installationConfirmed = true;
     clearStoredSession();
@@ -225,6 +238,11 @@ confirmButton.addEventListener("click", async () => {
     updateConfirmState();
     setStatus(confirmStatus, "Thank you — the installation confirmation was recorded.");
     confirmStatus.focus();
+    if (Number.isFinite(data.downloads) && Number.isFinite(data.confirmedInstallations)) {
+      showStats(data);
+    } else {
+      void refreshStats();
+    }
   } catch (error) {
     setStatus(confirmStatus, error.message || "The confirmation was not saved.", true);
   } finally {

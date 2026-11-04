@@ -48,6 +48,20 @@ Coverage errors will be reported separately from missed findings: a format that
 the scanner explicitly leaves for manual review is not the same as a format it
 claims to inspect but misses.
 
+Coverage labels match actual rows one-to-one; duplicate expected labels are
+rejected. Existing cases use `coverage_policy: subset` by default: their labels
+assert selected states, not the entire coverage list. Unlabelled rows are
+reported separately. A case explicitly marked `coverage_policy: exact` also
+fails on any unlabelled actual coverage row. Historical locked case files and
+their hashes are not rewritten to change that policy retroactively.
+
+The current HDF5 regressions require refusal before variable-length text or
+unbounded `MATLAB_class` values are loaded. Fixed-size metadata reads share a
+64 KiB / 10,000-element / 100-node budget in the EEGLAB pass; references are
+restricted to the MATLAB text pool and cannot alias known signal objects.
+Unknown layouts remain manual review. These Python-level checks do not prove
+that a native format library has no internal allocation or parser risks.
+
 The development definition now includes 50 cases and 103 labelled findings. It
 builds small EDF, BDF, BrainVision, FIF, NIfTI and DICOM files and opens them
 through the same metadata readers as a normal audit. It also covers structured

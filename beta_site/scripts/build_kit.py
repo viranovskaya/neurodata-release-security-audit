@@ -5,6 +5,7 @@ import hashlib
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 import zipfile
 
 
@@ -132,16 +133,25 @@ def main() -> None:
     args = parser.parse_args()
 
     archive = DOWNLOADS / values["archive"]
-    first = write_archive(archive, kit_files(args.wheel, values))
-    second = write_archive(archive, kit_files(args.wheel, values))
-    if first != second:
-        raise RuntimeError("Beta archive build is not deterministic")
-    if args.check:
-        if values["archiveSha256"] != second:
-            raise RuntimeError("Archive SHA-256 does not match release.js")
-        require_tracked_archive(archive)
-    else:
-        update_archive_hash(second)
+    with tempfile.TemporaryDirectory(prefix="neurodata-kit-") as directory:
+        candidate = Path(directory) / "first.zip"
+        first = write_archive(candidate, kit_files(args.wheel, values))
+        second = write_archive(Path(directory) / "second.zip", kit_files(args.wheel, values))
+        if first != second:
+            raise RuntimeError("Beta archive build is not deterministic")
+        if args.check:
+            if (values["archiveSha256"] != second or not archive.is_file()
+                    or sha256_bytes(archive.read_bytes()) != second):
+                raise RuntimeError("Tracked archive SHA-256 does not match the build and release.js")
+            require_tracked_archive(archive)
+        else:
+            if archive.exists():
+                if sha256_bytes(archive.read_bytes()) != second:
+                    raise RuntimeError("Existing beta archive differs; choose a new kit revision and filename")
+            else:
+                archive.parent.mkdir(parents=True, exist_ok=True)
+                archive.write_bytes(candidate.read_bytes())
+            update_archive_hash(second)
     print(f"{second}  {archive.name}")
 
 

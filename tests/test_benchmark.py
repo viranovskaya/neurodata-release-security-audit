@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import base64
+import csv
 import json
 import io
 import tempfile
@@ -20,7 +23,7 @@ from benchmark.core import (
 )
 from benchmark.run_evidence import _git_identity, _recover_hidden, _runtime_identity
 from benchmark.run_workflow_comparison import _write_audit
-from neurodata_security_audit.models import Finding, ScanReport
+from neurodata_security_audit.models import CoverageEntry, Finding, ScanReport
 from tools.check_wheel_contents import check_wheel
 from tools.verify_evidence import _members, verify
 
@@ -31,6 +34,99 @@ _FULL_BENCHMARK_READERS_AVAILABLE = all(
 
 
 class BenchmarkTests(unittest.TestCase):
+    def test_overlapping_coverage_labels_find_a_complete_assignment(self):
+        for policy in ("subset", "exact"):
+            with self.subTest(policy=policy):
+                case = {"case_id": "coverage", "split": "review", "format": "text", "files": {},
+                        "sensitive_terms": [], "seeded_values": [], "expected_findings": [],
+                        "coverage_policy": policy, "expected_coverage": [
+                            {"path": "one", "status": "fully_inspected_metadata"},
+                            {"path": "one", "status": "fully_inspected_metadata", "entry_type": "directory"}]}
+                report = ScanReport(scanner_version="synthetic", coverage=[
+                    CoverageEntry(path="one", entry_type="file", status="fully_inspected_metadata", reason="x"),
+                    CoverageEntry(path="one", entry_type="directory", status="fully_inspected_metadata", reason="y")])
+                with tempfile.TemporaryDirectory() as directory, patch("benchmark.core.scan_dataset", return_value=report):
+                    result = _score_case(case, Path(directory))
+                self.assertEqual(2, sum(row["matched"] for row in result["expected_coverage"]))
+                self.assertEqual([], result["unlabelled_coverage"])
+                self.assertEqual([], result["unexpected_coverage"])
+
+    def test_exact_coverage_extras_fail_the_benchmark_command(self):
+        from benchmark import run_benchmark as command
+        summary = {f"{kind}_{metric}": 0 for kind in ("matched", "expected")
+                   for metric in ("findings", "references", "container_members", "coverage")}
+        summary.update({key: 0 for key in ("unexpected_findings", "unexpected_references",
+                       "unexpected_container_members", "masking_failures", "integrity_failures")})
+        summary["unexpected_coverage"] = 1
+        with patch.object(command, "run_benchmark", return_value={"summary": summary}), \
+             patch.object(command, "render_benchmark_markdown", return_value=""), \
+             patch("sys.argv", ["run_benchmark"]):
+            self.assertEqual(1, command.main())
+            summary["unexpected_coverage"] = 0
+            self.assertEqual(0, command.main())
+
+    def test_installed_wheel_verification_binds_digest_record_and_metadata(self):
+        from tools import run_verified_tests
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            package = root / "neurodata_security_audit"
+            package.mkdir()
+            metadata = "neurodata_release_security_audit-0.0.dist-info"
+            files = {"neurodata_security_audit/__init__.py": b'__version__ = "0.0"\n',
+                     f"{metadata}/METADATA": b"Name: neurodata-release-security-audit\nVersion: 0.0\n"}
+            record = io.StringIO()
+            writer = csv.writer(record, lineterminator="\n")
+            for name, data in files.items():
+                digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode()
+                writer.writerow([name, f"sha256={digest}", len(data)])
+            writer.writerow([f"{metadata}/RECORD", "", ""])
+            files[f"{metadata}/RECORD"] = record.getvalue().encode()
+            wheel = root / "candidate.whl"
+            with zipfile.ZipFile(wheel, "w") as archive:
+                for name, data in files.items():
+                    archive.writestr(name, data)
+                    path = root / name
+                    path.parent.mkdir(exist_ok=True)
+                    path.write_bytes(data)
+            digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+            result = run_verified_tests._verify_installed_wheel(wheel, digest, package)
+            self.assertEqual(digest, result["sha256"])
+            self.assertEqual(3, result["record_rows"])
+            with self.assertRaisesRegex(ValueError, "SHA-256"):
+                run_verified_tests._verify_installed_wheel(wheel, "0" * 64, package)
+            (root / f"{metadata}/METADATA").write_bytes(b"tampered installed metadata")
+            with self.assertRaisesRegex(ValueError, "installed"):
+                run_verified_tests._verify_installed_wheel(wheel, digest, package)
+
+    def test_duplicate_coverage_labels_are_rejected(self):
+        case = {"case_id": "coverage", "split": "review", "format": "text", "files": {},
+                "sensitive_terms": [], "seeded_values": [], "expected_findings": [],
+                "expected_coverage": [{"path": "one.txt", "status": "fully_inspected_metadata"}] * 2}
+        with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(ValueError, "coverage"):
+            _score_case(case, Path(directory))
+
+    def test_coverage_rows_are_matched_one_to_one(self):
+        case = {"case_id": "coverage", "split": "review", "format": "text", "files": {},
+                "sensitive_terms": [], "seeded_values": [], "expected_findings": [],
+                "expected_coverage": [
+                    {"path": "one.txt", "status": "fully_inspected_metadata"},
+                    {"path": "one.txt", "status": "fully_inspected_metadata", "entry_type": "file"}]}
+        report = ScanReport(scanner_version="synthetic", coverage=[
+            CoverageEntry(path="one.txt", entry_type="file", status="fully_inspected_metadata", reason="synthetic")])
+        with tempfile.TemporaryDirectory() as directory, patch("benchmark.core.scan_dataset", return_value=report):
+            result = _score_case(case, Path(directory))
+        self.assertEqual(1, sum(item["matched"] for item in result["expected_coverage"]))
+
+    def test_exact_coverage_records_unexpected_rows(self):
+        case = {"case_id": "coverage", "split": "review", "format": "text", "files": {},
+                "sensitive_terms": [], "seeded_values": [], "expected_findings": [],
+                "expected_coverage": [], "coverage_policy": "exact"}
+        report = ScanReport(scanner_version="synthetic", coverage=[
+            CoverageEntry(path="extra.txt", entry_type="file", status="fully_inspected_metadata", reason="synthetic")])
+        with tempfile.TemporaryDirectory() as directory, patch("benchmark.core.scan_dataset", return_value=report):
+            result = _score_case(case, Path(directory))
+        self.assertEqual("extra.txt", result.get("unexpected_coverage", [{}])[0].get("path"))
+
     def test_runtime_identity_binds_current_scanner_bytes(self):
         identity = _runtime_identity(Path(__file__).resolve().parents[1])
         self.assertIn("scanner.py", identity["module_sha256"])
@@ -78,7 +174,7 @@ class BenchmarkTests(unittest.TestCase):
         summary = {f"{kind}_{metric}": 0 for kind in ("matched", "expected")
                    for metric in ("findings", "references", "container_members", "coverage")}
         summary.update({key: 0 for key in ("unexpected_findings", "unexpected_references",
-                       "unexpected_container_members", "masking_failures", "integrity_failures",
+                       "unexpected_container_members", "unexpected_coverage", "masking_failures", "integrity_failures",
                        "clean_controls", "control_cases")})
         with tempfile.TemporaryDirectory() as directory, \
              patch("benchmark.run_evidence._runtime_identity", side_effect=[{"version": "before"}, {"version": "after"}]), \

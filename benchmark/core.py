@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import tempfile
 from collections.abc import Iterator
 from html import unescape
@@ -151,6 +152,18 @@ def _validate_finding_labels(case: dict[str, object]) -> None:
                 f"Finding label {index} in {case['case_id']} must contain exactly "
                 "code, severity, path and location"
             )
+    if case.get("coverage_policy", "subset") not in ("subset", "exact"):
+        raise ValueError("Unknown coverage policy")
+    seen = set()
+    for expected in case.get("expected_coverage", []):
+        if (not {"path", "status"} <= expected.keys()
+                or expected.keys() - {"path", "status", "entry_type", "reason"}
+                or not all(isinstance(value, str) for value in expected.values())):
+            raise ValueError("Invalid coverage label: path and status are required")
+        identity = tuple(sorted(expected.items()))
+        if identity in seen:
+            raise ValueError("Duplicate coverage label")
+        seen.add(identity)
 
 
 def _finding_identity(finding: dict[str, str]) -> tuple[str, str, str, str]:
@@ -192,13 +205,13 @@ def _masking_failures_from_text(
     Keep it independent of the renderers' escaping helpers.
     """
     json_strings = tuple(_json_strings(json.loads(json_text)))
-    markdown_decoded = unescape(markdown_text)
+    markdown_decoded = re.sub(r"\\([\\`*_\[\]()!|])", r"\1", unescape(markdown_text))
     html_decoded = unescape(html_text)
     failures = {"json": [], "markdown": [], "html": []}
     for seed in seeds:
         if seed in json_text or any(seed in text for text in json_strings):
             failures["json"].append(seed)
-        markdown_seed = seed.replace("\r", "\\r").replace("\n", "\\n").replace("|", "\\|")
+        markdown_seed = seed.replace("\r", "\\r").replace("\n", "\\n")
         if (
             seed in markdown_text or seed in markdown_decoded
             or markdown_seed in markdown_decoded
@@ -332,15 +345,29 @@ def _score_case(case: dict[str, object], root: Path) -> dict[str, object]:
         else []
     )
 
-    expected_coverage_results: list[dict[str, object]] = []
-    for expected in case.get("expected_coverage", []):
-        matched = any(
-            _matches(expected, coverage)
-            for coverage in report_data["coverage"]
-        )
-        expected_coverage_results.append(
-            {"expected": expected, "matched": matched}
-        )
+    coverage_labels = case.get("expected_coverage", [])
+    coverage_owners: dict[int, int] = {}
+
+    def assign_coverage(label_index: int, visited: set[int]) -> bool:
+        for index, coverage in enumerate(report_data["coverage"]):
+            if index in visited or not _matches(coverage_labels[label_index], coverage):
+                continue
+            visited.add(index)
+            if index not in coverage_owners or assign_coverage(coverage_owners[index], visited):
+                coverage_owners[index] = label_index
+                return True
+        return False
+
+    for label_index in range(len(coverage_labels)):
+        assign_coverage(label_index, set())
+    matched_labels = set(coverage_owners.values())
+    expected_coverage_results = [
+        {"expected": expected, "matched": index in matched_labels}
+        for index, expected in enumerate(coverage_labels)
+    ]
+    unlabelled_coverage = [coverage for index, coverage in enumerate(report_data["coverage"])
+                           if index not in coverage_owners]
+    coverage_policy = case.get("coverage_policy", "subset")
     masking_by_format = _masking_failures_by_format(report, case["seeded_values"])
     masking_failures = [
         value for value in case["seeded_values"]
@@ -359,6 +386,9 @@ def _score_case(case: dict[str, object], root: Path) -> dict[str, object]:
         "expected_container_members": expected_container_results,
         "unexpected_container_members": unexpected_container_members,
         "expected_coverage": expected_coverage_results,
+        "coverage_policy": coverage_policy,
+        "unlabelled_coverage": unlabelled_coverage,
+        "unexpected_coverage": unlabelled_coverage if coverage_policy == "exact" else [],
         "masking_failures": masking_failures,
         "masking_failures_by_format": masking_by_format,
         "integrity_passed": (
@@ -577,6 +607,8 @@ def run_benchmark(cases_path: Path) -> dict[str, object]:
             "unexpected_container_members": unexpected_container_total,
             "expected_coverage": expected_coverage_total,
             "matched_coverage": matched_coverage_total,
+            "unexpected_coverage": sum(len(item["unexpected_coverage"]) for item in results),
+            "unlabelled_coverage": sum(len(item["unlabelled_coverage"]) for item in results),
             "masking_failures": masking_failures,
             "integrity_failures": sum(
                 not result["integrity_passed"] for result in results
@@ -645,6 +677,10 @@ def render_benchmark_markdown(result: dict[str, object]) -> str:
             f"- Expected coverage states matched: {summary['matched_coverage']} / "
             f"{summary['expected_coverage']}"
         ),
+        f"- Unexpected coverage rows (exact-policy cases): {summary['unexpected_coverage']}",
+        f"- Unlabelled coverage rows: {summary['unlabelled_coverage']}",
+        "- Coverage labels match one-to-one. Historical cases default to subset policy; "
+        "only cases explicitly marked exact test the complete coverage list.",
         f"- Masking failures: {summary['masking_failures']}",
         f"- Integrity failures: {summary['integrity_failures']}",
     ]

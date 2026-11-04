@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import csv
 import hashlib
-from html import escape
 import io
 import json
 import os
@@ -13,6 +12,8 @@ import re
 import sys
 import tempfile
 from typing import Any
+
+from .reporting import _markdown_text
 
 _MAX_REPORT_BYTES = 64 * 1024 * 1024
 _SUMMARY_COUNT_KEYS = (
@@ -524,16 +525,6 @@ def render_comparison_json(comparison: dict[str, object]) -> str:
         indent=2,
         sort_keys=True,
     ) + "\n"
-
-
-def _markdown_text(value: object) -> str:
-    text = (
-        escape(str(value), quote=False)
-        .replace("\\", "\\\\")
-        .replace("\r", "\\r")
-        .replace("\n", "\\n")
-    )
-    return re.sub(r"([`*_\[\]()!|])", r"\\\1", text)
 
 
 def render_comparison_markdown(comparison: dict[str, object]) -> str:

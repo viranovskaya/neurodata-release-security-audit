@@ -3,17 +3,71 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import contextlib
+import csv
 import hashlib
 import importlib
+import io
 import json
 import platform
 import sys
 import unittest
-from pathlib import Path
+import zipfile
+from pathlib import Path, PurePosixPath
 
 
-def run(root: Path, output: Path, origin: str) -> dict[str, object]:
+def _verify_installed_wheel(wheel: Path, expected_sha256: str, package_root: Path) -> dict[str, object]:
+    data = wheel.read_bytes()
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != expected_sha256:
+        raise ValueError("Wheel SHA-256 differs from the explicitly expected artifact")
+    # Resolve metadata beside the imported package, never through sys.path:
+    # source-tree egg-info may otherwise shadow the installed distribution.
+    installation_root = package_root.resolve().parent
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        names = archive.namelist()
+        records = [name for name in names if name.endswith(".dist-info/RECORD")]
+        if len(set(names)) != len(names) or len(records) != 1:
+            raise ValueError("Wheel has duplicate members or an ambiguous RECORD")
+        record_name = records[0]
+        metadata_root = record_name.split("/")[0]
+        for name in names:
+            path = PurePosixPath(name)
+            if (path.is_absolute() or ".." in path.parts or "\\" in name
+                    or not path.parts or path.parts[0] not in ("neurodata_security_audit", metadata_root)):
+                raise ValueError("Unsafe or unsupported wheel member")
+        rows = list(csv.reader(io.StringIO(archive.read(record_name).decode("utf-8"))))
+        if (any(len(row) != 3 for row in rows) or len(rows) != len(names)
+                or {row[0] for row in rows} != set(names)):
+            raise ValueError("Wheel RECORD does not describe every member exactly once")
+        installed_record = (installation_root / record_name).read_bytes()
+        installed_rows = list(csv.reader(io.StringIO(installed_record.decode("utf-8"))))
+        if any(len(row) != 3 for row in installed_rows):
+            raise ValueError("Malformed installed RECORD")
+        installed = {row[0]: row[1:] for row in installed_rows}
+        if len(installed) != len(installed_rows):
+            raise ValueError("Duplicate installed RECORD rows")
+        for name, recorded_hash, size in rows:
+            payload = archive.read(name)
+            if name == record_name:
+                if recorded_hash or size:
+                    raise ValueError("Wheel RECORD must not hash itself")
+                continue
+            encoded = base64.urlsafe_b64encode(hashlib.sha256(payload).digest()).rstrip(b"=").decode("ascii")
+            if recorded_hash != "sha256=" + encoded or size != str(len(payload)):
+                raise ValueError("Wheel RECORD hash or size mismatch")
+            if (installed.get(name) != [recorded_hash, size]
+                    or (installation_root / name).read_bytes() != payload):
+                raise ValueError("Wheel member differs from its installed bytes or RECORD")
+    return {"filename": wheel.name, "sha256": digest, "record_rows": len(rows),
+            "installed_record_sha256": hashlib.sha256(installed_record).hexdigest()}
+
+
+def run(root: Path, output: Path, origin: str, wheel: Path | None = None,
+        wheel_sha256: str | None = None) -> dict[str, object]:
+    if origin == "wheel" and (wheel is None or wheel_sha256 is None):
+        raise ValueError("Wheel mode requires an artifact path and explicit expected SHA-256")
     root = root.resolve()
     source = root / "src"
     # Remove inherited source paths before selecting the intended runtime.
@@ -38,6 +92,7 @@ def run(root: Path, output: Path, origin: str) -> dict[str, object]:
               for path in sorted(package_root.rglob("*.py"))}
     if actual != expected:
         raise ValueError("Imported runtime differs from the tested source snapshot")
+    wheel_identity = _verify_installed_wheel(wheel, wheel_sha256, package_root) if origin == "wheel" else None
     if package_root.is_relative_to(root):
         logical_origin = "project://" + package_root.relative_to(root).as_posix()
     elif package_root.is_relative_to(Path(sys.prefix)):
@@ -51,6 +106,7 @@ def run(root: Path, output: Path, origin: str) -> dict[str, object]:
         "executable_name": Path(sys.executable).name,
         "executable_sha256": hashlib.sha256(Path(sys.executable).read_bytes()).hexdigest(),
         "runtime_sha256": actual,
+        "wheel": wheel_identity,
         "cwd_relation": (Path.cwd().relative_to(root).as_posix()
                          if Path.cwd().is_relative_to(root) else "outside-project"),
         "path_policy": "Project added for source-only tests; src included only for source mode",
@@ -74,12 +130,15 @@ def run(root: Path, output: Path, origin: str) -> dict[str, object]:
     after = {path.relative_to(package_root).as_posix():
              hashlib.sha256(path.read_bytes()).hexdigest()
              for path in sorted(package_root.rglob("*.py"))}
+    wheel_unchanged = (origin != "wheel" or wheel_identity ==
+                       _verify_installed_wheel(wheel, wheel_sha256, package_root))
     summary = {
         "identity": identity, "loaded_modules": loaded,
         "tests_run": result.testsRun, "failures": len(result.failures),
         "errors": len(result.errors), "skips": len(result.skipped),
         "runtime_unchanged": after == actual,
-        "success": result.wasSuccessful() and after == actual,
+        "wheel_unchanged": wheel_unchanged,
+        "success": result.wasSuccessful() and after == actual and wheel_unchanged,
         "log_sha256": hashlib.sha256((output / "tests.log").read_bytes()).hexdigest(),
     }
     (output / "after.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
@@ -90,7 +149,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--origin", choices=("source", "wheel"), required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--wheel", type=Path)
+    parser.add_argument("--wheel-sha256")
     args = parser.parse_args()
-    summary = run(Path(__file__).resolve().parents[1], args.output, args.origin)
+    summary = run(Path(__file__).resolve().parents[1], args.output, args.origin,
+                  args.wheel, args.wheel_sha256)
     print(json.dumps({key: summary[key] for key in ("tests_run", "failures", "errors", "skips", "success")}))
     raise SystemExit(0 if summary["success"] else 1)
