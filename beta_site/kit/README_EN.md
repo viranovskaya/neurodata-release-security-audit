@@ -46,29 +46,33 @@ before creating the environment:
 macOS or Linux:
 
 ```bash
-python3 --version
+python3.13 --version
 ```
 
 Windows PowerShell:
 
 ```powershell
-py --version
+py -3.13 --version
 ```
 
 Use Python 3.10, 3.11, 3.12, or 3.13. The full CI test suite runs on Python
 3.10 and 3.13. A separate installed-wheel smoke test runs on Python 3.12.
+The examples select 3.13 explicitly; it must already be installed. To use
+another installed supported version, replace `3.13` in both the version check
+and environment-creation command. Generic `python3` or `py` commands may select
+an unsupported newer interpreter.
 
 On macOS or Linux:
 
 ```bash
-python3 -m venv neurodata-beta-env
+python3.13 -m venv neurodata-beta-env
 source neurodata-beta-env/bin/activate
 ```
 
 On Windows PowerShell:
 
 ```powershell
-py -m venv neurodata-beta-env
+py -3.13 -m venv neurodata-beta-env
 .\neurodata-beta-env\Scripts\Activate.ps1
 ```
 
