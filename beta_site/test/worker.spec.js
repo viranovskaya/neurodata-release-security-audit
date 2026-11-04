@@ -111,10 +111,10 @@ describe("researcher beta Worker", () => {
     const response = await request("/api/info");
     const info = await response.json();
     expect(response.status).toBe(200);
-    expect(info.version).toBe("0.3.0b4");
-    expect(info.tag).toBe("v0.3.0b4");
+    expect(info.version).toBe("0.3.0b5");
+    expect(info.tag).toBe("v0.3.0b5");
     expect(info.kitRevision).toBe("r1");
-    expect(info.archive).toBe("neurodata-researcher-beta-0.3.0b4-r1.zip");
+    expect(info.archive).toBe("neurodata-researcher-beta-0.3.0b5-r1.zip");
     expect(info.archiveSha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
