@@ -211,6 +211,9 @@ jobs:
       - name: Install pinned beta-site dependencies
         working-directory: beta_site
         run: npm ci
+      - name: Check known beta-site dependency vulnerabilities
+        working-directory: beta_site
+        run: npm audit --audit-level=moderate
       - name: Run Worker and D1 tests
         working-directory: beta_site
         run: npm test -- --reporter=dot

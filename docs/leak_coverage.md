@@ -74,3 +74,25 @@ This matrix separates implemented checks from explicit review boundaries.
 - public calibration remains explainable;
 - schema, documentation and code describe the same boundary;
 - the exact local candidate is frozen and hashed.
+
+## v0.3.0b4 audit hardening
+
+Version `v0.3.0b4` tightens the following boundaries. The website installation
+kit is pinned separately to an exact release wheel; check the advertised
+version and checksum rather than assuming an older kit contains these fixes.
+
+- Arbitrary phone-field names are replaced with a safe location placeholder;
+  recognising a phone suffix does not make its identifying prefix public.
+- MATLAB soft links and HDF5 virtual or external-storage datasets are left for
+  manual review. Their external values are not read or included in a successful
+  integrity claim. EEGLAB text-reader errors do not trigger an MNE fallback.
+- Email matching does not restart inside a percent-containing local-part run.
+  The text budget is unchanged; this is not truncation-based filtering.
+- Office member counts and central-directory bytes are bounded before loading
+  ZIP objects. The member budget also counts actual directory headers rather
+  than trusting the declared total alone.
+- A failed or refused JSON, table or XML parse creates a manual-review coverage
+  gap even when the raw text pass completed.
+
+These are engineering regression boundaries, not anonymity or security
+certification. Reports still require private human review before sharing.
