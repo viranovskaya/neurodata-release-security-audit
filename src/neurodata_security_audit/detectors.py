@@ -6,7 +6,7 @@ import re
 
 from .models import Finding, Severity
 
-_EMAIL = re.compile(r"(?<![\w.+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![\w.-])", re.I)
+_EMAIL = re.compile(r"(?<![\w.%+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}(?![\w.-])", re.I)
 _PARTICIPANT_EMAIL_LABEL = re.compile(
     r"(?:^|[^a-z0-9])(?:participant|subject|patient|donor|volunteer)"
     r"(?:[\s_-]*(?:contact|email|e-mail|address|id|\d+))*\s*[:=]\s*$",

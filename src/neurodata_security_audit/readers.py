@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 from xml.etree import ElementTree
 
+from .containers import _zip_directory_bounds
 from .detectors import (
     BIRTH_DATE_MESSAGE, KnownTermMatcher, participant_name_finding, redacted, scan_text,
 )
@@ -43,6 +44,7 @@ _EEGLAB_TEXT_FIELDS = {
     "subject",
 }
 _OFFICE_MAX_MEMBERS = 1000
+_OFFICE_MAX_DIRECTORY_BYTES = 8 * 1024 * 1024
 _OFFICE_MAX_MEMBER_BYTES = 2 * 1024 * 1024
 _OFFICE_MAX_TEXT_BYTES = 8 * 1024 * 1024
 _OFFICE_XML_DECLARATIONS = (b"<!DOCTYPE", b"<!ENTITY")
@@ -651,6 +653,8 @@ def _hdf5_text_values(node: object, h5py, limit: int = 100) -> list[str]:
             return
         if not isinstance(item, h5py.Dataset) or item.size > 10000:
             return
+        if item.is_virtual or item.external:
+            raise ValueError("External or virtual HDF5 storage is not inspected")
         matlab_class = item.attrs.get("MATLAB_class", b"")
         if isinstance(matlab_class, bytes):
             matlab_class = matlab_class.decode("ascii", errors="ignore")
@@ -894,6 +898,9 @@ def inspect_matlab_metadata(
                         )
                     )
                     continue
+                if not isinstance(link, h5py.HardLink):
+                    limited_layouts += 1
+                    continue
                 node = document[name]
                 matlab_class = node.attrs.get("MATLAB_class", b"")
                 if isinstance(matlab_class, bytes):
@@ -1073,6 +1080,12 @@ def inspect_office_metadata(
     known_terms = known_terms or KnownTermMatcher()
     findings: list[Finding] = []
     total_text_bytes = 0
+    member_count, directory_bytes = _zip_directory_bounds(
+        path, max_members=_OFFICE_MAX_MEMBERS,
+        max_directory_bytes=_OFFICE_MAX_DIRECTORY_BYTES,
+    )
+    if member_count > _OFFICE_MAX_MEMBERS or directory_bytes > _OFFICE_MAX_DIRECTORY_BYTES:
+        raise ValueError("Office package directory exceeds the parsing limit")
     with zipfile.ZipFile(path) as document:
         members = document.infolist()
         if len(members) > _OFFICE_MAX_MEMBERS:

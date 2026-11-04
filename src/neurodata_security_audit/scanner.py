@@ -1327,6 +1327,7 @@ def scan_dataset(
                 with _open_regular_file(path, file_token) as stream:
                     data = stream.read()
                 text = decode_small_text(data)
+                findings_before_text = len(report.findings)
                 report.files_inspected.append(relative_path)
                 record_coverage(
                     relative_path,
@@ -1370,6 +1371,15 @@ def scan_dataset(
                     report.findings.extend(inspect_delimited(text, relative_path, ","))
                 elif suffix == ".xml":
                     report.findings.extend(inspect_xml(text, relative_path))
+                if any(item.code in {
+                    "MALFORMED_JSON", "MALFORMED_TABLE", "MALFORMED_XML",
+                    "UNSAFE_XML_DECLARATION",
+                } for item in report.findings[findings_before_text:]):
+                    record_skip(
+                        relative_path,
+                        "Named metadata fields could not be completely inspected",
+                        "Only the raw text was checked; structured metadata requires manual review",
+                    )
                 if suffix in {".vhdr", ".vmrk"}:
                     report.findings.extend(inspect_brainvision(text, relative_path))
                     references = inspect_brainvision_references(
@@ -1590,19 +1600,15 @@ def scan_dataset(
                     except FormatReaderUnavailable:
                         eeglab_metadata_reader_unavailable = True
                     except Exception as error:  # noqa: BLE001 - fail closed safely
-                        report.findings.append(
-                            Finding(
-                                code="EEGLAB_METADATA_UNREADABLE",
-                                severity="review",
-                                path=relative_path,
-                                location="EEGLAB MATLAB metadata",
-                                evidence=f"<error:{type(error).__name__}>",
-                                message=(
-                                    "Review this EEGLAB file manually; its private text fields "
-                                    "could not be inspected safely."
-                                ),
-                            )
+                        metadata_unreadable(
+                            relative_path, error,
+                            code="EEGLAB_METADATA_UNREADABLE",
+                            location="EEGLAB MATLAB metadata",
+                            message="Review this EEGLAB file manually; its private text fields could not be inspected safely.",
+                            skipped_reason="EEGLAB metadata inspection failed; MNE fallback was refused",
+                            coverage_reason="EEGLAB metadata could not be inspected safely",
                         )
+                        continue
                 if eeglab_skip_mne:
                     report.files_inspected.append(relative_path)
                     report.skipped_files.append(

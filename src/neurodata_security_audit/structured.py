@@ -25,6 +25,7 @@ _PHONE_KEYS = {
     "mobile",
     "contact_phone",
     "emergency_phone",
+    "emergency_contact_phone",
     "participant_phone",
     "patient_phone",
     "subject_phone",
@@ -205,7 +206,7 @@ def _safe_location_key(key: object) -> str:
     normalised = _normalise_key(key)
     return (
         normalised
-        if normalised in _SAFE_LOCATION_KEYS or _is_phone_key(normalised)
+        if normalised in _SAFE_LOCATION_KEYS
         else "<field>"
     )
 

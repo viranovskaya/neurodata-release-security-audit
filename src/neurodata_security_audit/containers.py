@@ -167,7 +167,10 @@ def _zip_member_type(info: zipfile.ZipInfo) -> ContainerMemberType:
     return "file"
 
 
-def _zip_directory_bounds(path: Path) -> tuple[int, int]:
+def _zip_directory_bounds(
+    path: Path, *, max_members: int | None = None,
+    max_directory_bytes: int | None = None,
+) -> tuple[int, int]:
     """Read ZIP/ZIP64 directory budgets before ZipFile allocates its member list."""
     with path.open("rb") as source:
         file_size = source.seek(0, 2)
@@ -178,12 +181,16 @@ def _zip_directory_bounds(path: Path) -> tuple[int, int]:
             raise zipfile.BadZipFile("ZIP end-of-directory record is missing")
         record = struct.unpack_from("<4sHHHHIIH", tail, position)
         count, directory_bytes = record[4], record[5]
-        if count == 0xFFFF or directory_bytes == 0xFFFFFFFF:
-            record_offset = file_size - len(tail) + position
-            if record_offset < 20:
-                raise zipfile.BadZipFile("ZIP64 directory locator is missing")
+        record_offset = file_size - len(tail) + position
+        directory_end = record_offset
+        locator = b""
+        if record_offset >= 20:
             source.seek(record_offset - 20)
             locator = source.read(20)
+        if (
+            count == 0xFFFF or directory_bytes == 0xFFFFFFFF
+            or locator[:4] == b"PK\x06\x07"
+        ):
             if len(locator) != 20 or locator[:4] != b"PK\x06\x07":
                 raise zipfile.BadZipFile("ZIP64 directory locator is missing")
             zip64_offset = struct.unpack_from("<Q", locator, 8)[0]
@@ -192,6 +199,33 @@ def _zip_directory_bounds(path: Path) -> tuple[int, int]:
             if len(zip64) != 56 or zip64[:4] != b"PK\x06\x06":
                 raise zipfile.BadZipFile("ZIP64 directory record is missing")
             count, directory_bytes = struct.unpack_from("<QQ", zip64, 32)
+            directory_end = zip64_offset
+        if (
+            max_members is not None and max_directory_bytes is not None
+            and count <= max_members and directory_bytes <= max_directory_bytes
+        ):
+            # The declared count is untrusted. Count bounded central headers
+            # without materialising ZipInfo objects or member names.
+            directory_start = directory_end - directory_bytes
+            if directory_start < 0:
+                raise zipfile.BadZipFile("ZIP directory starts outside the file")
+            source.seek(directory_start)
+            remaining = directory_bytes
+            actual_count = 0
+            while remaining:
+                header = source.read(min(46, remaining))
+                if len(header) != 46 or header[:4] != b"PK\x01\x02":
+                    raise zipfile.BadZipFile("Invalid ZIP central directory header")
+                name_bytes, extra_bytes, comment_bytes = struct.unpack_from("<HHH", header, 28)
+                size = 46 + name_bytes + extra_bytes + comment_bytes
+                if size > remaining:
+                    raise zipfile.BadZipFile("ZIP central directory entry exceeds its bounds")
+                actual_count += 1
+                if actual_count > max_members:
+                    return actual_count, directory_bytes
+                source.seek(size - 46, 1)
+                remaining -= size
+            count = max(count, actual_count)
         return count, directory_bytes
 
 
@@ -341,7 +375,9 @@ def inspect_archive(
         return True
 
     if path.name.lower().endswith(".zip"):
-        declared_members, directory_bytes = _zip_directory_bounds(path)
+        declared_members, directory_bytes = _zip_directory_bounds(
+            path, max_members=max_members, max_directory_bytes=max_directory_bytes,
+        )
         if declared_members > max_members or directory_bytes > max_directory_bytes:
             count_limited = declared_members > max_members
             code = "ARCHIVE_MEMBER_LIMIT" if count_limited else "ARCHIVE_DIRECTORY_LIMIT"

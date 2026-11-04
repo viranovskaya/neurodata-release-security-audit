@@ -12,6 +12,8 @@ from numbers import Number
 import os
 import socket
 import struct
+import subprocess
+import sys
 import tarfile
 import tempfile
 from types import SimpleNamespace
@@ -23,6 +25,7 @@ import zlib
 
 from neurodata_security_audit.cli import main
 from neurodata_security_audit.containers import _zip_directory_bounds, inspect_archive
+from neurodata_security_audit.detectors import find_emails
 from neurodata_security_audit.imaging import inspect_dicom_metadata
 from neurodata_security_audit.html_report import render_html
 from neurodata_security_audit.models import (
@@ -76,6 +79,140 @@ class _VisibleTextParser(HTMLParser):
 
 
 class ScannerTests(unittest.TestCase):
+    def test_office_budget_accepts_a_valid_zip64_directory(self) -> None:
+        path = self.root / "small-zip64.docx"
+        with patch.object(zipfile, "ZIP64_LIMIT", 0), zipfile.ZipFile(path, "w") as document:
+            document.writestr("[Content_Types].xml", "<Types />")
+            document.writestr("word/document.xml", "<document><p>synthetic</p></document>")
+        self.assertEqual([], inspect_office_metadata(path, path.name, "docx"))
+
+    def test_office_member_budget_does_not_trust_a_forged_zip_count(self) -> None:
+        path = self.root / "forged.xlsx"
+        with zipfile.ZipFile(path, "w") as document:
+            for index in range(1001):
+                document.writestr(str(index), b"")
+        data = bytearray(path.read_bytes())
+        end = data.rfind(b"PK\x05\x06")
+        struct.pack_into("<HH", data, end + 8, 1, 1)
+        path.write_bytes(data)
+        with patch.object(zipfile.ZipFile, "_RealGetContents",
+                          side_effect=AssertionError("Forged count bypassed the member budget")):
+            with self.assertRaises(ValueError):
+                inspect_office_metadata(path, path.name, "xlsx")
+
+    def test_failed_structured_parsing_leaves_a_coverage_gap(self) -> None:
+        for extension, text, code in (
+            ("json", '{"participant_name": "synthetic",}', "MALFORMED_JSON"),
+            ("xml", "<participant_name>synthetic", "MALFORMED_XML"),
+            ("xml", '<!DOCTYPE p [<!ENTITY x "synthetic">]><p>&x;</p>', "UNSAFE_XML_DECLARATION"),
+            ("csv", "participant_name\n" + "x" * 140000 + "\n", "MALFORMED_TABLE"),
+        ):
+            with self.subTest(extension=extension, code=code):
+                path = self.root / f"metadata.{extension}"
+                path.write_text(text, encoding="utf-8")
+                report = scan_dataset(self.root)
+                self.assertIn(code, {item.code for item in report.findings})
+                self.assertEqual("unsupported_manual_review", report.coverage[0].status)
+                self.assertEqual([path.name], [item.path for item in report.skipped_files])
+                self.assertTrue(report.manifest_recheck_passed)
+                path.unlink()
+
+    def test_office_directory_limits_apply_before_zip_table_loading(self) -> None:
+        path = self.root / "oversized.xlsx"
+        for count, name_size in ((1001, 1), (2, 65500)):
+            with self.subTest(count=count, name_size=name_size):
+                with zipfile.ZipFile(path, "w") as document:
+                    for index in range(count):
+                        document.writestr(f"{index}-" + "x" * name_size, b"")
+                with patch("neurodata_security_audit.readers._OFFICE_MAX_DIRECTORY_BYTES",
+                           64 * 1024, create=True), patch.object(zipfile.ZipFile, "_RealGetContents",
+                                  side_effect=AssertionError("ZIP table loaded before budget check")):
+                    with self.assertRaises(ValueError):
+                        inspect_office_metadata(path, path.name, "xlsx")
+
+    def test_email_search_finishes_on_a_full_budget_percent_run(self) -> None:
+        try:
+            result = subprocess.run(
+                [sys.executable, "-B", "-c",
+                 "from neurodata_security_audit.detectors import find_emails; "
+                 "assert find_emails('%' * (2 * 1024 * 1024)) == ()"],
+                capture_output=True, text=True, timeout=3, check=False,
+            )
+        except subprocess.TimeoutExpired:
+            self.fail("Email matching exceeded its time budget on bounded text")
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_email_search_preserves_percent_local_parts_and_boundaries(self) -> None:
+        self.assertEqual(
+            ("%alice@example.org", "bob%lab@example.org", "carol@example.org"),
+            find_emails("%alice@example.org bob%lab@example.org carol@example.org éhidden@example.org"),
+        )
+
+    @unittest.skipUnless(util.find_spec("h5py"), "h5py is not installed")
+    def test_hdf5_indirect_sources_do_not_affect_the_scan(self) -> None:
+        import h5py
+        import numpy as np
+
+        outside = Path(self.temp_dir.name) / "outside.h5"
+        for extension in ("mat", "set"):
+            for storage in ("soft-external", "virtual", "external-storage"):
+                with self.subTest(extension=extension, storage=storage):
+                    for previous in self.root.glob("linked.*"):
+                        previous.unlink()
+                    seed = "aliceexample"
+                    text = f"participant_name: {seed}"
+                    with h5py.File(outside, "w") as source:
+                        source.create_dataset("notes", data=np.array([text.encode()], dtype="S64"))
+                    path = self.root / f"linked.{extension}"
+                    raw = Path(self.temp_dir.name) / "outside.raw"
+                    raw.write_bytes(text.encode().ljust(64))
+                    with h5py.File(path, "w", libver="latest") as document:
+                        if storage == "soft-external":
+                            document["outside"] = h5py.ExternalLink(str(outside), "/notes")
+                            document["comments"] = h5py.SoftLink("/outside")
+                        elif storage == "virtual":
+                            layout = h5py.VirtualLayout(shape=(1,), dtype="S64")
+                            layout[:] = h5py.VirtualSource(str(outside), "notes", shape=(1,))
+                            document.create_virtual_dataset("comments", layout)
+                        else:
+                            document.create_dataset("comments", shape=(1,), dtype="S64",
+                                                    external=[(str(raw), 0, 64)])
+                    policy = ScanPolicy(sensitive_terms=(seed,))
+                    first = scan_dataset(self.root, policy)
+                    self.assertFalse(any(item.code == "KNOWN_IDENTIFIER" for item in first.findings),
+                                     "The reader consumed text outside the release manifest")
+                    self.assertTrue(any(item.code in {
+                        "EXTERNAL_DATA_REFERENCE", "FORMAT_METADATA_UNREADABLE",
+                        "EEGLAB_METADATA_UNREADABLE", "MATLAB_METADATA_COVERAGE_LIMIT",
+                        "EEGLAB_METADATA_COVERAGE_LIMIT",
+                    } for item in first.findings))
+                    if extension == "set" and storage != "soft-external":
+                        self.assertEqual("unsupported_manual_review", first.coverage[0].status)
+                    with h5py.File(outside, "r+") as source:
+                        source["notes"][0] = b"changed synthetic external note"
+                    raw.write_bytes(b"changed synthetic external note".ljust(64))
+                    second = scan_dataset(self.root, policy)
+                    self.assertEqual(render_json(first), render_json(second))
+                    path.unlink()
+
+    def test_private_phone_field_names_are_masked_in_every_report(self) -> None:
+        seed = "aliceexample"
+        for suffix in ("phone", "phone_number", "telephone", "mobile"):
+            key = f"{seed}_{suffix}"
+            for extension, text in (
+                ("json", json.dumps({"participant": {key: "+1 202 555 0199"}})),
+                ("csv", f"{key}\n+1 202 555 0199\n"),
+                ("xml", f"<participant><{key}>+1 202 555 0199</{key}></participant>"),
+            ):
+                with self.subTest(suffix=suffix, extension=extension):
+                    path = self.root / f"metadata.{extension}"
+                    path.write_text(text, encoding="utf-8")
+                    report = scan_dataset(self.root, ScanPolicy(sensitive_terms=(seed,)))
+                    self.assertIn("DIRECT_PHONE", {item.code for item in report.findings})
+                    for render in (render_json, render_markdown, render_html):
+                        self.assertNotIn(seed, render(report))
+                    path.unlink()
+
     @unittest.skipUnless(util.find_spec("scipy"), "scipy is not installed")
     def test_selective_mat5_nested_text_and_signal_skip(self) -> None:
         import numpy as np
@@ -2670,6 +2807,9 @@ class ScannerTests(unittest.TestCase):
             read_raw_eeglab=lambda path, preload, verbose: FakeRaw(),
         )
         with patch(
+            "neurodata_security_audit.readers._read_eeglab_metadata",
+            return_value=({}, True),
+        ), patch(
             "neurodata_security_audit.readers._load_mne",
             return_value=SimpleNamespace(io=io_module),
         ):
