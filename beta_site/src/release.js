@@ -1,10 +1,10 @@
 export const RELEASE = Object.freeze({
-  tag: "v0.3.0b3",
-  version: "0.3.0b3",
-  wheel: "neurodata_release_security_audit-0.3.0b3-py3-none-any.whl",
-  wheelSha256: "de67ac148a369ff433b95930a11f5af0422f7f6644bc3da396750a1ff1ca2915",
+  tag: "v0.3.0b4",
+  version: "0.3.0b4",
+  wheel: "neurodata_release_security_audit-0.3.0b4-py3-none-any.whl",
+  wheelSha256: "e2d1b970dbbaf8a30157ad49bdfba31e8974b0d3b68113cbd185bfc706771e14",
   kitRevision: "r1",
-  archive: "neurodata-researcher-beta-0.3.0b3-r1.zip",
-  archiveSha256: "1ab079e25a4591e246ae1f1f79d822f9f6f7c91b3d80a1b0a540c5c6b810fc18",
-  releaseUrl: "https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b3",
+  archive: "neurodata-researcher-beta-0.3.0b4-r1.zip",
+  archiveSha256: "2db5e3fed24f233eca982557436687443826979412a125fc69a8890f67fc0d13",
+  releaseUrl: "https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b4",
 });
