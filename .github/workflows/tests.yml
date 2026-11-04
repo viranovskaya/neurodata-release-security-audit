@@ -103,9 +103,13 @@ jobs:
           python -m pip install build
           python -m build --wheel --outdir dist
           wheel="$(find dist -name '*.whl' -print -quit)"
+          echo "EXACT_WHEEL_PATH=${GITHUB_WORKSPACE}/${wheel}" >> "${GITHUB_ENV}"
+          echo "EXACT_WHEEL_SHA256=$(sha256sum "${wheel}" | cut -d ' ' -f 1)" >> "${GITHUB_ENV}"
           python -m pip install "${wheel}[formats,imaging]" \
             --constraint .github/constraints/calibration-readers.txt
       - name: Run copied tests outside the checkout
+        env:
+          REPOSITORY_ROOT: ${{ github.workspace }}
         run: |
           isolated="${RUNNER_TEMP}/exact-wheel"
           mkdir -p "${isolated}/examples" "${isolated}/tests"
@@ -118,11 +122,19 @@ jobs:
           cd "${isolated}"
           python - <<'PY'
           from pathlib import Path
+          import os
+          import sys
           import neurodata_security_audit
 
           path = Path(neurodata_security_audit.__file__).resolve()
           print(path)
           assert "site-packages" in path.parts
+          sys.path.insert(0, os.environ["REPOSITORY_ROOT"])
+          from tools.run_verified_tests import _verify_installed_wheel
+          print(_verify_installed_wheel(
+              Path(os.environ["EXACT_WHEEL_PATH"]),
+              os.environ["EXACT_WHEEL_SHA256"], path.parent,
+          ))
           PY
           python -m unittest discover -s tests -v
 
@@ -220,5 +232,5 @@ jobs:
       - name: Verify deterministic kit and Worker bundle
         working-directory: beta_site
         run: npm run check:deploy
-      - name: Confirm verification did not rewrite release metadata
-        run: git diff --exit-code -- beta_site/src/release.js
+      - name: Confirm verification did not rewrite release metadata or archives
+        run: git diff --exit-code -- beta_site/src/release.js beta_site/public/downloads

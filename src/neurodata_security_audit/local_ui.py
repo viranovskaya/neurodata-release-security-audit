@@ -78,13 +78,14 @@ _PAGE = """<!doctype html>
   <form id="audit-form">
     <label for="dataset">Dataset folder</label>
     <input id="dataset" name="dataset" autocomplete="off" required
-      placeholder="/Users/me/data/my-dataset">
+      placeholder="Full dataset folder path">
     <span class="hint">Enter the full path to the folder you want to inspect.
+      For example, /home/me/data or C:/data/my-dataset.
       The scanner reads it without modifying it.</span>
 
     <label for="output">Report folder</label>
     <input id="output" name="output" autocomplete="off" required
-      placeholder="/Users/me/Documents/audit-results">
+      placeholder="Full path to a new report folder">
     <span class="hint">Keep this outside the dataset. Existing report files
       are never replaced.</span>
 

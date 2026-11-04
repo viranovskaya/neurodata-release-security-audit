@@ -7,7 +7,7 @@
 **A local final check for EEG and neuroimaging datasets before sharing them.**
 
 [Get the researcher beta package](https://neurodata-audit-researcher-beta.viranovskaya.workers.dev/)
-· [Download v0.3.0b4 from GitHub](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b4)
+· [Download v0.3.0b5 from GitHub](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b5)
 · [See supported formats](#supported-formats)
 
 Point the audit at a dataset on your computer. It checks privacy-relevant
@@ -27,35 +27,40 @@ The demo deliberately produces a hold; no participant data appears in this image
 
 Use Python 3.10–3.13 (CI covers 3.10, 3.12 and 3.13). Download the wheel and
 `SHA256SUMS` from the
-[`v0.3.0b4` prerelease](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b4). In the download folder, calculate the wheel hash and compare it with the wheel's line in `SHA256SUMS` before installing:
+[`v0.3.0b5` prerelease](https://github.com/viranovskaya/neurodata-release-security-audit/releases/tag/v0.3.0b5). In the download folder, calculate the wheel hash and compare it with the wheel's line in `SHA256SUMS` before installing:
 
 ```bash
-shasum -a 256 neurodata_release_security_audit-0.3.0b4-py3-none-any.whl
-# Linux: sha256sum neurodata_release_security_audit-0.3.0b4-py3-none-any.whl
+shasum -a 256 neurodata_release_security_audit-0.3.0b5-py3-none-any.whl
+# Linux: sha256sum neurodata_release_security_audit-0.3.0b5-py3-none-any.whl
 ```
 
 On Windows PowerShell, compare this result with the wheel entry in
 `SHA256SUMS`:
 
 ```powershell
-(Get-FileHash .\neurodata_release_security_audit-0.3.0b4-py3-none-any.whl -Algorithm SHA256).Hash
+(Get-FileHash .\neurodata_release_security_audit-0.3.0b5-py3-none-any.whl -Algorithm SHA256).Hash
 ```
 
 Then install it in a fresh environment:
 
+The examples select Python 3.13 explicitly. Install it first, or replace `3.13`
+with an installed supported version (3.10–3.13). A generic `python3` or `py`
+command may select a newer, unsupported interpreter. Check the selected version
+with `python3.13 --version` or `py -3.13 --version` before proceeding.
+
 macOS or Linux:
 
 ```bash
-python3 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
-python3 -m pip install ./neurodata_release_security_audit-0.3.0b4-py3-none-any.whl
+python3 -m pip install ./neurodata_release_security_audit-0.3.0b5-py3-none-any.whl
 ```
 
 Windows PowerShell:
 
 ```powershell
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install .\neurodata_release_security_audit-0.3.0b4-py3-none-any.whl
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install .\neurodata_release_security_audit-0.3.0b5-py3-none-any.whl
 ```
 
 Start the local browser interface:
@@ -117,7 +122,7 @@ For mixed datasets, install both optional groups:
 
 ```bash
 python3 -m pip install \
-  "./neurodata_release_security_audit-0.3.0b4-py3-none-any.whl[formats,imaging]"
+  "./neurodata_release_security_audit-0.3.0b5-py3-none-any.whl[formats,imaging]"
 ```
 
 Format support is intentionally bounded. XLSX inline-string cells are scanned
@@ -244,8 +249,11 @@ The [v0.3.0b3 update](docs/release_0.3.0b3.md) adds archive safety limits,
 nested DICOM and XLSX coverage fixes, and Windows report-writing checks.
 The [v0.3.0b4 update](docs/release_0.3.0b4.md) fixes identifying field-name
 masking, indirect HDF5 reads, parser resource limits and incomplete coverage.
+The [v0.3.0b5 update](docs/release_0.3.0b5.md) tightens HDF5 reference and
+allocation boundaries, Office XML rejection, Markdown safety and artifact checks.
 
-The 50-dataset run is an engineering calibration, not a representative privacy
+The 50-dataset run used scanner **0.2.0.dev0**. It is historical engineering
+evidence, not a recalibration of the current beta. It is not a representative privacy
 study and not evidence that any source dataset is unsafe. Its exact scope is in
 the [calibration record](docs/public_50_dataset_calibration.md).
 
@@ -258,7 +266,7 @@ and Windows, deterministic builds and report-schema validation.
 ```bash
 git clone https://github.com/viranovskaya/neurodata-release-security-audit.git
 cd neurodata-release-security-audit
-git checkout v0.3.0b4
+git checkout v0.3.0b5
 python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install ".[formats,imaging]"

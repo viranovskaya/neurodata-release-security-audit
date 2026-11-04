@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable
 from html import escape
 
@@ -17,12 +18,13 @@ def render_json(report: ScanReport) -> str:
 
 
 def _markdown_text(value: object) -> str:
-    return (
+    text = (
         escape(str(value), quote=False)
+        .replace("\\", "\\\\")
         .replace("\r", "\\r")
         .replace("\n", "\\n")
-        .replace("|", "\\|")
     )
+    return re.sub(r"([`*_\[\]()!|])", r"\\\1", text)
 
 
 def _append_table(

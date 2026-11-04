@@ -149,7 +149,12 @@ async function confirm(request, env) {
     ).bind(id, RELEASE.version, cutoff()).first();
     if (!existing) return json({ error: "Install session not found or expired." }, 404);
   }
-  return json({ ok: true, ...(await stats(env)) });
+  try {
+    return json({ ok: true, ...(await stats(env)) });
+  } catch {
+    // Persistence succeeded; aggregate availability must not reverse that result.
+    return json({ ok: true });
+  }
 }
 
 async function pruneOldSessions(env, now = new Date()) {
@@ -178,6 +183,8 @@ async function handle(request, env) {
     return json(RELEASE);
   }
   if (request.method === "GET" && url.pathname === "/api/stats") {
+    const limited = await checkRateLimit(request, env, "stats");
+    if (limited) return limited;
     try {
       return json(await stats(env));
     } catch {

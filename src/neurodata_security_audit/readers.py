@@ -14,6 +14,7 @@ from numbers import Number
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 from xml.etree import ElementTree
+from xml.parsers import expat
 
 from .containers import _zip_directory_bounds
 from .detectors import (
@@ -47,7 +48,6 @@ _OFFICE_MAX_MEMBERS = 1000
 _OFFICE_MAX_DIRECTORY_BYTES = 8 * 1024 * 1024
 _OFFICE_MAX_MEMBER_BYTES = 2 * 1024 * 1024
 _OFFICE_MAX_TEXT_BYTES = 8 * 1024 * 1024
-_OFFICE_XML_DECLARATIONS = (b"<!DOCTYPE", b"<!ENTITY")
 _MATLAB_MAX_TEXT_ELEMENTS = 10000
 _MATLAB_MAX_TEXT_VARIABLES = 100
 _MATLAB_MAX_TEXT_BYTES = 64 * 1024
@@ -629,21 +629,44 @@ def _read_classic_eeglab_metadata(path: Path) -> tuple[dict[str, list[str]], boo
     return metadata, complete
 
 
-def _hdf5_text_values(node: object, h5py, limit: int = 100) -> list[str]:
+def _hdf5_matlab_class(node: object) -> str:
+    if "MATLAB_class" not in node.attrs:
+        return ""
+    attribute = node.attrs.get_id("MATLAB_class")
+    if attribute.shape != () or attribute.dtype.kind != "S" or attribute.dtype.itemsize > 32:
+        raise ValueError("Unbounded HDF5 class attribute is not inspected")
+    return node.attrs["MATLAB_class"].decode("ascii", errors="strict")
+
+
+def _hdf5_text_values(
+    node: object, h5py, limit: int = 100, *,
+    budget: dict[str, int] | None = None, excluded: set[int] | None = None,
+) -> list[str]:
     values: list[str] = []
     visited: set[int] = set()
+    if budget is None:
+        budget = {"bytes": _MATLAB_MAX_TEXT_BYTES, "elements": _MATLAB_MAX_TEXT_ELEMENTS,
+                  "nodes": _MATLAB_MAX_TEXT_VARIABLES}
+    excluded = excluded or set()
 
     def visit(item: object) -> None:
         if len(values) >= limit:
             return
+        try:
+            address = int(h5py.h5o.get_info(item.id).addr)
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            address = id(item)
+        if address in excluded or "data" in PurePosixPath(getattr(item, "name", "")).parts:
+            raise ValueError("HDF5 signal references are not inspected")
+        if address in visited:
+            return
+        visited.add(address)
+        budget["nodes"] -= 1
+        if budget["nodes"] < 0:
+            raise ValueError("HDF5 metadata node budget exceeded")
         if isinstance(item, h5py.Group):
-            try:
-                address = int(h5py.h5o.get_info(item.id).addr)
-            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-                address = id(item)
-            if address in visited:
-                return
-            visited.add(address)
+            if len(item) > _MATLAB_MAX_TEXT_VARIABLES:
+                raise ValueError("HDF5 metadata group budget exceeded")
             for name in sorted(item.keys()):
                 if name.casefold() == "data":
                     continue
@@ -651,14 +674,21 @@ def _hdf5_text_values(node: object, h5py, limit: int = 100) -> list[str]:
                 if isinstance(link, h5py.HardLink):
                     visit(item[name])
             return
-        if not isinstance(item, h5py.Dataset) or item.size > 10000:
+        if not isinstance(item, h5py.Dataset):
             return
         if item.is_virtual or item.external:
             raise ValueError("External or virtual HDF5 storage is not inspected")
-        matlab_class = item.attrs.get("MATLAB_class", b"")
-        if isinstance(matlab_class, bytes):
-            matlab_class = matlab_class.decode("ascii", errors="ignore")
         dtype = item.dtype
+        reference_type = h5py.check_dtype(ref=dtype)
+        if h5py.check_dtype(vlen=dtype) is not None or (
+            dtype.hasobject and reference_type is not h5py.Reference
+        ):
+            raise ValueError("Variable-length or unsupported HDF5 values are not inspected")
+        if item.size > budget["elements"] or item.nbytes > budget["bytes"]:
+            raise ValueError("HDF5 metadata byte or element budget exceeded")
+        budget["elements"] -= int(item.size)
+        budget["bytes"] -= int(item.nbytes)
+        matlab_class = _hdf5_matlab_class(item)
         if matlab_class == "char":
             data = item[()]
             chars = [chr(int(value)) for value in data.reshape(-1, order="F") if int(value)]
@@ -674,7 +704,10 @@ def _hdf5_text_values(node: object, h5py, limit: int = 100) -> list[str]:
             data = item[()]
             for reference in data.reshape(-1)[:limit]:
                 if reference:
-                    visit(item.file[reference])
+                    target = item.file[reference]
+                    if not target.name.startswith("/#refs#/"):
+                        raise ValueError("HDF5 reference is outside the MATLAB text pool")
+                    visit(target)
 
     visit(node)
     return values
@@ -689,6 +722,8 @@ def _read_hdf5_eeglab_metadata(path: Path) -> tuple[dict[str, list[str]], bool]:
         ) from error
 
     metadata: dict[str, list[str]] = {}
+    budget = {"bytes": _MATLAB_MAX_TEXT_BYTES, "elements": _MATLAB_MAX_TEXT_ELEMENTS,
+              "nodes": _MATLAB_MAX_TEXT_VARIABLES}
     with h5py.File(path, "r") as document:
         roots = [document]
         if "EEG" in document:
@@ -699,13 +734,27 @@ def _read_hdf5_eeglab_metadata(path: Path) -> tuple[dict[str, list[str]], bool]:
                 roots.append(document["EEG"])
             elif isinstance(link, h5py.ExternalLink):
                 metadata.setdefault("external_reference", []).append(link.filename)
+            else:
+                raise ValueError("Unknown HDF5 EEG-root layout is not inspected")
+        excluded = set()
+        for root in roots:
+            if "data" not in root:
+                continue
+            link = root.get("data", getlink=True)
+            if isinstance(link, h5py.SoftLink):
+                raise ValueError("Unknown HDF5 signal-link layout is not inspected")
+            if isinstance(link, h5py.HardLink):
+                signal = root["data"]
+                if not isinstance(signal, h5py.Dataset) or signal.dtype.hasobject:
+                    raise ValueError("Unknown HDF5 signal-group or reference layout is not inspected")
+                excluded.add(int(h5py.h5o.get_info(signal.id).addr))
         for field in sorted(_EEGLAB_TEXT_FIELDS):
             for root in roots:
                 if field in root:
                     link = root.get(field, getlink=True)
                     if isinstance(link, h5py.HardLink):
                         metadata.setdefault(field, []).extend(
-                            _hdf5_text_values(root[field], h5py)
+                            _hdf5_text_values(root[field], h5py, budget=budget, excluded=excluded)
                         )
                     elif isinstance(link, h5py.ExternalLink):
                         metadata.setdefault("external_reference", []).append(
@@ -902,9 +951,7 @@ def inspect_matlab_metadata(
                     limited_layouts += 1
                     continue
                 node = document[name]
-                matlab_class = node.attrs.get("MATLAB_class", b"")
-                if isinstance(matlab_class, bytes):
-                    matlab_class = matlab_class.decode("ascii", errors="ignore")
+                matlab_class = _hdf5_matlab_class(node)
                 findings.extend(
                     scan_text(
                         f"variable: {name}; class: {matlab_class}; "
@@ -1132,9 +1179,12 @@ def inspect_office_metadata(
             if total_text_bytes > _OFFICE_MAX_TEXT_BYTES:
                 raise ValueError("Office metadata exceeds the parsing limit")
             data = document.read(member)
-            upper = data.upper()
-            if any(marker in upper for marker in _OFFICE_XML_DECLARATIONS):
+            def refuse_doctype(*_args: object) -> None:
                 raise ValueError("Office metadata contains a forbidden XML declaration")
+
+            xml_guard = expat.ParserCreate()
+            xml_guard.StartDoctypeDeclHandler = refuse_doctype
+            xml_guard.Parse(data, True)
             root = ElementTree.fromstring(data)
             if lower.endswith(".rels"):
                 for relationship in root.iter():
